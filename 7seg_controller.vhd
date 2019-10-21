@@ -29,7 +29,7 @@ end entity;
 
 architecture bhv of controller is
 	begin
-	segments(3) <= code_for_7seg(0xE);--"E" for exponent
+	segments(3) <= code_for_7seg(to_integer(x"E"));--"E" for exponent
 	
 	segments(2) <= negative & "000000";-- "-" when exponent is negative
 	

@@ -15,8 +15,7 @@ use work.my_types.all;
 entity processor_demo is
 port (CLK: in std_logic;
 		rst: in std_logic;
-		data_memory_output: buffer std_logic_vector(31 downto 0);
-		instruction_addr: out std_logic_vector (31 downto 0)--AKA read address
+		segments: out array7(0 to 7)--signals to control 8 displays of 7 segments
 );
 end entity;
 
@@ -46,7 +45,34 @@ port (CLK: in std_logic;
 );
 end component;
 
-	begin
+signal data_memory_output: std_logic_vector(31 downto 0);--number
+signal instruction_addr: std_logic_vector(31 downto 0);
+signal mantissa: array4(0 to 3);--digits encoded in 4 bits 
+signal negative: std_logic;
+signal exponent: array4(0 to 1);--absolute value of the exponent
 
+	begin
+	
+	processor: microprocessor port map (
+		CLK => CLK,
+		rst => rst,
+		data_memory_output => data_memory_output,
+		instruction_addr => instruction_addr
+	);
+
+	converter: decimal_converter port map(
+		instruction_addr => instruction_addr,
+		data_memory_output=>data_memory_output,
+		mantissa => mantissa,
+		negative => negative,
+		exponent => exponent
+	);
+	
+	controller_7seg: controller port map(
+		mantissa => mantissa,--digits encoded in 4 bits 
+		negative => negative,
+		exponent => exponent,--absolute value of the exponent
+		segments => segments--signals to control 8 displays of 7 segments
+	);
 
 end setup;
