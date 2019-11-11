@@ -20,19 +20,25 @@ use ieee.numeric_std.all;--to_integer
 use work.my_types.all;--for type array4, array7
 
 entity controller is
-port(	mantissa: in array4(0 to 3);--digits encoded in 4 bits 
+port(	mantissa: in array4(0 to 6);--digits encoded in 4 bits 
 		negative: in std_logic;
-		exponent: in array4(0 to 1);--absolute value of the exponent
+		en_7seg: in std_logic;--enables the 7 seg display
+--		exponent: in array4(0 to 1);--absolute value of the exponent
 		segments: out array7(0 to 7)--signals to control 8 displays of 7 segments
 );
 end entity;
 
 architecture bhv of controller is
 	begin
-	segments(3) <= code_for_7seg(to_integer(x"E"));--"E" for exponent
-	
-	segments(2) <= negative & "000000";-- "-" when exponent is negative
-	
-	
+
+		segments(7) <= (not negative) & "111111" when en_7seg = '1' else "1111111";-- "-" when exponent is negative
+		
+		segments(0) <=	not code_for_7seg(to_integer(unsigned(mantissa(0)))) when en_7seg = '1' else "1111111";
+		segments(1) <=	not code_for_7seg(to_integer(unsigned(mantissa(1)))) when en_7seg = '1' else "1111111";
+		segments(2) <=	not code_for_7seg(to_integer(unsigned(mantissa(2)))) when en_7seg = '1' else "1111111";
+		segments(3) <=	not code_for_7seg(to_integer(unsigned(mantissa(3)))) when en_7seg = '1' else "1111111";
+		segments(4) <=	not code_for_7seg(to_integer(unsigned(mantissa(4)))) when en_7seg = '1' else "1111111";
+		segments(5) <=	not code_for_7seg(to_integer(unsigned(mantissa(5)))) when en_7seg = '1' else "1111111";
+		segments(6) <=	not code_for_7seg(to_integer(unsigned(mantissa(6)))) when en_7seg = '1' else "1111111";
 
 end bhv;
