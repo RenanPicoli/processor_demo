@@ -24,8 +24,7 @@ architecture setup of processor_demo is
 component decimal_converter --NOTE: it needs 24+3 clock cycles to perform continuous conversion
 port(	instruction_addr: in std_logic_vector(31 downto 0);
 		data_memory_output: in std_logic_vector(31 downto 0);
-		mantissa: out array4(0 to 6);--digits encoded in 4 bits 
-		negative: out std_logic;
+		mantissa: out array4(0 to 7);--digits encoded in 4 bits 
 		en_7seg: out std_logic;--enables the 7 seg display
 --		exponent: out array4(0 to 1);--absolute value of the exponent
 		
@@ -38,8 +37,7 @@ port(	instruction_addr: in std_logic_vector(31 downto 0);
 end component;
 
 component controller
-port(	mantissa: in array4(0 to 6);--digits encoded in 4 bits 
-		negative: in std_logic;
+port(	mantissa: in array4(0 to 7);--digits encoded in 4 bits 
 		en_7seg: in std_logic;--enables the 7 seg display
 --		exponent: in array4(0 to 1);--absolute value of the exponent
 		segments: out array7(0 to 7)--signals to control 8 displays of 7 segments
@@ -56,8 +54,7 @@ end component;
 
 signal data_memory_output: std_logic_vector(31 downto 0);--number
 signal instruction_addr: std_logic_vector(31 downto 0);
-signal mantissa: array4(0 to 6);--digits encoded in 4 bits 
-signal negative: std_logic;
+signal mantissa: array4(0 to 7);--digits encoded in 4 bits 
 signal exponent: array4(0 to 1);--absolute value of the exponent
 
 signal busy: std_logic;
@@ -79,7 +76,6 @@ signal count: std_logic_vector(29 downto 0) := (others=>'0');
 		instruction_addr => instruction_addr,
 		data_memory_output=>data_memory_output,
 		mantissa => mantissa,
-		negative => negative,
 		en_7seg => en_7seg,
 --		exponent => exponent,
 		
@@ -92,7 +88,6 @@ signal count: std_logic_vector(29 downto 0) := (others=>'0');
 	
 	controller_7seg: controller port map(
 		mantissa => mantissa,--digits encoded in 4 bits 
-		negative => negative,
 		en_7seg => en_7seg,
 --		exponent => exponent,--absolute value of the exponent
 		segments => segments--signals to control 8 displays of 7 segments

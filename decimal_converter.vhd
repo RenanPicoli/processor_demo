@@ -23,8 +23,7 @@ entity decimal_converter is
 
 port(	instruction_addr: in std_logic_vector(31 downto 0);
 		data_memory_output: in std_logic_vector(31 downto 0);
-		mantissa: out array4(0 to 6);--digits encoded in 4 bits 
-		negative: out std_logic;
+		mantissa: out array4(0 to 7);--digits encoded in 4 bits 
 		en_7seg: out std_logic;--enables the 7 seg display
 --		exponent: out array4(0 to 1);--absolute value of the exponent
 		
@@ -73,16 +72,17 @@ begin
 	begin
 		case instruction_addr is
 		when x"00000028" =>--10th instruction
-			mantissa(6) <= "000" & data_memory_output(30);
-			mantissa(5) <= "000" & data_memory_output(29);
-			mantissa(4) <= "000" & data_memory_output(28);
-			mantissa(3) <= "000" & data_memory_output(27);
-			mantissa(2) <= "000" & data_memory_output(26);
-			mantissa(1) <= "000" & data_memory_output(25);
-			mantissa(0) <= "000" & data_memory_output(24);
-			negative <= data_memory_output(31);
+			mantissa(7) <= data_memory_output(31 downto 28);
+			mantissa(6) <= data_memory_output(27 downto 24);
+			mantissa(5) <= data_memory_output(23 downto 20);
+			mantissa(4) <= data_memory_output(19 downto 16);
+			mantissa(3) <= data_memory_output(15 downto 12);
+			mantissa(2) <= data_memory_output(11 downto 8);
+			mantissa(1) <= data_memory_output(7 downto 4);
+			mantissa(0) <= data_memory_output(3 downto 0);
 		when others =>
 			--mantissa representa agora o endereço da instrução
+			mantissa(7) <= instruction_addr(31 downto 28);
 			mantissa(6) <= instruction_addr(27 downto 24);
 			mantissa(5) <= instruction_addr(23 downto 20);
 			mantissa(4) <= instruction_addr(19 downto 16);
