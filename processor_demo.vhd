@@ -10,7 +10,7 @@ use ieee.numeric_std.all;--to_integer
 
 use work.my_types.all;
 
----------------------------------------------------
+-------------------------------------------------------------
 
 entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
@@ -48,8 +48,17 @@ component microprocessor
 port (CLK: in std_logic;
 		rst: in std_logic;
 		data_memory_output: buffer std_logic_vector(31 downto 0);
-		instruction_addr: out std_logic_vector (31 downto 0)--AKA read address
+		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
+		ADDR_rom: out std_logic_vector(4 downto 0);--addr é endereço de byte, mas os Lsb são 00
+		Q_rom:	in std_logic_vector(31 downto 0)
 );
+end component;
+
+component mini_rom
+	port (--CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+			ADDR: in std_logic_vector(4 downto 0);--addr é endereço de byte, mas os Lsb são 00
+			Q:	out std_logic_vector(31 downto 0)
+			);
 end component;
 
 signal data_memory_output: std_logic_vector(31 downto 0);--number
@@ -63,13 +72,23 @@ signal en_7seg: std_logic;
 signal CLK: std_logic := '0';
 signal count: std_logic_vector(29 downto 0) := (others=>'0');
 
+signal instruction_memory_output: std_logic_vector(31 downto 0);
+signal instruction_memory_address: std_logic_vector(4 downto 0);
+
 	begin
+	
+	rom: mini_rom port map(	--CLK => CLK,
+									ADDR=> instruction_memory_address,
+									Q	 => instruction_memory_output
+	);	
 	
 	processor: microprocessor port map (
 		CLK => CLK,
 		rst => rst,
 		data_memory_output => data_memory_output,
-		instruction_addr => instruction_addr
+		instruction_addr => instruction_addr,
+		ADDR_rom => instruction_memory_address,
+		Q_rom => instruction_memory_output
 	);
 
 	converter: decimal_converter port map(
