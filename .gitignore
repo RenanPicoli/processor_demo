@@ -1,0 +1,11 @@
+*.bak
+*.m
+*.txt
+output_files/
+incremental_db/
+greybox_tmp/
+db/
+atom_netlists/
+*.qsf
+*.rpt
+simulation/
