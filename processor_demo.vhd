@@ -56,9 +56,9 @@ port (CLK: in std_logic;
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
-		fill_cache_ram: out std_logic;
 		rden_ram: out std_logic;--habilita leitura
 		wren_ram: out std_logic;--habilita escrita
+		send_cache_request: out std_logic;
 		Q_ram:in std_logic_vector(31 downto 0)
 );
 end component;
@@ -92,6 +92,16 @@ component parallel_load_cache
 			wren: in std_logic;--habilita escrita
 			Q:	out std_logic_vector(31 downto 0)
 			);
+end component;
+
+component mmu
+generic (F: integer);--fifo depth
+port (CLK: in std_logic;--same clock of processor
+		rst: in std_logic;
+		receive_cache_request: in std_logic;
+		fifo_valid:  in std_logic_vector(F-1 downto 0);--1 means a valid data
+		fill_cache:  out std_logic
+);
 end component;
 
 component prescaler
@@ -131,6 +141,8 @@ signal fifo_input: std_logic_vector (31 downto 0);
 signal fifo_output: array32 (0 to F-1);
 signal fifo_valid: std_logic_vector(F-1 downto 0);
 
+signal send_cache_request: std_logic;
+
 	begin
 	
 	rom: mini_rom port map(	--CLK => CLK,
@@ -158,6 +170,15 @@ signal fifo_valid: std_logic_vector(F-1 downto 0);
 												rden	=> ram_rden,
 												wren	=> ram_wren,
 												Q		=> ram_Q);
+												
+	memory_management_unit:
+	mmu generic map (F => F)
+	port map(CLK => CLK,
+				rst => rst,
+				receive_cache_request => send_cache_request,
+				fifo_valid => fifo_valid,
+				fill_cache => ram_fill_cache
+	);
 	
 	processor: microprocessor
 	generic map (N => N)
@@ -170,9 +191,9 @@ signal fifo_valid: std_logic_vector(F-1 downto 0);
 		Q_rom => instruction_memory_output,
 		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
-		fill_cache_ram => ram_fill_cache,
 		rden_ram => ram_rden,
 		wren_ram => ram_wren,
+		send_cache_request => send_cache_request,
 		Q_ram => ram_Q
 	);
 
