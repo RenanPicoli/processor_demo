@@ -28,19 +28,27 @@ begin
 	process(CLK_IN,CLK,count)
 	begin
 		if(CLK_IN'event and CLK_IN='1') then
-			if (rst = '1') then
-				CLK <= '0';
-				count <= (others => '0');
-			else
-				if (count = factor/2) then
-					CLK <= not CLK;
+--			if (rst = '1') then
+--				CLK <= '0';
+--				count <= (others => '0');
+--			else
+
+				if(count + 1 = factor)then
 					count <= (others => '0');
 				else
-					
-					CLK <= CLK;
 					count <= count + 1;
 				end if;
-			end if;
+					
+--			end if;
+		end if;
+		
+		if (count < factor/2) then
+			CLK <= '0';
+--					count <= (others => '0');
+		else
+			
+			CLK <= '1';
+
 		end if;
 
 	end process;

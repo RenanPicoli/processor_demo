@@ -10,12 +10,13 @@ use work.my_types.all;
 --TODO: adicionar controle para operar shift left se desejado
 --TODO: habilitar auto-load
 entity shift_register is
-	generic (N: integer);--number of stages
+	generic (N: integer; OS: integer);--number of stages and number of stages in the output, respectively.
 	port (CLK: in std_logic;
 			rst: in std_logic;
 			D: in std_logic_vector (31 downto 0);
-			Q: out array32 (0 to N-1);
-			valid: buffer std_logic_vector (N-1 downto 0));--for memory manager use
+--			invalidate_output: in std_logic;
+			Q: out array32 (0 to OS-1));
+--			valid: buffer std_logic_vector (N-1 downto 0):=(others=>'0'));--for memory manager use
 end shift_register;
 
 architecture bhv of shift_register is
@@ -25,21 +26,28 @@ architecture bhv of shift_register is
 		begin
 		if CLK'event and CLK='1' then
 			if rst = '0' then
-
-				for i in 0 to N-2 loop
+			
+				--variable assignments take place immediately and order matters!!!
+				for i in 0 to OS-1 loop
 					O(i) := O(i+1);
-					valid(i) <= valid(i+1);
+--					valid(i) <= valid(i+1) and (not invalidate_output);
 				end loop;
+
+				for i in OS to N-2 loop
+					O(i) := O(i+1);
+--					valid(i) <= valid(i+1);
+				end loop;
+
 				O(N-1) := D;
-				valid(N-1) <= '1';-- '1' means valid data
+--				valid(N-1) <= '1';-- '1' means valid data
 				
 			else --TODO: load from bus
 			
 				O := (others => (others => '0'));
-				valid <= (others => '0');-- '0' means invalid data
+--				valid <= (others => '0');-- '0' means invalid data
 
 			end if;
 		end if;
-		Q <= O;--LSB first
+		Q <= O(0 to OS-1);--LSB first
 	end process;
 end bhv;
