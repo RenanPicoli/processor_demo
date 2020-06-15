@@ -53,8 +53,9 @@ port (CLK_IN: in std_logic;
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
-		rden_ram: out std_logic;--habilita leitura
-		wren_ram: out std_logic;--habilita escrita
+		rden_ram: out std_logic;--habilita leitura na ram
+		wren_ram: out std_logic;--habilita escrita na ram
+		wren_filter: out std_logic;--habilita escrita nos coeficientes do filtro
 		send_cache_request: out std_logic;
 		Q_ram:in std_logic_vector(31 downto 0)
 );
@@ -93,21 +94,21 @@ component parallel_load_cache
 end component;
 
 component mmu
-generic (N: integer; F: integer);--total number of fifo stages and fifo output stage depth, respectively
-port (
-out_fifo_full: 	out std_logic_vector(1 downto 0):= "00";
-out_cache_request: out	std_logic:= '0';
-out_fifo_out_isempty: out std_logic:= '1';--'1' means fifo output stage is empty
-		CLK: in std_logic;--same clock of processor
-		CLK_fifo: in std_logic;--fifo clock
-		rst: in std_logic;
-		receive_cache_request: in std_logic;
---		fifo_valid:  in std_logic_vector(F-1 downto 0);--1 means a valid data
-		iack: in std_logic;
-		irq: out std_logic;--data sent
-		invalidate_output: buffer std_logic;--invalidate memmory positions after parallel transfer
-		fill_cache:  out std_logic
-);
+	generic (N: integer; F: integer);--total number of fifo stages and fifo output stage depth, respectively
+	port (
+	out_fifo_full: 	out std_logic_vector(1 downto 0):= "00";
+	out_cache_request: out	std_logic:= '0';
+	out_fifo_out_isempty: out std_logic:= '1';--'1' means fifo output stage is empty
+			CLK: in std_logic;--same clock of processor
+			CLK_fifo: in std_logic;--fifo clock
+			rst: in std_logic;
+			receive_cache_request: in std_logic;
+	--		fifo_valid:  in std_logic_vector(F-1 downto 0);--1 means a valid data
+			iack: in std_logic;
+			irq: out std_logic;--data sent
+			invalidate_output: buffer std_logic;--invalidate memmory positions after parallel transfer
+			fill_cache:  out std_logic
+	);
 end component;
 
 component prescaler
@@ -117,6 +118,47 @@ component prescaler
 			CLK_OUT: out std_logic--output clock
 	);
 end component;
+
+component generic_coeffs_mem
+	-- 0..P: índices dos coeficientes de x (b)
+	-- 1..Q: índices dos coeficientes de y (a)
+	generic	(P: natural; Q: natural);
+	port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é carregado por vez
+			ADDR: in std_logic_vector(4 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
+			RST:	in std_logic;--synchronous reset
+			WREN:	in std_logic;--write enable
+			CLK:	in std_logic;
+			Q_coeffs:	out std_logic_vector(32*(P+Q+1)-1 downto 0)-- todos os coeficientes são lidos de uma vez
+	);
+
+end component;
+
+---------------------------------------------------
+
+component filter
+	-- 0..P: índices dos coeficientes de x (b)
+	-- 1..Q: índices dos coeficientes de y (a)
+	generic	(P: natural; Q: natural);
+	port(	input:	in std_logic_vector(31 downto 0);-- input
+			RST:	in std_logic;--synchronous reset
+			WREN:	in std_logic;--enables writing on coefficients
+			CLK:	in std_logic;--sampling clock
+			Q_coeffs:	in std_logic_vector(32*(P+Q+1)-1 downto 0);-- todos os coeficientes são lidos de uma vez
+			output: out std_logic_vector(31 downto 0)-- output
+	);
+
+end component;
+
+---------------------------------------------------
+
+component wren_ctrl
+	port (input: in std_logic;--input able of asynchronously setting the output
+			CLK: in std_logic;--synchronously resets output
+			output: out std_logic := '0'--output clock
+	);
+end component;
+
+---------------------------------------------------
 
 --signal instruction_addr: std_logic_vector(31 downto 0);
 signal mantissa: array4(0 to 7);--digits encoded in 4 bits 
@@ -144,9 +186,20 @@ signal fifo_input: std_logic_vector (31 downto 0);
 signal fifo_output: array32 (0 to (2**N)-1);
 --signal fifo_valid: std_logic_vector(F-1 downto 0);
 signal fifo_invalidate_output: std_logic;
+--signals for coefficients memory----------------------------
+constant P: natural := 5;
+constant Q: natural := 5;
+signal coefficients: std_logic_vector(32*(P+Q+1)-1 downto 0);
+signal coeffs_mem_wren: std_logic;
 
+
+signal proc_ram_wren: std_logic;
+signal proc_filter_wren: std_logic;
+signal filter_wren: std_logic;
+signal filter_CLK: std_logic;
 signal send_cache_request: std_logic;
-
+signal processor_ram_addr: std_logic_vector(N downto 0);
+signal ram_or_coeffs: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
 
@@ -185,15 +238,37 @@ signal iack: std_logic;
 				CLK_fifo => fifo_clock,
 				rst => rst,
 				receive_cache_request => send_cache_request,
---				fifo_valid => fifo_valid(((2**N)-1) downto 0),
 				iack => iack,
 				irq => irq,
 				invalidate_output => fifo_invalidate_output,
 				fill_cache => ram_fill_cache
 	);
 	
+	coeffs_mem: generic_coeffs_mem generic map (P => P,Q => Q)
+									port map(D => ram_write_data,
+												ADDR	=> ram_addr,
+												RST => rst,
+												WREN	=> coeffs_mem_wren,
+												CLK	=> ram_clk,
+												Q_coeffs => coefficients
+												);
+												
+	IIR_filter: filter 	generic map (P => P, Q => Q)
+								port map(input => data_in,-- input
+											RST => rst,--synchronous reset
+											WREN => filter_wren,--enables writing on coefficients
+											CLK => filter_CLK,--sampling clock
+											Q_coeffs => coefficients-- todos os coeficientes são lidos de uma vez
+--											output => -- output											
+											);
+											
+	wren_control: wren_ctrl port map (input => proc_filter_wren,
+												 CLK => filter_CLK,
+												 output => filter_wren
+												);
+	
 	processor: microprocessor
-	generic map (N => N)
+	generic map (N => N+1)
 	port map (
 		CLK_IN => CLK,
 		rst => rst,
@@ -202,13 +277,25 @@ signal iack: std_logic;
 		instruction_addr => instruction_addr,
 		ADDR_rom => instruction_memory_address,
 		Q_rom => instruction_memory_output,
-		ADDR_ram => ram_addr,
+		ADDR_ram => processor_ram_addr,
 		write_data_ram => ram_write_data,
 		rden_ram => ram_rden,
-		wren_ram => ram_wren,
+		wren_ram => proc_ram_wren,
+		wren_filter => proc_filter_wren,
 		send_cache_request => send_cache_request,
 		Q_ram => ram_Q
 	);
+	
+	ram_or_coeffs <= processor_ram_addr(N);
+	ram_addr <= processor_ram_addr(N-1 downto 0);
+	--decides if write is intended on ram or coefficients memory
+	coeffs_mem_wren <= 	proc_ram_wren when (ram_or_coeffs = '1') else-- upper half of ram: coefficients memory
+								'0';-- lower half of ram: ordinary data
+	
+	ram_wren <= proc_ram_wren when (ram_or_coeffs = '0') else-- lower half of ram: ordinary data
+					'0';-- upper half of ram: coefficients memory
+
+					
 	
 	--32h38=56=4*14=15ª instrução: instrução que faz load do resultado do filtro, CONFERIR em mini_rom.
 	data_out <= ram_Q when instruction_addr=x"00000038" else (others=>'Z');
