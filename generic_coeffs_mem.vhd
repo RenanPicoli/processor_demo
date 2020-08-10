@@ -30,12 +30,19 @@ end generic_coeffs_mem;
 
 architecture behv of generic_coeffs_mem is
 
-	constant initial_values: array32 (0 to P+Q) := (
+--	constant initial_values: array32 (0 to P+Q) := (
+--		0 => x"3F00_0000",-- a0
+--		P+1 => x"BF00_0000",-- b1
+--		others 	=> x"0000_0000"
+--	);
+--	
+	type memory is array (0 to P+Q) of std_logic_vector(31 downto 0);
+	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
+	signal possible_outputs: memory := (
+		0 => x"3F00_0000",-- a0
+		P+1 => x"BF00_0000",-- b1
 		others 	=> x"0000_0000"
 	);
-	
-	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
-	signal possible_outputs: array32 (0 to P+Q) := initial_values;
 	
 begin					   
 

@@ -17,8 +17,11 @@ port (CLK_IN: in std_logic;--50MHz input
 		rst: in std_logic;
 		data_in: in std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
 		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
-		instruction_addr: buffer std_logic_vector(31 downto 0);
-		segments: out array7(0 to 7)--signals to control 8 displays of 7 segments
+		filter_CLK: inout std_logic;--filter sampling clock
+		alternative_filter_CLK: in std_logic;--alternative input clock (for simulation purpose)
+		use_alt_filter_clk: in std_logic;-- '1' uses alternative  clock; '0' uses pll
+		instruction_addr: buffer std_logic_vector(31 downto 0)
+--		segments: out array7(0 to 7)--signals to control 8 displays of 7 segments
 );
 end entity;
 
@@ -139,7 +142,7 @@ component filter
 	-- 0..P: índices dos coeficientes de x (b)
 	-- 1..Q: índices dos coeficientes de y (a)
 	generic	(P: natural; Q: natural);
-	port(	input:	in std_logic_vector(31 downto 0);-- input
+	port(	input:in std_logic_vector(31 downto 0);-- input
 			RST:	in std_logic;--synchronous reset
 			WREN:	in std_logic;--enables writing on coefficients
 			CLK:	in std_logic;--sampling clock
@@ -160,12 +163,25 @@ end component;
 
 ---------------------------------------------------
 
+component pll
+	port (areset: in std_logic  := '0';
+			inclk0: in std_logic  := '0';
+			c0		: out std_logic ;
+			locked: out std_logic
+	);
+end component;
+
+---------------------------------------------------
+
 --signal instruction_addr: std_logic_vector(31 downto 0);
 signal mantissa: array4(0 to 7);--digits encoded in 4 bits 
 
 signal en_7seg: std_logic;
 
 signal CLK: std_logic;--clock for processor and cache
+signal CLK5MHz: std_logic;--clock input for PLL
+signal CLK220_5kHz: std_logic;--clock output for PLL
+signal CLK22_05kHz: std_logic;-- 22.05kHz clock
 -----------signals for ROM interfacing---------------------
 signal instruction_memory_output: std_logic_vector(31 downto 0);
 signal instruction_memory_address: std_logic_vector(4 downto 0);
@@ -192,11 +208,10 @@ constant Q: natural := 5;
 signal coefficients: std_logic_vector(32*(P+Q+1)-1 downto 0);
 signal coeffs_mem_wren: std_logic;
 
-
 signal proc_ram_wren: std_logic;
 signal proc_filter_wren: std_logic;
 signal filter_wren: std_logic;
-signal filter_CLK: std_logic;
+--signal filter_CLK: std_logic;
 signal send_cache_request: std_logic;
 signal processor_ram_addr: std_logic_vector(N downto 0);
 signal ram_or_coeffs: std_logic;
@@ -253,13 +268,14 @@ signal iack: std_logic;
 												Q_coeffs => coefficients
 												);
 												
+	filter_CLK <= alternative_filter_CLK when (use_alt_filter_clk = '1') else CLK22_05kHz;
 	IIR_filter: filter 	generic map (P => P, Q => Q)
 								port map(input => data_in,-- input
 											RST => rst,--synchronous reset
 											WREN => filter_wren,--enables writing on coefficients
 											CLK => filter_CLK,--sampling clock
-											Q_coeffs => coefficients-- todos os coeficientes são lidos de uma vez
---											output => -- output											
+											Q_coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
+											output => data_out											
 											);
 											
 	wren_control: wren_ctrl port map (input => proc_filter_wren,
@@ -295,23 +311,18 @@ signal iack: std_logic;
 	ram_wren <= proc_ram_wren when (ram_or_coeffs = '0') else-- lower half of ram: ordinary data
 					'0';-- upper half of ram: coefficients memory
 
-					
-	
-	--32h38=56=4*14=15ª instrução: instrução que faz load do resultado do filtro, CONFERIR em mini_rom.
-	data_out <= ram_Q when instruction_addr=x"00000038" else (others=>'Z');
-
-	converter: decimal_converter port map(
-		instruction_addr => instruction_addr,
-		data_memory_output=>ram_Q,
-		mantissa => mantissa,
-		en_7seg => en_7seg
-	);
-	
-	controller_7seg: controller port map(
-		mantissa => mantissa,--digits encoded in 4 bits 
-		en_7seg => en_7seg,
-		segments => segments--signals to control 8 displays of 7 segments
-	);
+--	converter: decimal_converter port map(
+--		instruction_addr => instruction_addr,
+--		data_memory_output=>ram_Q,
+--		mantissa => mantissa,
+--		en_7seg => en_7seg
+--	);
+--	
+--	controller_7seg: controller port map(
+--		mantissa => mantissa,--digits encoded in 4 bits 
+--		en_7seg => en_7seg,
+--		segments => segments--signals to control 8 displays of 7 segments
+--	);
 
 	--são 9 instruções para cada dado em cache, clock do processador precisa ser pelo menos 9x mais rápido
 	--produces 10MHz clock (processor and cache) from 50MHz input
@@ -329,4 +340,28 @@ signal iack: std_logic;
 	CLK_IN => CLK_IN,
 	rst => rst,
 	CLK_OUT => fifo_clock);
+	
+	--produces 5MHz clock (processor and cache) from 50MHz input
+	clk_5MHz: prescaler
+	generic map (factor => 10)
+	port map (
+	CLK_IN => CLK_IN,
+	rst => rst,
+	CLK_OUT => CLK5MHz);
+	
+	--produces 220.5kHz clock
+	pll_22_05kHz: pll
+	port map (
+	inclk0 => CLK5MHz,
+	areset => rst,
+	c0 => CLK220_5kHz
+	);
+	
+	--produces 22050Hz clock (sampling frequency) from 220.5kMHz input
+	clk_22_05kHz: prescaler
+	generic map (factor => 10)
+	port map (
+	CLK_IN => CLK220_5kHz,
+	rst => rst,
+	CLK_OUT => CLK22_05kHz);
 end setup;
