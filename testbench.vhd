@@ -17,8 +17,8 @@ architecture test of testbench is
 constant TIME_DELTA : time := 44 us;
 constant fs : integer := 22050;--frequência de amostragem do filtro
 
---reset duration must be long enough to be perceived by the slowest clock (fifo)
-constant TIME_RST : time := 1500 ns;
+--reset duration must be long enough to be perceived by the slowest clock (fiter clock, both polarities)
+constant TIME_RST : time := 33 us;
 
 signal  	CLK_IN:std_logic;--50MHz
 signal	rst: std_logic;
@@ -68,8 +68,9 @@ begin
 		file_open(input_file,"input_vectors.txt",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
 		
 		wait for TIME_RST;--wait until reset finishes
-		wait until filter_CLK ='1';-- waits until the first rising edge after reset
-		wait for (TIME_DELTA/2);-- additional delay (rising edge of sampling will be in the middle of sample)
+--		wait until filter_CLK ='1';-- waits until the first rising edge after reset
+--		wait for (TIME_DELTA/2);-- additional delay (rising edge of sampling will be in the middle of sample)
+		wait until filter_CLK ='0';-- waits for first falling EDGE after reset
 		
 		while not endfile(input_file) loop
 			readline(input_file,v_iline);--lê uma linha

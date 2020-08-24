@@ -157,7 +157,7 @@ end component;
 component wren_ctrl
 	port (input: in std_logic;--input able of asynchronously setting the output
 			CLK: in std_logic;--synchronously resets output
-			output: out std_logic := '0'--output clock
+			output: inout std_logic := '0'--output clock
 	);
 end component;
 

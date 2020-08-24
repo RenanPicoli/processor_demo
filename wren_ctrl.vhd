@@ -17,7 +17,7 @@ use work.my_types.all;
 entity wren_ctrl is
 port (input: in std_logic;--input able of asynchronously setting the output
 		CLK: in std_logic;--synchronously resets output
-		output: out std_logic := '0'--output (enables write on filter coefficients)
+		output: inout std_logic := '0'--output (enables write on filter coefficients)
 );
 end entity;
 
@@ -27,7 +27,7 @@ signal output_s: std_logic:='0';
 signal output_r: std_logic:='0';
 
 begin
-	set: process (input, count, output_s)
+	set: process (input, output_r)
 	begin
 		if (input'event and input='1') then--output is set
 			output_s <= '1';
@@ -48,7 +48,7 @@ begin
 		end if;
 	end process count_up;
 
-	reset: process (count, output, CLK)
+	reset: process (count, input, CLK)
 	begin
 		if (CLK'event and CLK='0') then
 			if (count = "1") then

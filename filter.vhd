@@ -77,7 +77,9 @@ architecture behv of filter is
 	signal prod_feedback: array32 (0 to Q);--results of products in feedback part
 	signal a: array32 (1 to Q) := (others=>(others=>'0'));--"a" coefficients (feedback part)
 	signal b: array32 (0 to P) := (others=>(others=>'0'));--"b" coefficients (feed forward part)
-	
+	signal d_ff_y_CLK: std_logic;-- necessary delay between sampling x and y (since changing x will change y)
+										  -- it's necessary necessary defining a signal instead of using not CLK because of modelsim (VHDL wouldn't complain)
+	signal output_signal: std_logic_vector(31 downto 0);
 begin					   
 ---------- x signal flip flops --------------------------------------------------------------
 	--samples input
@@ -96,20 +98,30 @@ begin
 	end generate;
 	
 ---------- y signal flip flops --------------------------------------------------------------
-	d_ff_y0: d_flip_flop port map(	D => sum_feedback(0),
-												RST=> RST,--resets all previous history of input signal
-												CLK=> (not CLK),--sampling clock
-												Q=> y(0)
-												);
+	d_ff_y_CLK <= not CLK;-- necessary delay between sampling x and y (since changing x will change y)
+								 -- it's necessary defining a signal instead of using not CLK because of modelsim (VHDL wouldn't complain) 
+--	d_ff_y0: d_flip_flop port map(	D => sum_feedback(0),
+--												RST=> RST,--resets all previous history of output signal
+--												CLK=> d_ff_y_CLK,--sampling clock
+--												Q=> y(0)
+--												);
+--	d_ff_y0: d_flip_flop port map(	D => y(0),
+--												RST=> RST,--resets all previous history of output signal
+--												CLK=> d_ff_y_CLK,--sampling clock
+--												Q=> output
+--												);
+												
 												
 	y_j: for j in 1 to Q generate-- y[n-j]
 		d_ff_y: d_flip_flop port map(	D => y(j-1),
 												RST=> RST,--resets all previous history of output signal
-												CLK=> (not CLK),--sampling clock
+												CLK=> d_ff_y_CLK,--sampling clock
 												Q=> y(j)
 												);
 	end generate;
-	output <= y(0);--y[n];
+	y(0) <= sum_feedback(0);--I did this because there y(0) does not need a ff
+	output_signal <= y(0) when CLK='1' else output_signal;--y[n];-- LATCH IS INTENDED !
+	output <= output_signal;
 	
 ---------- feed-forward (bi*x[n-i]) adders --------------------------------------------------
 	sum_i: for i in 0 to P-1 generate

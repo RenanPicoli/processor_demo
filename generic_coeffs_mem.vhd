@@ -36,13 +36,23 @@ architecture behv of generic_coeffs_mem is
 --		others 	=> x"0000_0000"
 --	);
 --	
+
 	type memory is array (0 to P+Q) of std_logic_vector(31 downto 0);
 	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
-	signal possible_outputs: memory := (
-		0 => x"3F00_0000",-- a0
-		P+1 => x"BF00_0000",-- b1
-		others 	=> x"0000_0000"
-	);
+--	signal possible_outputs: memory := (
+--		0 => x"3F00_0000",-- a0
+--		P+1 => x"BF00_0000",-- b1
+--		others 	=> x"0000_0000"
+--	);
+	-- generates initial values of possible_outputs signal
+	function initial_values return memory is
+		variable retval: memory := (others => x"0000_0000");
+	begin
+		retval (0) := x"3F00_0000";-- b0: 0.5
+		retval (P+1) := x"BF00_0000";-- a1: -0.5
+		return retval;		
+	end function;
+	signal possible_outputs: memory := initial_values;
 	
 begin					   
 
@@ -51,7 +61,7 @@ begin
 
 	if (CLK'event and CLK = '1') then
 		if (RST='1') then
-			possible_outputs <= (others=>(others=>'0'));
+--			possible_outputs <= (others=>(others=>'0'));
 		elsif (WREN ='1') then
 			possible_outputs(to_integer(unsigned(ADDR))) <= D;
 		end if;
