@@ -1,5 +1,4 @@
 *.bak
-*.m
 *.txt
 output_files/
 incremental_db/

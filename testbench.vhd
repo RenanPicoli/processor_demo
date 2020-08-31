@@ -33,11 +33,11 @@ constant c_WIDTH : natural := 4;
 file 		input_file: text;-- open read_mode;--estrutura representando arquivo de entrada de dados
 file 		output_file: text;-- open write_mode;--estrutura representando arquivo de saída de dados
 
-signal count: integer := 0;-- para sincronização da apresentação de amostras
+--signal count: integer := 0;-- para sincronização da apresentação de amostras
 constant COUNT_MAX: integer := 
 integer(floor(real(real(fs)*real(TIME_DELTA/1 us)/1000000.0)/real(2.0*(1.0-real(fs)*real(TIME_DELTA/1 us)/1000000.0))));
 
-constant FILTER_CLK_SEMIPERIOD: time := 22675737 ps;--maximum precision allowed by vhdl would be fs, but constant wouldnt fit an integer
+constant FILTER_CLK_SEMIPERIOD: time := 22_675_736.961 ps;--maximum precision allowed by vhdl would be fs, but constant wouldnt fit an integer
 signal use_alt_filter_clk: std_logic;
 
 begin
@@ -64,6 +64,8 @@ begin
 		variable v_space: character;--stores the white space used to separate 2 arguments
 		variable v_A: std_logic_vector(31 downto 0);--data to be read
 		
+		variable count: integer := 0;-- para sincronização da apresentação de amostras
+		
 	begin
 		file_open(input_file,"input_vectors.txt",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
 		
@@ -88,11 +90,13 @@ begin
 			if (count = COUNT_MAX) then
 				wait until filter_CLK ='1';-- waits until the first rising edge occurs
 				wait for (TIME_DELTA/2);-- reestabelece o devido dely entre amostras e clock de amostragem
-				count <= 0;
 			else
+				if (count = COUNT_MAX + 1) then
+					count := 0;--variable assignment takes place immediately
+				end if;
 				wait for TIME_DELTA;-- usual delay between 2 samples
-				count <= count + 1;
 			end if;
+			count := count + 1;--variable assignment takes place immediately
 		end loop;
 		
 		file_close(input_file);
@@ -111,6 +115,8 @@ begin
 --		if (instruction_addr = x"00000038") then--avoids writing ZZ...Z to the output_file
 --				write(v_oline, v_B, right, c_WIDTH);
 			hwrite(v_oline, v_B);--write values in hex notation
+--			write(v_oline,string'(" "));
+--			write(v_oline,time'image(now));
 			writeline(output_file, v_oline);
 --		end if;
 			

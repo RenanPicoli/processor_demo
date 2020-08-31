@@ -105,11 +105,11 @@ begin
 --												CLK=> d_ff_y_CLK,--sampling clock
 --												Q=> y(0)
 --												);
---	d_ff_y0: d_flip_flop port map(	D => y(0),
---												RST=> RST,--resets all previous history of output signal
---												CLK=> d_ff_y_CLK,--sampling clock
---												Q=> output
---												);
+	d_ff_y0: d_flip_flop port map(	D => y(0),
+												RST=> RST,--resets all previous history of output signal
+												CLK=> d_ff_y_CLK,--sampling clock
+												Q=> output_signal
+												);
 												
 												
 	y_j: for j in 1 to Q generate-- y[n-j]
@@ -120,7 +120,7 @@ begin
 												);
 	end generate;
 	y(0) <= sum_feedback(0);--I did this because there y(0) does not need a ff
-	output_signal <= y(0) when CLK='1' else output_signal;--y[n];-- LATCH IS INTENDED !
+--	output_signal <= y(0) when CLK='1' else output_signal;--y[n];-- LATCH IS INTENDED !	
 	output <= output_signal;
 	
 ---------- feed-forward (bi*x[n-i]) adders --------------------------------------------------
