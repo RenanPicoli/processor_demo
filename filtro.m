@@ -59,6 +59,14 @@ val=val{1,1};
 disp('val');
 disp(val);
 
+%ignorar os X até o primeiro 0000_0000 inclusive
+count_invalid_outputs=0;
+while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)% o circuito inicia a saída com esse valor após reset
+  count_invalid_outputs++;
+endwhile
+count_invalid_outputs++;% 00000000 também é inválida
+val = val(count_invalid_outputs+1:end,1);
+
 disp('Resutados lidos do circuito:');
 results=hex2num(val,"single");
 disp(results)
@@ -68,7 +76,23 @@ plot(y(2:length(results)+1))
 legend('circuito','octave')
 
 disp('Resultados calculados no octave:');
-disp(toupper(num2hex(single(y(2:length(results)+1)))))
+octave_result_string = toupper(num2hex(single(y(2:length(results)+1))))
+disp(octave_result_string)
 
 %como o testbench sempre abre o arquivo de saída no append_mode, preciso deletá-lo após usar
-delete(fname)
+% se a linha abaixo estiver comentada, manualmente apagar o arquivo de saída do hardware antes de reiniciar o testbench
+%delete(fname)
+
+% imprime as divergências entre os resultados do hardware e do octave
+s=blanks(18*length(results));
+for i=1:length(results) % i+1: índice do y lido; y(1) sempre é zero
+	if (strcmp(octave_result_string(i,:),char(val(i)))==0)
+		s(18*i-17:18*i)=[octave_result_string(i,:) " " char(val(i)) "\n"]';
+		disp(["Diferença octave - circuito na amostra " num2str(i) " é " num2str(results(i) - y(i+1))])
+	endif
+end
+
+fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/relatório.txt";
+fid=fopen(fname,"w");
+fprintf(fid,"%s",s);
+fclose(fid);
