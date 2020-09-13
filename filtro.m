@@ -84,10 +84,11 @@ disp(octave_result_string)
 %delete(fname)
 
 % imprime as divergências entre os resultados do hardware e do octave
+
 s=blanks(18*length(results));
 for i=1:length(results) % i+1: índice do y lido; y(1) sempre é zero
 	if (strcmp(octave_result_string(i,:),char(val(i)))==0)
-		s(18*i-17:18*i)=[octave_result_string(i,:) " " char(val(i)) "\n"]';
+		s(18*i-17:18*i)=[octave_result_string(i,:) "," char(val(i)) "\n"]';
 		disp(["Diferença octave - circuito na amostra " num2str(i) " é " num2str(results(i) - y(i+1)) " (" num2str((results(i) - y(i+1))*100/y(i+1)) "%)"])
 	endif
 end
