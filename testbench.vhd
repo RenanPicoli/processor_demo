@@ -22,7 +22,7 @@ constant TIME_RST : time := 33 us;
 
 signal  	CLK_IN:std_logic;--50MHz
 signal	rst: std_logic;
-signal  	data_in:std_logic_vector(31 downto 0);
+signal  	data_in:std_logic_vector(31 downto 0) := (others => '0');
 signal	data_out:std_logic_vector(31 downto 0);
 signal	instruction_addr:std_logic_vector(31 downto 0);
 signal	filter_CLK:std_logic;
@@ -42,7 +42,7 @@ signal use_alt_filter_clk: std_logic;
 
 begin
 
-	use_alt_filter_clk <= '1';
+	use_alt_filter_clk <= '0';-- DUT uses internal PLL for filter clock
 	DUT: entity work.processor_demo
 	port map(CLK_IN 	=> CLK_IN,
 				rst	 	=> rst,
