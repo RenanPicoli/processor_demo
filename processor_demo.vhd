@@ -211,7 +211,8 @@ signal coeffs_mem_wren: std_logic;
 signal proc_ram_wren: std_logic;
 signal proc_filter_wren: std_logic;
 signal filter_wren: std_logic;
---signal filter_CLK: std_logic;
+signal filter_rst: std_logic := '1';
+signal filter_state: std_logic := '0';--starts in zero, changes to 1 when 
 signal send_cache_request: std_logic;
 signal processor_ram_addr: std_logic_vector(N downto 0);
 signal ram_or_coeffs: std_logic;
@@ -271,12 +272,23 @@ signal iack: std_logic;
 	filter_CLK <= alternative_filter_CLK when (use_alt_filter_clk = '1') else CLK22_05kHz;
 	IIR_filter: filter 	generic map (P => P, Q => Q)
 								port map(input => data_in,-- input
-											RST => rst,--synchronous reset
+											RST => filter_rst,--synchronous reset
 											WREN => filter_wren,--enables writing on coefficients
 											CLK => filter_CLK,--sampling clock
 											Q_coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
 											output => data_out											
 											);
+											
+	filter_reset_process: process (filter_CLK)
+	begin
+--		filter_rst <= '1';
+		if (filter_CLK'event and filter_CLK = '1') then
+			filter_state <= '1';
+		end if;
+		if (filter_CLK'event and filter_CLK = '0' and filter_state = '1') then
+				filter_rst <= '0';
+		end if;
+	end process filter_reset_process;
 											
 	wren_control: wren_ctrl port map (input => proc_filter_wren,
 												 CLK => filter_CLK,
