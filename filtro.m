@@ -1,10 +1,7 @@
 % filtro y(n)=[x(n)-y(n-1)]/2
 close all;
-% disp('Pressione qualquer tecla para iniciar o script.');
-% kbhit();
 disp('Script iniciado!');
 
-%x=[0 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0];
 original = load('rise_original','-ascii');
 fs = 44100;% original sampling frequency
 % original = audioread('Rise From The Ashes.mp3');
@@ -18,7 +15,7 @@ x = x(min_x:max_x);
 x=single(x);% converte x para precisão simples
 L=length(x);
 y=zeros(1,L);
-y=single(y);
+y=single(y);% converte y para precisão simples
 
 disp('iniciando filtro');
 tic;
@@ -27,11 +24,6 @@ for i=2:L
 end
 toc;
 disp('filtro concluído');
-
-##stem(x(1:L))
-##hold on
-##stem(y(1:L))
-##legend('x','y')
 
 %ESCRITA DE ARQUIVO
 disp('Gerando string.');

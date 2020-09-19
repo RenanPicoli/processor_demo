@@ -212,7 +212,7 @@ signal proc_ram_wren: std_logic;
 signal proc_filter_wren: std_logic;
 signal filter_wren: std_logic;
 signal filter_rst: std_logic := '1';
-signal filter_state: std_logic := '0';--starts in zero, changes to 1 when 
+signal filter_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
 signal processor_ram_addr: std_logic_vector(N downto 0);
 signal ram_or_coeffs: std_logic;
@@ -362,7 +362,7 @@ signal iack: std_logic;
 	CLK_OUT => CLK5MHz);
 	
 	--produces 220.5kHz clock
-	pll_22_05kHz: pll
+	pll_220_5kHz: pll
 	port map (
 	inclk0 => CLK5MHz,
 	areset => rst,
