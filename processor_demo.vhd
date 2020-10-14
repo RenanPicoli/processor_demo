@@ -173,6 +173,18 @@ end component;
 
 ---------------------------------------------------
 
+component inner_product_calculation_unit
+port(	D: in std_logic_vector(31 downto 0);-- input
+		ADDR: in std_logic_vector(6 downto 0);-- input
+		CLK: in std_logic;-- input
+		RST: in std_logic;-- input
+		output: out std_logic_vector(31 downto 0)-- output
+);
+
+end component;
+
+---------------------------------------------------
+
 --signal instruction_addr: std_logic_vector(31 downto 0);
 signal mantissa: array4(0 to 7);--digits encoded in 4 bits 
 
@@ -207,6 +219,7 @@ constant P: natural := 5;
 constant Q: natural := 5;
 signal coefficients: std_logic_vector(32*(P+Q+1)-1 downto 0);
 signal coeffs_mem_wren: std_logic;
+signal inner_product_result: std_logic_vector(31 downto 0);
 
 signal proc_ram_wren: std_logic;
 signal proc_filter_wren: std_logic;
@@ -294,6 +307,17 @@ signal iack: std_logic;
 												 CLK => filter_CLK,
 												 output => filter_wren
 												);
+												
+	inner_product: inner_product_calculation_unit
+	port map(D => ram_write_data,--supposed to be normalized
+				ADDR => processor_ram_addr(6 downto 0),--supposed to be normalized
+				CLK => CLK,
+				RST => rst,
+				-------NEED ADD FLAGS (overflow, underflow, etc)
+				--overflow:		out std_logic,
+				--underflow:		out std_logic,
+				output => inner_product_result
+				);
 	
 	processor: microprocessor
 	generic map (N => N+1)
