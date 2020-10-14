@@ -15,9 +15,9 @@ use work.my_types.all;--array32
 entity generic_coeffs_mem is
 -- 0..P: índices dos coeficientes de x (b)
 -- 1..Q: índices dos coeficientes de y (a)
-generic	(P: natural; Q: natural);
+generic	(N: natural; P: natural; Q: natural);--N address width in bits
 port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é carregado por vez
-		ADDR: in std_logic_vector(4 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
+		ADDR: in std_logic_vector(N-1 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
 		RST:	in std_logic;--synchronous reset
 		WREN:	in std_logic;--write enable
 		CLK:	in std_logic;

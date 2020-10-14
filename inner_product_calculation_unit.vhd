@@ -16,8 +16,9 @@ use work.my_types.all;--array32
 ---------------------------------------------------
 
 entity inner_product_calculation_unit is
+generic	(N: natural);--N: address width in bits
 port(	D: in std_logic_vector(31 downto 0);-- input
-		ADDR: in std_logic_vector(6 downto 0);-- input
+		ADDR: in std_logic_vector(N-1 downto 0);-- input
 		CLK: in std_logic;-- input
 		RST: in std_logic;-- input
 		output: out std_logic_vector(31 downto 0)-- output

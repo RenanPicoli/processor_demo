@@ -125,9 +125,9 @@ end component;
 component generic_coeffs_mem
 	-- 0..P: índices dos coeficientes de x (b)
 	-- 1..Q: índices dos coeficientes de y (a)
-	generic	(P: natural; Q: natural);
+	generic	(N: natural; P: natural; Q: natural);
 	port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é carregado por vez
-			ADDR: in std_logic_vector(4 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
+			ADDR: in std_logic_vector(N-1 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
 			RST:	in std_logic;--synchronous reset
 			WREN:	in std_logic;--write enable
 			CLK:	in std_logic;
@@ -174,8 +174,9 @@ end component;
 ---------------------------------------------------
 
 component inner_product_calculation_unit
+generic	(N: natural);--N: address width in bits
 port(	D: in std_logic_vector(31 downto 0);-- input
-		ADDR: in std_logic_vector(6 downto 0);-- input
+		ADDR: in std_logic_vector(N-1 downto 0);-- input
 		CLK: in std_logic;-- input
 		RST: in std_logic;-- input
 		output: out std_logic_vector(31 downto 0)-- output
@@ -198,11 +199,13 @@ signal CLK22_05kHz: std_logic;-- 22.05kHz clock
 signal instruction_memory_output: std_logic_vector(31 downto 0);
 signal instruction_memory_address: std_logic_vector(4 downto 0);
 -----------signals for RAM interfacing---------------------
-constant N: integer := 5;
+
+constant N: integer := 8;-- size in bits of data addresses (each address refers to 32 bits)
+
 signal ram_clk: std_logic;--data memory clock signal
 signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_write_data: std_logic_vector(31 downto 0);
-signal parallel_write_data: array32 (0 to 2**N-1);
+signal parallel_write_data: array32 (0 to 2**(N)-1);
 signal ram_fill_cache: std_logic;
 signal ram_rden: std_logic;
 signal ram_wren: std_logic;
@@ -227,7 +230,7 @@ signal filter_wren: std_logic;
 signal filter_rst: std_logic := '1';
 signal filter_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
-signal processor_ram_addr: std_logic_vector(N downto 0);
+signal processor_ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_or_coeffs: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
@@ -250,7 +253,7 @@ signal iack: std_logic;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
-	parallel_write_data <= fifo_output(0 to 2**N-1);
+	parallel_write_data <= fifo_output(0 to 2**(N)-1);
 	ram: parallel_load_cache generic map (N => N)
 									port map(CLK	=> ram_clk,
 												ADDR	=> ram_addr,
@@ -273,7 +276,7 @@ signal iack: std_logic;
 				fill_cache => ram_fill_cache
 	);
 	
-	coeffs_mem: generic_coeffs_mem generic map (P => P,Q => Q)
+	coeffs_mem: generic_coeffs_mem generic map (N=> N, P => P,Q => Q)
 									port map(D => ram_write_data,
 												ADDR	=> ram_addr,
 												RST => rst,
@@ -309,8 +312,9 @@ signal iack: std_logic;
 												);
 												
 	inner_product: inner_product_calculation_unit
+	generic map (N => N)
 	port map(D => ram_write_data,--supposed to be normalized
-				ADDR => processor_ram_addr(6 downto 0),--supposed to be normalized
+				ADDR => processor_ram_addr,--supposed to be normalized
 				CLK => CLK,
 				RST => rst,
 				-------NEED ADD FLAGS (overflow, underflow, etc)
@@ -320,7 +324,7 @@ signal iack: std_logic;
 				);
 	
 	processor: microprocessor
-	generic map (N => N+1)
+	generic map (N => N)
 	port map (
 		CLK_IN => CLK,
 		rst => rst,
@@ -338,8 +342,8 @@ signal iack: std_logic;
 		Q_ram => ram_Q
 	);
 	
-	ram_or_coeffs <= processor_ram_addr(N);
-	ram_addr <= processor_ram_addr(N-1 downto 0);
+	ram_or_coeffs <= processor_ram_addr(N-1);
+	ram_addr <= processor_ram_addr;--(N-1 downto 0);
 	--decides if write is intended on ram or coefficients memory
 	coeffs_mem_wren <= 	proc_ram_wren when (ram_or_coeffs = '1') else-- upper half of ram: coefficients memory
 								'0';-- lower half of ram: ordinary data
