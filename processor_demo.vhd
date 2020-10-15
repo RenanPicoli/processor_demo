@@ -179,6 +179,8 @@ port(	D: in std_logic_vector(31 downto 0);-- input
 		ADDR: in std_logic_vector(N-1 downto 0);-- input
 		CLK: in std_logic;-- input
 		RST: in std_logic;-- input
+		WREN: in std_logic;-- input
+		RDEN: in std_logic;-- input
 		output: out std_logic_vector(31 downto 0)-- output
 );
 
@@ -317,6 +319,8 @@ signal iack: std_logic;
 				ADDR => processor_ram_addr,--supposed to be normalized
 				CLK => CLK,
 				RST => rst,
+				WREN => '0',
+				RDEN => '0',
 				-------NEED ADD FLAGS (overflow, underflow, etc)
 				--overflow:		out std_logic,
 				--underflow:		out std_logic,

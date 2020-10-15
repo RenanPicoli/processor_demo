@@ -21,6 +21,8 @@ port(	D: in std_logic_vector(31 downto 0);-- input
 		ADDR: in std_logic_vector(N-1 downto 0);-- input
 		CLK: in std_logic;-- input
 		RST: in std_logic;-- input
+		WREN: in std_logic;-- input
+		RDEN: in std_logic;-- input
 		output: out std_logic_vector(31 downto 0)-- output
 );
 
@@ -38,6 +40,7 @@ architecture behv of inner_product_calculation_unit is
 	port(	ADDR: in std_logic_vector(N-1 downto 0);-- input
 			RDEN: in std_logic;-- input
 			WREN: in std_logic;-- input
+			RDEN_OUT: out std_logic_vector;-- output
 			WREN_OUT: out std_logic_vector;-- output
 			data_out: out std_logic_vector(31 downto 0)-- data read
 	);
@@ -67,7 +70,8 @@ architecture behv of inner_product_calculation_unit is
 	signal B_fpu_inner_product_input: array32 (0 to 31);-- B input of fpu_inner_product
 	signal result: std_logic_vector(31 downto 0);--connects feedback and feed forward parts
 	signal prod: array32 (0 to 32-1);--results of products
-	signal ena_reg: std_logic_vector(0  to 2**N-1);--ena input of registers
+	signal ena_reg: std_logic_vector(0  to 2**N-1);--ena input of registers (write enable)
+	signal oe_reg: std_logic_vector(0  to 2**N-1);--output enable of registers (read enable)
 
 begin
 -------------------------- address decoder ---------------------------------------------------
@@ -80,7 +84,8 @@ begin
 	port map(ADDR => ADDR,
 				RDEN => '0',
 				WREN => '0',
-				WREN_OUT => ena_reg
+				WREN_OUT => ena_reg,
+				RDEN_OUT => oe_reg
 				--data_out =>
 	);
 

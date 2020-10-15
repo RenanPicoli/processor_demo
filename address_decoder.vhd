@@ -21,6 +21,7 @@ generic	(N: natural; boundaries: array32);
 port(	ADDR: in std_logic_vector(N-1 downto 0);-- input
 		RDEN: in std_logic;-- input
 		WREN: in std_logic;-- input
+		RDEN_OUT: out std_logic_vector;-- output
 		WREN_OUT: out std_logic_vector;-- output
 		data_out: out std_logic_vector(31 downto 0)-- data read
 );
