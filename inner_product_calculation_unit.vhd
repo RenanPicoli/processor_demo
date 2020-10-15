@@ -30,9 +30,18 @@ end inner_product_calculation_unit;
 
 architecture behv of inner_product_calculation_unit is
 
-	-- TODO
---	component address decoder
---	end component;
+	-- TODO: implement architecture
+	component address_decoder
+	--N: address width in bits
+	--boundaries: upper limits of each end (except the last, which is 2**N-1)
+	generic	(N: natural; boundaries: array32);
+	port(	ADDR: in std_logic_vector(N-1 downto 0);-- input
+			RDEN: in std_logic;-- input
+			WREN: in std_logic;-- input
+			WREN_OUT: out std_logic_vector;-- output
+			data_out: out std_logic_vector(31 downto 0)-- data read
+	);
+	end component;
 	
 	--combinatorial, data comes from register external to this component
 	component fpu_inner_product
@@ -46,6 +55,7 @@ architecture behv of inner_product_calculation_unit is
 	component d_flip_flop
 		port (D:	in std_logic_vector(31 downto 0);
 				rst:	in std_logic;--synchronous reset
+				ENA:	in std_logic;--enables writes
 				CLK:in std_logic;
 				Q:	out std_logic_vector(31 downto 0)  
 				);
@@ -57,13 +67,29 @@ architecture behv of inner_product_calculation_unit is
 	signal B_fpu_inner_product_input: array32 (0 to 31);-- B input of fpu_inner_product
 	signal result: std_logic_vector(31 downto 0);--connects feedback and feed forward parts
 	signal prod: array32 (0 to 32-1);--results of products
+	signal ena_reg: std_logic_vector(0  to 2**N-1);--ena input of registers
 
 begin
+-------------------------- address decoder ---------------------------------------------------
+	decoder: address_decoder
+	generic map(N => N,
+					boundaries => (x"00000_001",
+										x"00000_002",
+										x"00000_003")
+	)
+	port map(ADDR => ADDR,
+				RDEN => '0',
+				WREN => '0',
+				WREN_OUT => ena_reg
+				--data_out =>
+	);
+
 ------------------------ ( A(i) ) registers --------------------------------------------------
 	A_i: for i in 0 to 31 generate-- A(i)
 		A(i) <= D;
 		d_ff_A: d_flip_flop port map(	D => A(i),
 												RST=> RST,--resets all previous history of input signal
+												ENA=> ena_reg(i),
 												CLK=>CLK,--sampling clock
 												Q=> A_fpu_inner_product_input(i)
 												);
@@ -74,6 +100,7 @@ begin
 		B(i) <= D;
 		d_ff_B: d_flip_flop port map(	D => B(i),
 												RST=> RST,--resets all previous history of input signal
+												ENA=> ena_reg(32+i),
 												CLK=>CLK,--sampling clock
 												Q=> B_fpu_inner_product_input(i)
 												);
@@ -93,6 +120,7 @@ begin
 ---------------------------------- result register ---------------------------------------------
 		d_ff_B: d_flip_flop port map(	D => result,
 												RST=> RST,--resets all previous history of input signal
+												ENA=> ena_reg(64),
 												CLK=>CLK,--sampling clock
 												Q=> output
 												);
