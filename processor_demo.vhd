@@ -56,8 +56,8 @@ port (CLK_IN: in std_logic;
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
-		rden_ram: out std_logic;--habilita leitura na ram
-		wren_ram: out std_logic;--habilita escrita na ram
+		rden_ram: out std_logic;--habilita leitura na ram (cache e periféricos mapeados na ram)
+		wren_ram: out std_logic;--habilita escrita na ram (cache e periféricos mapeados na ram)
 		wren_filter: out std_logic;--habilita escrita nos coeficientes do filtro
 		send_cache_request: out std_logic;
 		Q_ram:in std_logic_vector(31 downto 0)
@@ -129,9 +129,11 @@ component generic_coeffs_mem
 	port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é carregado por vez
 			ADDR: in std_logic_vector(N-1 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
 			RST:	in std_logic;--synchronous reset
+			RDEN:	in std_logic;--read enable
 			WREN:	in std_logic;--write enable
 			CLK:	in std_logic;
-			Q_coeffs:	out std_logic_vector(32*(P+Q+1)-1 downto 0)-- todos os coeficientes são lidos de uma vez
+			Q_coeffs: out std_logic_vector(31 downto 0);--single coefficient reading
+			all_coeffs:	out std_logic_vector(32*(P+Q+1)-1 downto 0)-- todos os coeficientes são lidos de uma vez
 	);
 
 end component;
@@ -146,7 +148,7 @@ component filter
 			RST:	in std_logic;--synchronous reset
 			WREN:	in std_logic;--enables writing on coefficients
 			CLK:	in std_logic;--sampling clock
-			Q_coeffs:	in std_logic_vector(32*(P+Q+1)-1 downto 0);-- todos os coeficientes são lidos de uma vez
+			coeffs:	in std_logic_vector(32*(P+Q+1)-1 downto 0);-- todos os coeficientes são lidos de uma vez
 			output: out std_logic_vector(31 downto 0)-- output
 	);
 
@@ -188,52 +190,93 @@ end component;
 
 ---------------------------------------------------
 
---signal instruction_addr: std_logic_vector(31 downto 0);
-signal mantissa: array4(0 to 7);--digits encoded in 4 bits 
+component address_decoder_memory_map
+--N: word address width in bits
+--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
+--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
+--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
+generic	(N: natural; B: boundaries);
+port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
+		RDEN: in std_logic;-- input
+		WREN: in std_logic;-- input
+		data_in: in array32;-- input: outputs of all peripheral/registers
+		RDEN_OUT: out std_logic_vector;-- output
+		WREN_OUT: out std_logic_vector;-- output
+		data_out: out std_logic_vector(31 downto 0)-- data read
+);
 
-signal en_7seg: std_logic;
+end component;
 
+---------------------------------------------------
 signal CLK: std_logic;--clock for processor and cache
 signal CLK5MHz: std_logic;--clock input for PLL
 signal CLK220_5kHz: std_logic;--clock output for PLL
 signal CLK22_05kHz: std_logic;-- 22.05kHz clock
+
 -----------signals for ROM interfacing---------------------
 signal instruction_memory_output: std_logic_vector(31 downto 0);
 signal instruction_memory_address: std_logic_vector(4 downto 0);
+
 -----------signals for RAM interfacing---------------------
-
-constant N: integer := 8;-- size in bits of data addresses (each address refers to 32 bits)
-
+---processor sees all memory-mapped I/O as part of RAM-----
+constant N: integer := 8;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
 signal ram_addr: std_logic_vector(N-1 downto 0);
-signal ram_write_data: std_logic_vector(31 downto 0);
-signal parallel_write_data: array32 (0 to 2**(N)-1);
-signal ram_fill_cache: std_logic;
 signal ram_rden: std_logic;
 signal ram_wren: std_logic;
+signal ram_write_data: std_logic_vector(31 downto 0);
 signal ram_Q: std_logic_vector(31 downto 0);
+
+-----------signals for (parallel) cache interfacing--------
+signal cache_Q: std_logic_vector(31 downto 0);
+signal cache_parallel_write_data: array32 (0 to 2**(N-2)-1);--because N=8 and cache has 64 addresses
+signal cache_fill_cache: std_logic;
+signal cache_rden: std_logic;
+signal cache_wren: std_logic;
+
 -----------signals for FIFO interfacing---------------------
-constant F: integer := 2**(N+1);--fifo depth (twice the cache's size)
+constant F: integer := 2**(N-1);--fifo depth (twice the cache's size)
 signal fifo_clock: std_logic;
 signal fifo_input: std_logic_vector (31 downto 0);
-signal fifo_output: array32 (0 to (2**N)-1);
+signal fifo_output: array32 (0 to (2**(N-2))-1);--because N=8 and cache has 64 addresses 
+
 --signal fifo_valid: std_logic_vector(F-1 downto 0);
 signal fifo_invalidate_output: std_logic;
+
 --signals for coefficients memory----------------------------
 constant P: natural := 5;
 constant Q: natural := 5;
+signal coeffs_mem_Q: std_logic_vector(31 downto 0);--signal for single coefficient reading
 signal coefficients: std_logic_vector(32*(P+Q+1)-1 downto 0);
 signal coeffs_mem_wren: std_logic;
-signal inner_product_result: std_logic_vector(31 downto 0);
+signal coeffs_mem_rden: std_logic;
 
-signal proc_ram_wren: std_logic;
+--signals for inner_product----------------------------------
+signal inner_product_result: std_logic_vector(31 downto 0);
+signal inner_product_rden: std_logic;
+signal inner_product_wren: std_logic;
+
+--signals for filter_xN--------------------------------------
+signal filter_xN_Q: std_logic_vector(31 downto 0) := (others=>'0');
+signal filter_xN_rden: std_logic;
+signal filter_xN_wren: std_logic;
+
+-----------signals for memory map interfacing--------------
+constant ranges: boundaries := 	(--notation: base#value#
+											(16#00#,16#1F#),--filter coeffs
+											(16#20#,16#3F#),--filter xN
+											(16#40#,16#BF#),--inner_product and future peripherals
+											(16#C0#,16#FF#)--caches
+											);
+signal all_periphs_output: array32 (3 downto 0);
+signal all_periphs_rden: std_logic_vector(3 downto 0);
+signal all_periphs_wren: std_logic_vector(3 downto 0);
+
 signal proc_filter_wren: std_logic;
 signal filter_wren: std_logic;
 signal filter_rst: std_logic := '1';
 signal filter_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
-signal processor_ram_addr: std_logic_vector(N-1 downto 0);
-signal ram_or_coeffs: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
 
@@ -245,7 +288,7 @@ signal iack: std_logic;
 	);
 	
 	fifo_input <= data_in;
-	fifo: shift_register generic map (N => F, OS => 2**N)
+	fifo: shift_register generic map (N => F, OS => 2**(N-2))
 								port map(CLK => fifo_clock,
 											rst => rst,
 											D => fifo_input,
@@ -255,19 +298,19 @@ signal iack: std_logic;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
-	parallel_write_data <= fifo_output(0 to 2**(N)-1);
-	ram: parallel_load_cache generic map (N => N)
+	cache_parallel_write_data <= fifo_output(0 to 2**(N-2)-1);--2^6=64 addresses
+	cache: parallel_load_cache generic map (N => N-2)
 									port map(CLK	=> ram_clk,
-												ADDR	=> ram_addr,
+												ADDR	=> ram_addr(N-3 downto 0),
 												write_data => ram_write_data,
-												parallel_write_data => parallel_write_data,
-												fill_cache => ram_fill_cache,
-												rden	=> ram_rden,
-												wren	=> ram_wren,
-												Q		=> ram_Q);
+												parallel_write_data => cache_parallel_write_data,
+												fill_cache => cache_fill_cache,
+												rden	=> cache_rden,
+												wren	=> cache_wren,
+												Q		=> cache_Q);
 												
 	memory_management_unit:
-	mmu generic map (N => F, F => 2**N)
+	mmu generic map (N => F, F => 2**(N-2))
 	port map(CLK => CLK,
 				CLK_fifo => fifo_clock,
 				rst => rst,
@@ -275,16 +318,18 @@ signal iack: std_logic;
 				iack => iack,
 				irq => irq,
 				invalidate_output => fifo_invalidate_output,
-				fill_cache => ram_fill_cache
+				fill_cache => cache_fill_cache
 	);
 	
-	coeffs_mem: generic_coeffs_mem generic map (N=> N, P => P,Q => Q)
+	coeffs_mem: generic_coeffs_mem generic map (N=> N-3, P => P,Q => Q)
 									port map(D => ram_write_data,
-												ADDR	=> ram_addr,
+												ADDR	=> ram_addr(N-4 downto 0),
 												RST => rst,
+												RDEN	=> coeffs_mem_rden,
 												WREN	=> coeffs_mem_wren,
 												CLK	=> ram_clk,
-												Q_coeffs => coefficients
+												Q_coeffs => coeffs_mem_Q,
+												all_coeffs => coefficients
 												);
 												
 	filter_CLK <= alternative_filter_CLK when (use_alt_filter_clk = '1') else CLK22_05kHz;
@@ -293,11 +338,11 @@ signal iack: std_logic;
 											RST => filter_rst,--synchronous reset
 											WREN => filter_wren,--enables writing on coefficients
 											CLK => filter_CLK,--sampling clock
-											Q_coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
+											coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
 											output => data_out											
 											);
 											
-	filter_reset_process: process (filter_CLK)
+	filter_reset_process: process (filter_CLK,filter_state)
 	begin
 --		filter_rst <= '1';
 		if (filter_CLK'event and filter_CLK = '1') then
@@ -314,18 +359,48 @@ signal iack: std_logic;
 												);
 												
 	inner_product: inner_product_calculation_unit
-	generic map (N => N)
+	generic map (N => N-1)
 	port map(D => ram_write_data,--supposed to be normalized
-				ADDR => processor_ram_addr,--supposed to be normalized
-				CLK => CLK,
+				ADDR => ram_addr(N-2 downto 0),--supposed to be normalized
+				CLK => ram_clk,
 				RST => rst,
-				WREN => '0',
-				RDEN => '0',
+				WREN => inner_product_wren,
+				RDEN => inner_product_rden,
 				-------NEED ADD FLAGS (overflow, underflow, etc)
 				--overflow:		out std_logic,
 				--underflow:		out std_logic,
 				output => inner_product_result
 				);
+
+	all_periphs_output	<= (3 => cache_Q,		2 => inner_product_result,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
+/*
+	all_periphs_rden		<= (3 => cache_rden,	2 => inner_product_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
+	all_periphs_wren		<= (3 => cache_wren,	2 => inner_product_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
+*/
+	cache_rden				<= all_periphs_rden(3);
+	inner_product_rden	<= all_periphs_rden(2);
+	filter_xN_rden			<= all_periphs_rden(1);
+	coeffs_mem_rden		<= all_periphs_rden(0);
+
+	cache_wren				<= all_periphs_wren(3);
+	inner_product_wren	<= all_periphs_wren(2);
+	filter_xN_wren			<= all_periphs_wren(1);
+	coeffs_mem_wren		<= all_periphs_wren(0);
+
+	memory_map: address_decoder_memory_map
+	--N: word address width in bits
+	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
+	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
+	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
+	generic map (N => N, B => ranges)
+	port map (	ADDR => ram_addr,-- input, it is a word address
+			RDEN => ram_rden,-- input
+			WREN => ram_wren,-- input
+			data_in => all_periphs_output,-- input: outputs of all peripheral
+			RDEN_OUT => all_periphs_rden,-- output
+			WREN_OUT => all_periphs_wren,-- output
+			data_out => ram_Q-- data read
+	);
 	
 	processor: microprocessor
 	generic map (N => N)
@@ -337,36 +412,14 @@ signal iack: std_logic;
 		instruction_addr => instruction_addr,
 		ADDR_rom => instruction_memory_address,
 		Q_rom => instruction_memory_output,
-		ADDR_ram => processor_ram_addr,
+		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
 		rden_ram => ram_rden,
-		wren_ram => proc_ram_wren,
+		wren_ram => ram_wren,
 		wren_filter => proc_filter_wren,
 		send_cache_request => send_cache_request,
 		Q_ram => ram_Q
 	);
-	
-	ram_or_coeffs <= processor_ram_addr(N-1);
-	ram_addr <= processor_ram_addr;--(N-1 downto 0);
-	--decides if write is intended on ram or coefficients memory
-	coeffs_mem_wren <= 	proc_ram_wren when (ram_or_coeffs = '1') else-- upper half of ram: coefficients memory
-								'0';-- lower half of ram: ordinary data
-	
-	ram_wren <= proc_ram_wren when (ram_or_coeffs = '0') else-- lower half of ram: ordinary data
-					'0';-- upper half of ram: coefficients memory
-
---	converter: decimal_converter port map(
---		instruction_addr => instruction_addr,
---		data_memory_output=>ram_Q,
---		mantissa => mantissa,
---		en_7seg => en_7seg
---	);
---	
---	controller_7seg: controller port map(
---		mantissa => mantissa,--digits encoded in 4 bits 
---		en_7seg => en_7seg,
---		segments => segments--signals to control 8 displays of 7 segments
---	);
 
 	--são 9 instruções para cada dado em cache, clock do processador precisa ser pelo menos 9x mais rápido
 	--produces 10MHz clock (processor and cache) from 50MHz input
