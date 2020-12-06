@@ -1,7 +1,7 @@
 --------------------------------------------------
---address_decoder:
+--address_decoder_register_map:
 --routes rden and wren signals based on given address
---implements a memory map or a register map
+--implements a register map (all registers of a peripheral)
 --by Renan Picoli de Souza
 ---------------------------------------------------
 
@@ -14,28 +14,26 @@ use work.my_types.all;--array32
 
 ---------------------------------------------------
 
-entity address_decoder is
+entity address_decoder_register_map is
 --N: address width in bits
---boundaries: upper limits of each end (except the last, which is 2**N-1)
-generic	(N: natural; boundaries: array32);
+generic	(N: natural);
 port(	ADDR: in std_logic_vector(N-1 downto 0);-- input
 		RDEN: in std_logic;-- input
 		WREN: in std_logic;-- input
---		RDEN_OUT: out std_logic_vector;-- output
 		data_in: in array32;-- input: outputs of all peripheral/registers
 		WREN_OUT: out std_logic_vector;-- output
 		data_out: out std_logic_vector(31 downto 0)-- data read
 );
 
-end address_decoder;
+end address_decoder_register_map;
 
 ---------------------------------------------------
 
-architecture behv of address_decoder is
+architecture behv of address_decoder_register_map is
 signal output: std_logic_vector(31 downto 0);-- data read
 begin
 	-- mux of data read
-	process(ADDR)
+	process(ADDR,data_in)
 	begin
 		output <= (others=>'Z');
 		-- i-th element of data_in is associated with address i
@@ -49,7 +47,7 @@ begin
 	data_out <= output when RDEN='1' else (others=>'Z');
 	
 	--demux of WREN
-	process(ADDR)
+	process(ADDR,WREN)
 	begin
 		WREN_OUT <= (others=>'0');
 		-- i-th element of WREN_OUT is associated with address i
