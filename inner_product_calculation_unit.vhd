@@ -32,7 +32,6 @@ end inner_product_calculation_unit;
 
 architecture behv of inner_product_calculation_unit is
 
-	-- TODO: implement architecture
 	component address_decoder_register_map
 	--N: address width in bits
 	--boundaries: upper limits of each end (except the last, which is 2**N-1)
