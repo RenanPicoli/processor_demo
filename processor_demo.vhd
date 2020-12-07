@@ -208,6 +208,25 @@ port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
 end component;
 
 ---------------------------------------------------
+
+component filter_xN
+-- 0..P: índices dos x
+-- P+1..P+Q: índices dos y
+generic	(N: natural; P: natural; Q: natural);--N: address width in bits (must be >= log2(P+1+Q))
+port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral supports only read)
+		DX: in std_logic_vector(31 downto 0);--current filter input
+		DY: in std_logic_vector(31 downto 0);--current filter output
+		ADDR: in std_logic_vector(N-1 downto 0);-- input
+		CLK: in std_logic;-- must be filter clock
+		RST: in std_logic;-- input
+		WREN: in std_logic;--not used (peripheral supports only read)
+		RDEN: in std_logic;-- input
+		output: out std_logic_vector(31 downto 0)-- output
+);
+
+end component;
+
+---------------------------------------------------
 signal CLK: std_logic;--clock for processor and cache
 signal CLK5MHz: std_logic;--clock input for PLL
 signal CLK220_5kHz: std_logic;--clock output for PLL
@@ -257,6 +276,7 @@ signal inner_product_rden: std_logic;
 signal inner_product_wren: std_logic;
 
 --signals for filter_xN--------------------------------------
+signal filter_xN_CLK: std_logic;-- must be the same frequency as filter clock, but can't be the same polarity
 signal filter_xN_Q: std_logic_vector(31 downto 0) := (others=>'0');
 signal filter_xN_rden: std_logic;
 signal filter_xN_wren: std_logic;
@@ -275,6 +295,8 @@ signal all_periphs_wren: std_logic_vector(3 downto 0);
 signal proc_filter_wren: std_logic;
 signal filter_wren: std_logic;
 signal filter_rst: std_logic := '1';
+signal filter_input: std_logic_vector(31 downto 0);
+signal filter_output: std_logic_vector(31 downto 0);
 signal filter_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
 signal irq: std_logic;
@@ -334,13 +356,15 @@ signal iack: std_logic;
 												
 	filter_CLK <= alternative_filter_CLK when (use_alt_filter_clk = '1') else CLK22_05kHz;
 	IIR_filter: filter 	generic map (P => P, Q => Q)
-								port map(input => data_in,-- input
+								port map(input => filter_input,-- input
 											RST => filter_rst,--synchronous reset
 											WREN => filter_wren,--enables writing on coefficients
 											CLK => filter_CLK,--sampling clock
 											coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
-											output => data_out											
+											output => filter_output											
 											);
+	filter_input <= data_in;
+	data_out <= filter_output;
 											
 	filter_reset_process: process (filter_CLK,filter_state)
 	begin
@@ -357,6 +381,24 @@ signal iack: std_logic;
 												 CLK => filter_CLK,
 												 output => filter_wren
 												);
+	
+	-- must be the same frequency as filter clock, but can't be the same polarity
+	--otherwise, there would be problems reading filter output while its changing
+	filter_xN_CLK <= not filter_CLK;
+	xN: filter_xN
+	-- 0..P: índices dos x
+	-- P+1..P+Q: índices dos y
+	generic map (N => N-3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
+	port map (	D => ram_write_data,-- not used (peripheral supports only read)
+			DX => filter_input,--current filter input
+			DY => filter_output,--current filter output
+			ADDR => ram_addr(N-4 downto 0),-- input
+			CLK => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
+			RST => RST,-- input
+			WREN => filter_xN_wren,--not used (peripheral supports only read)
+			RDEN => filter_xN_rden,-- input
+			output => filter_xN_Q-- output
+			);
 												
 	inner_product: inner_product_calculation_unit
 	generic map (N => N-1)
@@ -373,7 +415,7 @@ signal iack: std_logic;
 				);
 
 	all_periphs_output	<= (3 => cache_Q,		2 => inner_product_result,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
-/*
+/* for some reason, the following code does not work: compiles but connection are not generated
 	all_periphs_rden		<= (3 => cache_rden,	2 => inner_product_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 	all_periphs_wren		<= (3 => cache_wren,	2 => inner_product_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 */
