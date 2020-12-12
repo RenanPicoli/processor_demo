@@ -63,14 +63,14 @@ architecture behv of inner_product_calculation_unit is
 				);
 	end component;
 	
-	signal A: array32(31 downto 0);
-	signal B: array32(31 downto 0);
-	signal A_fpu_inner_product_input: array32 (0 to 31);-- A input of fpu_inner_product
-	signal B_fpu_inner_product_input: array32 (0 to 31);-- B input of fpu_inner_product
-	signal result: std_logic_vector(31 downto 0);--connects feedback and feed forward parts
-	signal prod: array32 (0 to 32-1);--results of products
+	signal A: array32((2**(N-2)-1) downto 0);
+	signal B: array32((2**(N-2)-1) downto 0);
+	signal A_fpu_inner_product_input: array32 (0 to (2**(N-2)-1));-- A input of fpu_inner_product
+	signal B_fpu_inner_product_input: array32 (0 to (2**(N-2)-1));-- B input of fpu_inner_product
+	signal result: std_logic_vector(31 downto 0);--result of fpu_inner_product
+	signal prod: array32 (0 to (2**(N-2)-1));--results of products
 	signal ena_reg: std_logic_vector(0  to 2**N-1);--ena input of registers (write enable)
-	signal all_registers_output: array32(0 to 64);--32 reg A, 32 reg B, 1 reg result
+	signal all_registers_output: array32(0 to (2**(N-1)));--16 reg A, 16 reg B, 1 reg result
 	signal address_decoder_output: std_logic_vector(31 downto 0);--result of a read will be here
 	signal reg_result_out: std_logic_vector(31 downto 0);--result of inner product will be read here
 
@@ -90,7 +90,7 @@ begin
 	);
 
 ------------------------ ( A(i) ) registers --------------------------------------------------
-	A_i: for i in 0 to 31 generate-- A(i)
+	A_i: for i in 0 to (2**(N-2)-1) generate-- A(i)
 		A(i) <= D;
 		d_ff_A: d_flip_flop port map(	D => A(i),
 												RST=> RST,--resets all previous history of input signal
@@ -101,11 +101,11 @@ begin
 	end generate;
 	
 ------------------------ ( B(i) ) registers --------------------------------------------------
-	B_i: for i in 0 to 31 generate-- B(i)
+	B_i: for i in 0 to (2**(N-2)-1) generate-- B(i)
 		B(i) <= D;
 		d_ff_B: d_flip_flop port map(	D => B(i),
 												RST=> RST,--resets all previous history of input signal
-												ENA=> ena_reg(32+i),
+												ENA=> ena_reg((2**(N-2))+i),
 												CLK=>CLK,--sampling clock
 												Q=> B_fpu_inner_product_input(i)
 												);
@@ -113,7 +113,7 @@ begin
 	
 ----------------------- inner product instantiation -------------------------------------------
 	inner_product: fpu_inner_product
-	generic map (N => 32)
+	generic map (N => 2**(N-2))
 	port map(A => A_fpu_inner_product_input,--supposed to be normalized
 				B => B_fpu_inner_product_input,--supposed to be normalized
 				-------NEED ADD FLAGS (overflow, underflow, etc)
@@ -125,7 +125,7 @@ begin
 ---------------------------------- result register ---------------------------------------------
 		d_ff_result: d_flip_flop port map(	D => result,
 														RST=> RST,--resets all previous history of input signal
-														ENA=> ena_reg(64),
+														ENA=> ena_reg((2**(N-1)+1)),
 														CLK=>CLK,--sampling clock
 														Q=> reg_result_out
 														);
