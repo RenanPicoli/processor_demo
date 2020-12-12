@@ -164,12 +164,24 @@ component wren_ctrl
 end component;
 
 ---------------------------------------------------
-
+--produces 220.5kHz from 5MHz
 component pll
 	port (areset: in std_logic  := '0';
 			inclk0: in std_logic  := '0';
 			c0		: out std_logic ;
 			locked: out std_logic
+	);
+end component;
+
+---------------------------------------------------
+--produces 5MHz from 50MHz
+component pll_5MHz
+	port
+	(
+		areset		: in std_logic  := '0';
+		inclk0		: in std_logic  := '0';
+		c0				: out std_logic ;
+		locked		: out std_logic 
 	);
 end component;
 
@@ -238,7 +250,7 @@ signal instruction_memory_address: std_logic_vector(4 downto 0);
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
-constant N: integer := 8;-- size in bits of data addresses (each address refers to a 32 bit word)
+constant N: integer := 7;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
 signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_rden: std_logic;
@@ -283,10 +295,10 @@ signal filter_xN_wren: std_logic;
 
 -----------signals for memory map interfacing--------------
 constant ranges: boundaries := 	(--notation: base#value#
-											(16#00#,16#1F#),--filter coeffs
-											(16#20#,16#3F#),--filter xN
-											(16#40#,16#BF#),--inner_product and future peripherals
-											(16#C0#,16#FF#)--caches
+											(16#00#,16#0F#),--filter coeffs
+											(16#10#,16#1F#),--filter xN
+											(16#20#,16#3F#),--inner_product and future peripherals
+											(16#40#,16#7F#)--caches
 											);
 signal all_periphs_output: array32 (3 downto 0);
 signal all_periphs_rden: std_logic_vector(3 downto 0);
@@ -320,7 +332,7 @@ signal iack: std_logic;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
-	cache_parallel_write_data <= fifo_output(0 to 2**(N-2)-1);--2^6=64 addresses
+	cache_parallel_write_data <= fifo_output(0 to 2**(N-2)-1);--2^5=32 addresses
 	cache: parallel_load_cache generic map (N => N-2)
 									port map(CLK	=> ram_clk,
 												ADDR	=> ram_addr(N-3 downto 0),
@@ -481,12 +493,18 @@ signal iack: std_logic;
 	CLK_OUT => fifo_clock);
 	
 	--produces 5MHz clock (processor and cache) from 50MHz input
-	clk_5MHz: prescaler
+/*	clk_5MHz: prescaler
 	generic map (factor => 10)
 	port map (
 	CLK_IN => CLK_IN,
 	rst => rst,
-	CLK_OUT => CLK5MHz);
+	CLK_OUT => CLK5MHz);*/
+	clk_5MHz: pll_5MHz
+	port map (
+	inclk0 => CLK_IN,
+	areset => rst,
+	c0 => CLK5MHz
+	);
 	
 	--produces 220.5kHz clock
 	pll_220_5kHz: pll
