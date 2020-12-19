@@ -303,6 +303,12 @@ signal inner_product_result: std_logic_vector(31 downto 0);
 signal inner_product_rden: std_logic;
 signal inner_product_wren: std_logic;
 
+--signals for vmac-------------------------------------------
+signal vmac_Q: std_logic_vector(31 downto 0);
+signal vmac_rden: std_logic;
+signal vmac_wren: std_logic;--enables write on individual registers
+signal vmac_en:	std_logic;--enables accumulation
+
 --signals for filter_xN--------------------------------------
 signal filter_xN_CLK: std_logic;-- must be the same frequency as filter clock, but can't be the same polarity
 signal filter_xN_Q: std_logic_vector(31 downto 0) := (others=>'0');
@@ -432,7 +438,7 @@ signal iack: std_logic;
 	inner_product: inner_product_calculation_unit
 	generic map (N => 6)
 	port map(D => ram_write_data,--supposed to be normalized
-				ADDR => ram_addr(5 downto 0),--supposed to be normalized
+				ADDR => ram_addr(5 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => inner_product_wren,
@@ -442,6 +448,21 @@ signal iack: std_logic;
 				--underflow:		out std_logic,
 				output => inner_product_result
 				);
+				
+	vmac: vectorial_multiply_accumulator_unit
+	generic map (N => 6)
+	port map(D => ram_write_data,
+				ADDR => ram_addr(5 downto 0),
+				CLK => ram_clk,
+				RST => rst,
+				WREN => vmac_wren,
+				RDEN => vmac_rden,
+				VMAC_EN => vmac_en,
+				-------NEED ADD FLAGS (overflow, underflow, etc)
+				--overflow:		out std_logic,
+				--underflow:		out std_logic,
+				output => vmac_Q
+	);
 
 	all_periphs_output	<= (3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
 --for some reason, the following code does not work: compiles but connections are not generated
