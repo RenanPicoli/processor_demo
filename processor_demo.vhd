@@ -254,7 +254,7 @@ signal ram_Q: std_logic_vector(31 downto 0);
 
 -----------signals for (parallel) cache interfacing--------
 signal cache_Q: std_logic_vector(31 downto 0);
-signal cache_parallel_write_data: array32 (0 to 2**(N-2)-1);--because N=8 and cache has 64 addresses
+signal cache_parallel_write_data: array32 (0 to 2**(5)-1);--because cache has 32 addresses
 signal cache_fill_cache: std_logic;
 signal cache_rden: std_logic;
 signal cache_wren: std_logic;
@@ -263,7 +263,7 @@ signal cache_wren: std_logic;
 constant F: integer := 2**(6);--fifo depth (twice the cache's size)
 signal fifo_clock: std_logic;
 signal fifo_input: std_logic_vector (31 downto 0);
-signal fifo_output: array32 (0 to (2**(N-3))-1);--because N=8 and cache has 32 addresses 
+signal fifo_output: array32 (0 to (2**(5))-1);--because cache has 32 addresses 
 
 --signal fifo_valid: std_logic_vector(F-1 downto 0);
 signal fifo_invalidate_output: std_logic;

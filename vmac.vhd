@@ -128,7 +128,7 @@ begin
 	
 ------------------------ ( B(i) ) registers --------------------------------------------------
 	B_i: for i in 0 to (2**(N-2)-1) generate-- B(i)
-		B(i) <= D;
+		B_in(i) <= D;
 		d_ff_B: d_flip_flop port map(	D => B_in(i),
 												RST=> RST,--resets all previous history of input signal
 												ENA=> ena_reg((2**(N-2))+i),
@@ -159,7 +159,7 @@ begin
 
 	-------------------- ( A(i) + lambda*B(i) ) adders ---------------------------------------------
 	add_i: for i in 0 to (2**(N-2)-1) generate
-		adder: fpu_adder port map(A => A_out,--supposed to be normalized
+		adder: fpu_adder port map(A => A_out(i),--supposed to be normalized
 												B => result_fpu_mult_product_output(i),--supposed to be normalized
 												-------NEED ADD FLAGS (overflow, underflow, etc)
 												--overflow:		out std_logic,
