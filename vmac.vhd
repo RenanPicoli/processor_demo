@@ -117,7 +117,7 @@ begin
 
 ------------------------ ( A(i) ) registers --------------------------------------------------
 	A_i: for i in 0 to (2**(N-2)-1) generate-- A(i)
-		A_in(i) <= result_fpu_adder_product_output when VMAC_EN='1' else D;
+		A_in(i) <= result_fpu_adder_product_output(i) when VMAC_EN='1' else D;
 		ena_reg(i) <= '1' when VMAC_EN='1' else address_decoder_wren(i);
 		d_ff_A: d_flip_flop port map(	D => A_in(i),
 												RST=> RST,--resets all previous history of input signal
