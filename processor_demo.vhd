@@ -42,6 +42,7 @@ port (CLK_IN: in std_logic;
 		rden_ram: out std_logic;--habilita leitura na ram (cache e periféricos mapeados na ram)
 		wren_ram: out std_logic;--habilita escrita na ram (cache e periféricos mapeados na ram)
 		wren_filter: out std_logic;--habilita escrita nos coeficientes do filtro
+		vmac_en: out std_logic;--multiply-accumulate enable
 		send_cache_request: out std_logic;
 		Q_ram:in std_logic_vector(31 downto 0)
 );
@@ -489,6 +490,7 @@ signal iack: std_logic;
 		rden_ram => ram_rden,
 		wren_ram => ram_wren,
 		wren_filter => proc_filter_wren,
+		vmac_en => vmac_en,
 		send_cache_request => send_cache_request,
 		Q_ram => ram_Q
 	);
