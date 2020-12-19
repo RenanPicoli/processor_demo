@@ -239,6 +239,22 @@ port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral supports only 
 end component;
 
 ---------------------------------------------------
+
+component vectorial_multiply_accumulator_unit
+generic	(N: natural);--N: address width in bits
+port(	D: in std_logic_vector(31 downto 0);-- input
+		ADDR: in std_logic_vector(N-1 downto 0);-- input
+		CLK: in std_logic;-- input
+		RST: in std_logic;-- input
+		WREN: in std_logic;-- input
+		RDEN: in std_logic;-- input
+		VMAC_EN: in std_logic;-- input: enables accumulation
+		output: out std_logic_vector(31 downto 0)-- output
+);
+
+end component;
+
+---------------------------------------------------
 signal CLK: std_logic;--clock for processor and cache
 signal CLK5MHz: std_logic;--clock input for PLL
 signal CLK220_5kHz: std_logic;--clock output for PLL
@@ -266,7 +282,7 @@ signal cache_rden: std_logic;
 signal cache_wren: std_logic;
 
 -----------signals for FIFO interfacing---------------------
-constant F: integer := 2**(N-2);--fifo depth (twice the cache's size)
+constant F: integer := 2**(6);--fifo depth (twice the cache's size)
 signal fifo_clock: std_logic;
 signal fifo_input: std_logic_vector (31 downto 0);
 signal fifo_output: array32 (0 to (2**(N-3))-1);--because N=8 and cache has 32 addresses 
@@ -299,7 +315,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#10#,16#1F#),--filter xN
 											(16#20#,16#3F#),--cache
 											(16#40#,16#7F#),--inner_product
-											(16#80#,16#BF#)--VMAC
+											(16#80#,16#BF#) --VMAC
 											);
 signal all_periphs_output: array32 (3 downto 0);
 signal all_periphs_rden: std_logic_vector(3 downto 0);
@@ -323,7 +339,7 @@ signal iack: std_logic;
 	);
 	
 	fifo_input <= data_in;
-	fifo: shift_register generic map (N => F, OS => 2**(N-3))
+	fifo: shift_register generic map (N => F, OS => 2**(5))
 								port map(CLK => fifo_clock,
 											rst => rst,
 											D => fifo_input,
@@ -333,10 +349,10 @@ signal iack: std_logic;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
-	cache_parallel_write_data <= fifo_output(0 to 2**(N-3)-1);--2^5=32 addresses
-	cache: parallel_load_cache generic map (N => N-3)
+	cache_parallel_write_data <= fifo_output(0 to 2**(5)-1);--2^5=32 addresses
+	cache: parallel_load_cache generic map (N => 5)
 									port map(CLK	=> ram_clk,
-												ADDR	=> ram_addr(N-4 downto 0),
+												ADDR	=> ram_addr(4 downto 0),
 												write_data => ram_write_data,
 												parallel_write_data => cache_parallel_write_data,
 												fill_cache => cache_fill_cache,
@@ -345,7 +361,7 @@ signal iack: std_logic;
 												Q		=> cache_Q);
 												
 	memory_management_unit:
-	mmu generic map (N => F, F => 2**(N-3))
+	mmu generic map (N => F, F => 2**(5))
 	port map(CLK => CLK,
 				CLK_fifo => fifo_clock,
 				rst => rst,
@@ -356,9 +372,9 @@ signal iack: std_logic;
 				fill_cache => cache_fill_cache
 	);
 	
-	coeffs_mem: generic_coeffs_mem generic map (N=> N-4, P => P,Q => Q)
+	coeffs_mem: generic_coeffs_mem generic map (N=> 4, P => P,Q => Q)
 									port map(D => ram_write_data,
-												ADDR	=> ram_addr(N-5 downto 0),
+												ADDR	=> ram_addr(3 downto 0),
 												RST => rst,
 												RDEN	=> coeffs_mem_rden,
 												WREN	=> coeffs_mem_wren,
@@ -401,11 +417,11 @@ signal iack: std_logic;
 	xN: filter_xN
 	-- 0..P: índices dos x
 	-- P+1..P+Q: índices dos y
-	generic map (N => N-4, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
+	generic map (N => 4, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
 	port map (	D => ram_write_data,-- not used (peripheral supports only read)
 			DX => filter_input,--current filter input
 			DY => filter_output,--current filter output
-			ADDR => ram_addr(N-5 downto 0),-- input
+			ADDR => ram_addr(3 downto 0),-- input
 			CLK => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
 			RST => RST,-- input
 			WREN => filter_xN_wren,--not used (peripheral supports only read)
@@ -414,9 +430,9 @@ signal iack: std_logic;
 			);
 												
 	inner_product: inner_product_calculation_unit
-	generic map (N => N-2)
+	generic map (N => 6)
 	port map(D => ram_write_data,--supposed to be normalized
-				ADDR => ram_addr(N-3 downto 0),--supposed to be normalized
+				ADDR => ram_addr(5 downto 0),--supposed to be normalized
 				CLK => ram_clk,
 				RST => rst,
 				WREN => inner_product_wren,
