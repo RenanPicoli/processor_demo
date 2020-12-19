@@ -97,7 +97,7 @@ architecture behv of vectorial_multiply_accumulator_unit is
 	signal ena_reg: std_logic_vector(0  to 2**N-1);--ena input of registers (write enable)
 	signal all_registers_output: array32(0 to (2**(N-1)));--16 reg A, 16 reg B, 1 reg scalar (0 to 32)
 	signal address_decoder_output: std_logic_vector(31 downto 0);--result of a read will be here
---	signal reg_result_out: std_logic_vector(31 downto 0);--result of inner product will be read here
+	signal address_decoder_wren: std_logic_vector(0  to 2**N-1);--write enable of registers (for individual writes)
 
 begin
 
@@ -111,13 +111,14 @@ begin
 				RDEN => RDEN,
 				WREN => WREN,
 				data_in => all_registers_output,
-				WREN_OUT => ena_reg,
+				WREN_OUT => address_decoder_wren,
 				data_out => output
 	);
 
 ------------------------ ( A(i) ) registers --------------------------------------------------
 	A_i: for i in 0 to (2**(N-2)-1) generate-- A(i)
-		A_in(i) <= D;
+		A_in(i) <= result_fpu_adder_product_output when VMAC_EN='1' else D;
+		ena_reg(i) <= '1' when VMAC_EN='1' else address_decoder_wren(i);
 		d_ff_A: d_flip_flop port map(	D => A_in(i),
 												RST=> RST,--resets all previous history of input signal
 												ENA=> ena_reg(i),
