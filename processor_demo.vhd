@@ -21,27 +21,10 @@ port (CLK_IN: in std_logic;--50MHz input
 		alternative_filter_CLK: in std_logic;--alternative input clock (for simulation purpose)
 		use_alt_filter_clk: in std_logic;-- '1' uses alternative  clock; '0' uses pll
 		instruction_addr: buffer std_logic_vector(31 downto 0)
---		segments: out array7(0 to 7)--signals to control 8 displays of 7 segments
 );
 end entity;
 
 architecture setup of processor_demo is
-
-component decimal_converter --NOTE: it needs 24+3 clock cycles to perform continuous conversion
-port(	instruction_addr: in std_logic_vector(31 downto 0);
-		data_memory_output: in std_logic_vector(31 downto 0);
-		mantissa: out array4(0 to 7);--digits encoded in 4 bits 
-		en_7seg: out std_logic--enables the 7 seg display
-);
-end component;
-
-component controller
-port(	mantissa: in array4(0 to 7);--digits encoded in 4 bits 
-		en_7seg: in std_logic;--enables the 7 seg display
---		exponent: in array4(0 to 1);--absolute value of the exponent
-		segments: out array7(0 to 7)--signals to control 8 displays of 7 segments
-);
-end component;
 
 component microprocessor
 generic (N: integer);--size in bits of data addresses 
@@ -78,9 +61,7 @@ component shift_register
 	port (CLK: in std_logic;
 			rst: in std_logic;
 			D: in std_logic_vector (31 downto 0);
---			invalidate_output: in std_logic;
 			Q: out array32 (0 to OS-1));
---			valid: out std_logic_vector (N-1 downto 0));--for memory manager use
 end component;
 
 component parallel_load_cache
@@ -106,7 +87,6 @@ component mmu
 			CLK_fifo: in std_logic;--fifo clock
 			rst: in std_logic;
 			receive_cache_request: in std_logic;
-	--		fifo_valid:  in std_logic_vector(F-1 downto 0);--1 means a valid data
 			iack: in std_logic;
 			irq: out std_logic;--data sent
 			invalidate_output: buffer std_logic;--invalidate memmory positions after parallel transfer
@@ -197,7 +177,6 @@ port(	D: in std_logic_vector(31 downto 0);-- input
 		RDEN: in std_logic;-- input
 		output: out std_logic_vector(31 downto 0)-- output
 );
-
 end component;
 
 ---------------------------------------------------
@@ -235,7 +214,6 @@ port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral supports only 
 		RDEN: in std_logic;-- input
 		output: out std_logic_vector(31 downto 0)-- output
 );
-
 end component;
 
 ---------------------------------------------------
@@ -532,12 +510,6 @@ signal iack: std_logic;
 	CLK_OUT => fifo_clock);
 	
 	--produces 5MHz clock (processor and cache) from 50MHz input
-/*	clk_5MHz: prescaler
-	generic map (factor => 10)
-	port map (
-	CLK_IN => CLK_IN,
-	rst => rst,
-	CLK_OUT => CLK5MHz);*/
 	clk_5MHz: pll_5MHz
 	port map (
 	inclk0 => CLK_IN,
