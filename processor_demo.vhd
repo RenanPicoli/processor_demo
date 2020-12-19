@@ -301,9 +301,9 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#40#,16#7F#),--inner_product
 											(16#80#,16#BF#) --VMAC
 											);
-signal all_periphs_output: array32 (3 downto 0);
-signal all_periphs_rden: std_logic_vector(3 downto 0);
-signal all_periphs_wren: std_logic_vector(3 downto 0);
+signal all_periphs_output: array32 (4 downto 0);
+signal all_periphs_rden: std_logic_vector(4 downto 0);
+signal all_periphs_wren: std_logic_vector(4 downto 0);
 
 signal proc_filter_wren: std_logic;
 signal filter_wren: std_logic;
@@ -442,22 +442,23 @@ signal iack: std_logic;
 				output => vmac_Q
 	);
 
-	all_periphs_output	<= (3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
---for some reason, the following code does not work: compiles but connections are not generated
+	all_periphs_output	<= (4 => vmac_Q,	3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
+/*for some reason, the following code does not work: compiles but connections are not generated
 	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
-
-/*
+*/
+	vmac_rden				<=	all_periphs_rden(4);
 	inner_product_rden	<= all_periphs_rden(3);
 	cache_rden				<= all_periphs_rden(2);
 	filter_xN_rden			<= all_periphs_rden(1);
 	coeffs_mem_rden		<= all_periphs_rden(0);
 
+	vmac_wren				<= all_periphs_wren(4);
 	inner_product_wren	<= all_periphs_wren(3);
 	cache_wren				<= all_periphs_wren(2);
 	filter_xN_wren			<= all_periphs_wren(1);
 	coeffs_mem_wren		<= all_periphs_wren(0);
-*/
+
 	memory_map: address_decoder_memory_map
 	--N: word address width in bits
 	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
