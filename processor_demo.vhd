@@ -250,7 +250,7 @@ signal instruction_memory_address: std_logic_vector(4 downto 0);
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
-constant N: integer := 7;-- size in bits of data addresses (each address refers to a 32 bit word)
+constant N: integer := 8;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
 signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_rden: std_logic;
@@ -266,10 +266,10 @@ signal cache_rden: std_logic;
 signal cache_wren: std_logic;
 
 -----------signals for FIFO interfacing---------------------
-constant F: integer := 2**(N-1);--fifo depth (twice the cache's size)
+constant F: integer := 2**(N-2);--fifo depth (twice the cache's size)
 signal fifo_clock: std_logic;
 signal fifo_input: std_logic_vector (31 downto 0);
-signal fifo_output: array32 (0 to (2**(N-2))-1);--because N=8 and cache has 64 addresses 
+signal fifo_output: array32 (0 to (2**(N-3))-1);--because N=8 and cache has 32 addresses 
 
 --signal fifo_valid: std_logic_vector(F-1 downto 0);
 signal fifo_invalidate_output: std_logic;
@@ -297,8 +297,9 @@ signal filter_xN_wren: std_logic;
 constant ranges: boundaries := 	(--notation: base#value#
 											(16#00#,16#0F#),--filter coeffs
 											(16#10#,16#1F#),--filter xN
-											(16#20#,16#3F#),--inner_product and future peripherals
-											(16#40#,16#7F#)--caches
+											(16#20#,16#3F#),--cache
+											(16#40#,16#7F#),--inner_product
+											(16#80#,16#BF#)--VMAC
 											);
 signal all_periphs_output: array32 (3 downto 0);
 signal all_periphs_rden: std_logic_vector(3 downto 0);
@@ -322,7 +323,7 @@ signal iack: std_logic;
 	);
 	
 	fifo_input <= data_in;
-	fifo: shift_register generic map (N => F, OS => 2**(N-2))
+	fifo: shift_register generic map (N => F, OS => 2**(N-3))
 								port map(CLK => fifo_clock,
 											rst => rst,
 											D => fifo_input,
@@ -332,10 +333,10 @@ signal iack: std_logic;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
-	cache_parallel_write_data <= fifo_output(0 to 2**(N-2)-1);--2^5=32 addresses
-	cache: parallel_load_cache generic map (N => N-2)
+	cache_parallel_write_data <= fifo_output(0 to 2**(N-3)-1);--2^5=32 addresses
+	cache: parallel_load_cache generic map (N => N-3)
 									port map(CLK	=> ram_clk,
-												ADDR	=> ram_addr(N-3 downto 0),
+												ADDR	=> ram_addr(N-4 downto 0),
 												write_data => ram_write_data,
 												parallel_write_data => cache_parallel_write_data,
 												fill_cache => cache_fill_cache,
@@ -344,7 +345,7 @@ signal iack: std_logic;
 												Q		=> cache_Q);
 												
 	memory_management_unit:
-	mmu generic map (N => F, F => 2**(N-2))
+	mmu generic map (N => F, F => 2**(N-3))
 	port map(CLK => CLK,
 				CLK_fifo => fifo_clock,
 				rst => rst,
@@ -355,9 +356,9 @@ signal iack: std_logic;
 				fill_cache => cache_fill_cache
 	);
 	
-	coeffs_mem: generic_coeffs_mem generic map (N=> N-3, P => P,Q => Q)
+	coeffs_mem: generic_coeffs_mem generic map (N=> N-4, P => P,Q => Q)
 									port map(D => ram_write_data,
-												ADDR	=> ram_addr(N-4 downto 0),
+												ADDR	=> ram_addr(N-5 downto 0),
 												RST => rst,
 												RDEN	=> coeffs_mem_rden,
 												WREN	=> coeffs_mem_wren,
@@ -400,11 +401,11 @@ signal iack: std_logic;
 	xN: filter_xN
 	-- 0..P: índices dos x
 	-- P+1..P+Q: índices dos y
-	generic map (N => N-3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
+	generic map (N => N-4, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
 	port map (	D => ram_write_data,-- not used (peripheral supports only read)
 			DX => filter_input,--current filter input
 			DY => filter_output,--current filter output
-			ADDR => ram_addr(N-4 downto 0),-- input
+			ADDR => ram_addr(N-5 downto 0),-- input
 			CLK => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
 			RST => RST,-- input
 			WREN => filter_xN_wren,--not used (peripheral supports only read)
@@ -413,9 +414,9 @@ signal iack: std_logic;
 			);
 												
 	inner_product: inner_product_calculation_unit
-	generic map (N => N-1)
+	generic map (N => N-2)
 	port map(D => ram_write_data,--supposed to be normalized
-				ADDR => ram_addr(N-2 downto 0),--supposed to be normalized
+				ADDR => ram_addr(N-3 downto 0),--supposed to be normalized
 				CLK => ram_clk,
 				RST => rst,
 				WREN => inner_product_wren,
@@ -426,21 +427,22 @@ signal iack: std_logic;
 				output => inner_product_result
 				);
 
-	all_periphs_output	<= (3 => cache_Q,		2 => inner_product_result,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
-/* for some reason, the following code does not work: compiles but connection are not generated
-	all_periphs_rden		<= (3 => cache_rden,	2 => inner_product_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
-	all_periphs_wren		<= (3 => cache_wren,	2 => inner_product_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
-*/
-	cache_rden				<= all_periphs_rden(3);
-	inner_product_rden	<= all_periphs_rden(2);
+	all_periphs_output	<= (3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
+--for some reason, the following code does not work: compiles but connections are not generated
+	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
+	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
+
+/*
+	inner_product_rden	<= all_periphs_rden(3);
+	cache_rden				<= all_periphs_rden(2);
 	filter_xN_rden			<= all_periphs_rden(1);
 	coeffs_mem_rden		<= all_periphs_rden(0);
 
-	cache_wren				<= all_periphs_wren(3);
-	inner_product_wren	<= all_periphs_wren(2);
+	inner_product_wren	<= all_periphs_wren(3);
+	cache_wren				<= all_periphs_wren(2);
 	filter_xN_wren			<= all_periphs_wren(1);
 	coeffs_mem_wren		<= all_periphs_wren(0);
-
+*/
 	memory_map: address_decoder_memory_map
 	--N: word address width in bits
 	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,

@@ -2,7 +2,7 @@
 --inner product calculation unit
 --specialized peripheral
 --contains fpu_inner_product and its input and output registers
---allows calculation of inner product of vector of up to 32 elements
+--allows calculation of inner product of vector of up to 16 elements
 --by Renan Picoli de Souza
 ---------------------------------------------------
 
