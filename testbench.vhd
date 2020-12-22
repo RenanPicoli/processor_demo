@@ -25,8 +25,6 @@ signal	rst: std_logic;
 signal  	data_in:std_logic_vector(31 downto 0) := (others => '0');
 signal	data_out:std_logic_vector(31 downto 0);
 signal	instruction_addr:std_logic_vector(31 downto 0);
-signal	filter_CLK:std_logic;
-signal	alternative_filter_CLK: std_logic;-- will simulate 22050 Hz clock
 signal	segments: array7(0 to 7);
 
 constant c_WIDTH : natural := 4;
@@ -48,10 +46,7 @@ begin
 				rst	 	=> rst,
 				data_in 	=> data_in,
 				data_out	=> data_out,
-				instruction_addr=>instruction_addr,
-				alternative_filter_CLK => alternative_filter_CLK,--alternative input clock (for simulation purpose)
-				use_alt_filter_clk => use_alt_filter_clk,-- '1' uses alternative  clock; '0' uses pll
-				filter_CLK=>filter_CLK--filter sampling clock
+				instruction_addr=>instruction_addr
 --				segments	=> segments	
 	);
 	

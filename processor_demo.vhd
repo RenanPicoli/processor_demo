@@ -16,10 +16,8 @@ entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
 		rst: in std_logic;
 		data_in: in std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
+		desired: in std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
 		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
-		filter_CLK: inout std_logic;--filter sampling clock
-		alternative_filter_CLK: in std_logic;--alternative input clock (for simulation purpose)
-		use_alt_filter_clk: in std_logic;-- '1' uses alternative  clock; '0' uses pll
 		instruction_addr: buffer std_logic_vector(31 downto 0)
 );
 end entity;
@@ -145,6 +143,17 @@ component wren_ctrl
 end component;
 
 ---------------------------------------------------
+
+component d_flip_flop--  current filter output
+		port (D:	in std_logic_vector(31 downto 0);
+				RST: in std_logic;
+				CLK:in std_logic;
+				Q:	out std_logic_vector(31 downto 0)  
+				);
+	end component;
+
+---------------------------------------------------	
+	
 --produces 220.5kHz from 5MHz
 component pll
 	port (areset: in std_logic  := '0';
@@ -294,23 +303,37 @@ signal filter_xN_Q: std_logic_vector(31 downto 0) := (others=>'0');
 signal filter_xN_rden: std_logic;
 signal filter_xN_wren: std_logic;
 
------------signals for memory map interfacing--------------
+--signals for filter_out-------------------------------------
+signal filter_out_Q: std_logic_vector(31 downto 0);-- register containing current filter output
+signal filter_out_rden: std_logic;-- not used, just to keep form
+signal filter_out_wren: std_logic;-- not used, just to keep form
+
+--signals for d_ff_desired-----------------------------------
+signal d_ff_desired_Q: std_logic_vector(31 downto 0);-- register containing desired response
+signal d_ff_desired_rden: std_logic;-- not used, just to keep form
+signal d_ff_desired_wren: std_logic;-- not used, just to keep form
+
+-----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
 											(16#00#,16#0F#),--filter coeffs
 											(16#10#,16#1F#),--filter xN
 											(16#20#,16#3F#),--cache
 											(16#40#,16#7F#),--inner_product
-											(16#80#,16#BF#) --VMAC
+											(16#80#,16#BF#),--VMAC
+											(16#C0#,16#C0#),--current filter output
+											(16#C1#,16#C1#) --desired response
 											);
-signal all_periphs_output: array32 (4 downto 0);
-signal all_periphs_rden: std_logic_vector(4 downto 0);
-signal all_periphs_wren: std_logic_vector(4 downto 0);
+signal all_periphs_output: array32 (6 downto 0);
+signal all_periphs_rden: std_logic_vector(6 downto 0);
+signal all_periphs_wren: std_logic_vector(6 downto 0);
 
+signal filter_CLK: std_logic;
 signal proc_filter_wren: std_logic;
 signal filter_wren: std_logic;
 signal filter_rst: std_logic := '1';
 signal filter_input: std_logic_vector(31 downto 0);
 signal filter_output: std_logic_vector(31 downto 0);
+
 signal filter_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
 signal irq: std_logic;
@@ -368,7 +391,7 @@ signal iack: std_logic;
 												all_coeffs => coefficients
 												);
 												
-	filter_CLK <= alternative_filter_CLK when (use_alt_filter_clk = '1') else CLK22_05kHz;
+	filter_CLK <= CLK22_05kHz;
 	IIR_filter: filter 	generic map (P => P, Q => Q)
 								port map(input => filter_input,-- input
 											RST => filter_rst,--synchronous reset
@@ -379,6 +402,20 @@ signal iack: std_logic;
 											);
 	filter_input <= data_in;
 	data_out <= filter_output;
+	
+	filter_out: d_flip_flop
+	 port map(	D => filter_output,
+					RST=> RST,--resets all previous history of filter output
+					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
+					Q=> filter_out_Q
+					);
+					
+	d_ff_desired: d_flip_flop
+	 port map(	D => desired,
+					RST=> RST,--resets all previous history of filter output
+					CLK=>filter_CLK,--must be the same as filter_CLK
+					Q=> d_ff_desired_Q
+					);
 											
 	filter_reset_process: process (filter_CLK,filter_state)
 	begin
@@ -443,17 +480,22 @@ signal iack: std_logic;
 				output => vmac_Q
 	);
 
-	all_periphs_output	<= (4 => vmac_Q,	3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
+	all_periphs_output	<= (6 => d_ff_desired_Q, 5 => filter_out_Q, 4 => vmac_Q,
+									3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
 /*for some reason, the following code does not work: compiles but connections are not generated
 	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 */
+	d_ff_desired_rden		<= all_periphs_rden(6);-- not used, just to keep form
+	filter_out_rden		<= all_periphs_rden(5);-- not used, just to keep form
 	vmac_rden				<=	all_periphs_rden(4);
 	inner_product_rden	<= all_periphs_rden(3);
 	cache_rden				<= all_periphs_rden(2);
 	filter_xN_rden			<= all_periphs_rden(1);
 	coeffs_mem_rden		<= all_periphs_rden(0);
 
+	d_ff_desired_wren		<= all_periphs_wren(6);-- not used, just to keep form
+	filter_out_wren		<= all_periphs_wren(5);-- not used, just to keep form
 	vmac_wren				<= all_periphs_wren(4);
 	inner_product_wren	<= all_periphs_wren(3);
 	cache_wren				<= all_periphs_wren(2);
