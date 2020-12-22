@@ -130,6 +130,7 @@ begin
 ------------------------ ( B(i) ) registers --------------------------------------------------
 	B_i: for i in 0 to (2**(N-2)-1) generate-- B(i)
 		B_in(i) <= D;
+		ena_reg((2**(N-2))+i) <= address_decoder_wren((2**(N-2))+i);
 		d_ff_B: d_flip_flop port map(	D => B_in(i),
 												RST=> RST,--resets all previous history of input signal
 												ENA=> ena_reg((2**(N-2))+i),
@@ -140,9 +141,10 @@ begin
 	
 ---------------------------------- lambda register ---------------------------------------------
 		lambda_in <= D;
+		ena_reg(2**(N-1)) <= address_decoder_wren(2**(N-1));
 		d_ff_lambda: d_flip_flop port map(	D => lambda_in,
 														RST=> RST,--resets all previous history of input signal
-														ENA=> ena_reg((2**(N-1)+1)),
+														ENA=> ena_reg(2**(N-1)),
 														CLK=>CLK,--sampling clock
 														Q=> lambda_out
 														);
