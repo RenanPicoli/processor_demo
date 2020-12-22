@@ -128,6 +128,8 @@ component filter
 			WREN:	in std_logic;--enables writing on coefficients
 			CLK:	in std_logic;--sampling clock
 			coeffs:	in std_logic_vector(32*(P+Q+1)-1 downto 0);-- todos os coeficientes são lidos de uma vez
+			IACK: in std_logic;--iack
+			IRQ:	out std_logic;--interrupt request: new sample arrived
 			output: out std_logic_vector(31 downto 0)-- output
 	);
 
@@ -147,6 +149,7 @@ end component;
 component d_flip_flop--  current filter output
 		port (D:	in std_logic_vector(31 downto 0);
 				RST: in std_logic;
+				ENA:	in std_logic:='1';--enables writes
 				CLK:in std_logic;
 				Q:	out std_logic_vector(31 downto 0)  
 				);
@@ -243,6 +246,24 @@ port(	D: in std_logic_vector(31 downto 0);-- input
 end component;
 
 ---------------------------------------------------
+
+component interrupt_controller
+generic	(L: natural);--L: number of IRQ lines
+port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
+		CLK: in std_logic;-- input
+		RST: in std_logic;-- input
+		WREN: in std_logic;-- input
+		RDEN: in std_logic;-- input
+		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines
+		IRQ_OUT: out std_logic;--output: IRQ line to cpu
+		IACK_IN: in std_logic;--input: IACK line coming from cpu
+		IACK_OUT: out std_logic_vector(L-1 downto 0);--output: all IACK lines going to peripherals
+		output: out std_logic_vector(31 downto 0)-- output of register reading
+);
+
+end component;
+
+---------------------------------------------------
 signal CLK: std_logic;--clock for processor and cache
 signal CLK5MHz: std_logic;--clock input for PLL
 signal CLK220_5kHz: std_logic;--clock output for PLL
@@ -313,6 +334,20 @@ signal d_ff_desired_Q: std_logic_vector(31 downto 0);-- register containing desi
 signal d_ff_desired_rden: std_logic;-- not used, just to keep form
 signal d_ff_desired_wren: std_logic;-- not used, just to keep form
 
+--signals for filter_status-----------------------------------
+signal filter_status_Q: std_logic_vector(31 downto 0);-- register containing filter status of convergency
+signal filter_status_rden: std_logic;-- not used, just to keep form
+signal filter_status_wren: std_logic;
+
+--signals for interrupt controller----------------------------
+signal irq_ctrl_Q: std_logic_vector(31 downto 0);-- register containing filter status of convergency
+signal irq_ctrl_rden: std_logic;-- not used, just to keep form
+signal irq_ctrl_wren: std_logic;
+signal irq: std_logic;
+signal iack: std_logic;
+signal all_irq: std_logic_vector(1 downto 0);
+signal all_iack: std_logic_vector(1 downto 0);
+
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
 											(16#00#,16#0F#),--filter coeffs
@@ -321,11 +356,13 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#40#,16#7F#),--inner_product
 											(16#80#,16#BF#),--VMAC
 											(16#C0#,16#C0#),--current filter output
-											(16#C1#,16#C1#) --desired response
+											(16#C1#,16#C1#),--desired response
+											(16#C2#,16#C2#),--filter status
+											(16#C3#,16#C3#) --interrupt controller
 											);
-signal all_periphs_output: array32 (6 downto 0);
-signal all_periphs_rden: std_logic_vector(6 downto 0);
-signal all_periphs_wren: std_logic_vector(6 downto 0);
+signal all_periphs_output: array32 (8 downto 0);
+signal all_periphs_rden: std_logic_vector(8 downto 0);
+signal all_periphs_wren: std_logic_vector(8 downto 0);
 
 signal filter_CLK: std_logic;
 signal proc_filter_wren: std_logic;
@@ -333,11 +370,13 @@ signal filter_wren: std_logic;
 signal filter_rst: std_logic := '1';
 signal filter_input: std_logic_vector(31 downto 0);
 signal filter_output: std_logic_vector(31 downto 0);
+signal filter_irq: std_logic;
+signal filter_iack: std_logic;
 
 signal filter_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
-signal irq: std_logic;
-signal iack: std_logic;
+signal mmu_irq: std_logic;
+signal mmu_iack: std_logic;
 
 	begin
 	
@@ -374,8 +413,8 @@ signal iack: std_logic;
 				CLK_fifo => fifo_clock,
 				rst => rst,
 				receive_cache_request => send_cache_request,
-				iack => iack,
-				irq => irq,
+				iack => mmu_iack,
+				irq => mmu_irq,
 				invalidate_output => fifo_invalidate_output,
 				fill_cache => cache_fill_cache
 	);
@@ -398,6 +437,8 @@ signal iack: std_logic;
 											WREN => filter_wren,--enables writing on coefficients
 											CLK => filter_CLK,--sampling clock
 											coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
+											iack => filter_iack,
+											irq => filter_irq,
 											output => filter_output											
 											);
 	filter_input <= data_in;
@@ -415,6 +456,14 @@ signal iack: std_logic;
 					RST=> RST,--resets all previous history of filter output
 					CLK=>filter_CLK,--must be the same as filter_CLK
 					Q=> d_ff_desired_Q
+					);
+					
+	filter_status: d_flip_flop
+	 port map(	D => ram_write_data,--written by software
+					RST=> RST,--resets all previous history of filter output
+					ENA=> filter_status_wren,
+					CLK=>ram_clk,--must be the same as filter_CLK
+					Q=> filter_status_Q
 					);
 											
 	filter_reset_process: process (filter_CLK,filter_state)
@@ -480,12 +529,14 @@ signal iack: std_logic;
 				output => vmac_Q
 	);
 
-	all_periphs_output	<= (6 => d_ff_desired_Q, 5 => filter_out_Q, 4 => vmac_Q,
+	all_periphs_output	<= (8 => irq_ctrl_Q, 7 => filter_status_Q, 6 => d_ff_desired_Q, 5 => filter_out_Q, 4 => vmac_Q,
 									3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
 /*for some reason, the following code does not work: compiles but connections are not generated
 	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 */
+	irq_ctrl_rden			<= all_periphs_rden(8);-- not used, just to keep form
+	filter_status_rden	<= all_periphs_rden(7);-- not used, just to keep form
 	d_ff_desired_rden		<= all_periphs_rden(6);-- not used, just to keep form
 	filter_out_rden		<= all_periphs_rden(5);-- not used, just to keep form
 	vmac_rden				<=	all_periphs_rden(4);
@@ -494,6 +545,8 @@ signal iack: std_logic;
 	filter_xN_rden			<= all_periphs_rden(1);
 	coeffs_mem_rden		<= all_periphs_rden(0);
 
+	irq_ctrl_wren			<= all_periphs_wren(8);
+	filter_status_wren	<= all_periphs_wren(7);
 	d_ff_desired_wren		<= all_periphs_wren(6);-- not used, just to keep form
 	filter_out_wren		<= all_periphs_wren(5);-- not used, just to keep form
 	vmac_wren				<= all_periphs_wren(4);
@@ -535,6 +588,23 @@ signal iack: std_logic;
 		vmac_en => vmac_en,
 		send_cache_request => send_cache_request,
 		Q_ram => ram_Q
+	);
+	
+	all_irq		<= (1 => mmu_irq, 0 => filter_irq);
+	mmu_iack		<= all_iack(1);
+	filter_iack	<= all_iack(0);
+	irq_ctrl: interrupt_controller
+	generic map (L => 2)--L: number of IRQ lines
+	port map (	D => ram_write_data,-- input: data to register write
+			CLK => ram_clk,-- input
+			RST => RST,-- input
+			WREN => irq_ctrl_wren,-- input
+			RDEN => irq_ctrl_rden,-- input
+			IRQ_IN => all_irq,--input: all IRQ lines
+			IRQ_OUT => irq,--output: IRQ line to cpu
+			IACK_IN => iack,--input: IACK line coming from cpu
+			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
+			output => irq_ctrl_Q -- output of register reading
 	);
 
 	--são 9 instruções para cada dado em cache, clock do processador precisa ser pelo menos 9x mais rápido
