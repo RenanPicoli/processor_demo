@@ -22,6 +22,8 @@ port(	input:	in std_logic_vector(31 downto 0);-- input
 		WREN:	in std_logic;--enables writing on coefficients
 		CLK:	in std_logic;--sampling clock
 		coeffs:	in std_logic_vector(32*(P+Q+1)-1 downto 0);-- todos os coeficientes são lidos de uma vez
+		IACK: in std_logic;--iack
+		IRQ:	out std_logic;--interrupt request: new sample arrived
 		output: out std_logic_vector(31 downto 0)-- output
 );
 
@@ -173,7 +175,7 @@ begin
 ---------------------------------------------------------------------------------------------
 
 	-- updating coefficients
-   process(CLK)
+   coeff_update: process(CLK)
    begin
 
 	if (CLK'event and CLK = '1') then
@@ -188,6 +190,17 @@ begin
 		end if;
 	end if;
    end process;
+	
+	--latch for IRQ signal
+	irq_iack: process (CLK, IACK)
+	begin
+		if (CLK = '1') then--asserts IRQ line when sample arrives
+			IRQ <= '1';
+		end if;
+		if (IACK = '1') then--deassert IRQ line when IACK arrives
+			IRQ <= '0';
+		end if;
+	end process;
 
 end behv;
 
