@@ -271,7 +271,7 @@ signal CLK22_05kHz: std_logic;-- 22.05kHz clock
 
 -----------signals for ROM interfacing---------------------
 signal instruction_memory_output: std_logic_vector(31 downto 0);
-signal instruction_memory_address: std_logic_vector(4 downto 0);
+signal instruction_memory_address: std_logic_vector(6 downto 0);
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
