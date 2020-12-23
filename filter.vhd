@@ -82,6 +82,10 @@ architecture behv of filter is
 	signal d_ff_y_CLK: std_logic;-- necessary delay between sampling x and y (since changing x will change y)
 										  -- it's necessary necessary defining a signal instead of using not CLK because of modelsim (VHDL wouldn't complain)
 	signal output_signal: std_logic_vector(31 downto 0);
+	
+	--for filter irq-iack
+	signal irq_set_Q: std_logic;
+	signal irq_reset_Q: std_logic;
 begin					   
 ---------- x signal flip flops --------------------------------------------------------------
 	--samples input
@@ -192,15 +196,36 @@ begin
    end process;
 	
 	--latch for IRQ signal
-	irq_iack: process (CLK, IACK)
+--	irq_iack: process
+--	begin
+--		wait until rising_edge(CLK);--asserts IRQ line when sample arrives
+--		IRQ <= '1';
+--		wait until rising_edge(IACK);--deassert IRQ line when IACK arrives
+--		IRQ <= '0';
+--	end process;
+	irq_set: process (CLK,irq_reset_Q,RST)
 	begin
-		if (CLK = '1') then--asserts IRQ line when sample arrives
-			IRQ <= '1';
-		end if;
-		if (IACK = '1') then--deassert IRQ line when IACK arrives
-			IRQ <= '0';
+		if (RST='1') then
+			irq_set_Q <= '0';
+		elsif (irq_reset_Q = '1') then
+			irq_set_Q <= '0';
+		elsif rising_edge(CLK) then
+			irq_set_Q <='1';
 		end if;
 	end process;
+	
+	irq_reset: process (IACK,irq_set_Q,RST)
+	begin
+		if (RST='1') then
+			irq_reset_Q <= '0';
+		elsif (irq_set_Q = '0') then
+			irq_reset_Q <= '0';
+		elsif rising_edge(IACK) then
+			irq_reset_Q <= '1';
+		end if;
+	end process;
+	IRQ <= irq_set_Q and (not irq_reset_Q);
+	
 
 end behv;
 
