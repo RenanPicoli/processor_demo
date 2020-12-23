@@ -195,14 +195,7 @@ begin
 	end if;
    end process;
 	
-	--latch for IRQ signal
---	irq_iack: process
---	begin
---		wait until rising_edge(CLK);--asserts IRQ line when sample arrives
---		IRQ <= '1';
---		wait until rising_edge(IACK);--deassert IRQ line when IACK arrives
---		IRQ <= '0';
---	end process;
+	--scheme for IRQ signal
 	irq_set: process (CLK,irq_reset_Q,RST)
 	begin
 		if (RST='1') then
