@@ -17,6 +17,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		rst: in std_logic;
 		data_in: in std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
 		desired: in std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
+		filter_CLK_out: out std_logic;--filter clock: used as port so the testbench can synchronize sample presenting
 		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
 		instruction_addr: buffer std_logic_vector(31 downto 0)
 );
@@ -443,6 +444,7 @@ signal mmu_iack: std_logic;
 											);
 	filter_input <= data_in;
 	data_out <= filter_output;
+	filter_CLK_out <= filter_CLK;
 	
 	filter_out: d_flip_flop
 	 port map(	D => filter_output,
@@ -531,10 +533,10 @@ signal mmu_iack: std_logic;
 
 	all_periphs_output	<= (8 => irq_ctrl_Q, 7 => filter_status_Q, 6 => d_ff_desired_Q, 5 => filter_out_Q, 4 => vmac_Q,
 									3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
-/*for some reason, the following code does not work: compiles but connections are not generated
-	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
-	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
-*/
+	--for some reason, the following code does not work: compiles but connections are not generated
+--	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
+--	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
+
 	irq_ctrl_rden			<= all_periphs_rden(8);-- not used, just to keep form
 	filter_status_rden	<= all_periphs_rden(7);-- not used, just to keep form
 	d_ff_desired_rden		<= all_periphs_rden(6);-- not used, just to keep form
