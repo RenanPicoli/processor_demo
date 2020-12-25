@@ -1,4 +1,4 @@
-% filtro y(n)=[x(n)-y(n-1)]/2
+% filtro IIR
 close all;
 disp('Script iniciado!');
 
@@ -10,24 +10,37 @@ pkg load signal % para usar downsample()
 downsample_factor = 2;
 x = downsample(x,downsample_factor);
 min_x=3200;% esse algoritmo precisa que xN != 0
-max_x=360000;
+max_x=300_000;
 x = x(min_x:max_x);
 x=single(x);% converte x para precisão simples
 L=length(x);
 y=zeros(1,L);
 y=single(y);% converte y para precisão simples
 
+b=[1 0.1 -0.1 -0.5 0.5 -0.2]
+a=[1 0.1 -0.2 -0.4 0.1 -0.1]
+
+% diplay P, Q, direct form 1 coeffs
+b_direct_form_1 = b
+a_direct_form_1 = -a(2:end)
+P=length(b_direct_form_1)-1
+Q=length(a_direct_form_1)
+d=filter(u(1:P+1),[1 -u(P+2:end)],x);% d of desired response, same length as x
+
 disp('iniciando filtro');
 tic;
-for i=2:L
-   y(i)=(x(i-1)-y(i-1))/2; 
-end
+%%% Adaptive Filter with adapted step size %%%%%%%%
+Pmax=5;
+Qmax=5;
+tol=1e-13;
+[y,w,filters,err,step,n] = adaptive_filter(x,d,Pmax,Qmax,tol);
 toc;
 disp('filtro concluído');
 
 %ESCRITA DE ARQUIVO
 disp('Gerando string.');
 
+% escrita das entradas do filtro
 convertidos=toupper(num2hex(single(x)));% string a ser impressa
 s=blanks(9*L);
 for i=1:L
@@ -39,6 +52,19 @@ fid=fopen(fname,"w");
 fprintf(fid,"%s",s);
 fclose(fid);
 
+% escrita das respostas desejadas
+convertidos=toupper(num2hex(single(d)));% string a ser impressa
+s=blanks(9*L);
+for i=1:L
+  s(9*i-8:9*i)=[convertidos(i,:) "\n"];
+end
+
+fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/desired_vectors.txt";
+fid=fopen(fname,"w");
+fprintf(fid,"%s",s);
+fclose(fid);
+
+% leitura de respostas
 disp('Pressione qualquer tecla para ler resultados calculados pelo circuito:');
 kbhit();
 
