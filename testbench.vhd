@@ -27,6 +27,8 @@ signal  	desired:std_logic_vector(31 downto 0) := (others => '0');--desired resp
 signal	data_out:std_logic_vector(31 downto 0);
 signal	instruction_addr:std_logic_vector(31 downto 0);
 
+signal	instruction_number: natural := 0;-- number of the instruction being executed
+
 signal	filter_CLK: std_logic := '0';-- to keep in sync with filter clock generated with PLL
 --signal	alternative_filter_CLK: std_logic := '0';-- to keep in sync with filter clock generated with PLL
 
@@ -51,6 +53,9 @@ begin
 				data_out	=> data_out,
 				instruction_addr=>instruction_addr
 	);
+	
+	--calculate number of instruction being executed
+	instruction_number <= to_integer(unsigned(instruction_addr));
 	
 	-----------------------------------------------------------
 	--	this process reads a file vector, loads its vectors,
