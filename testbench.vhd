@@ -55,7 +55,7 @@ begin
 	);
 	
 	--calculate number of instruction being executed
-	instruction_number <= to_integer(unsigned(instruction_addr));
+	instruction_number <= to_integer(unsigned(instruction_addr))/4;
 	
 	-----------------------------------------------------------
 	--	this process reads a file vector, loads its vectors,
