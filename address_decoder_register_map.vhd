@@ -49,11 +49,12 @@ begin
 	--demux of WREN
 	process(ADDR,WREN)
 	begin
-		WREN_OUT <= (others=>'0');
 		-- i-th element of WREN_OUT is associated with address i
 		for i in data_in'range loop
 			if (i = to_integer(unsigned(ADDR))) then
 				WREN_OUT(i) <= WREN;
+			else
+				WREN_OUT(i) <= '0';
 			end if;
 		end loop;
 	end process;
