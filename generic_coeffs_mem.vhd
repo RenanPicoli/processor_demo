@@ -23,7 +23,7 @@ port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é carregado por vez
 		WREN:	in std_logic;--write enable
 		CLK:	in std_logic;
 		Q_coeffs: out std_logic_vector(31 downto 0);--single coefficient reading
-		all_coeffs:	out std_logic_vector(32*(P+Q+1)-1 downto 0)-- todos os coeficientes são lidos de uma vez
+		all_coeffs:	out std_logic_vector(32*(P+Q+1)-1 downto 0)-- todos os coeficientes VÁLIDOS são lidos de uma vez
 );
 
 end generic_coeffs_mem;
@@ -32,7 +32,7 @@ end generic_coeffs_mem;
 
 architecture behv of generic_coeffs_mem is
 
-	type memory is array (0 to P+Q) of std_logic_vector(31 downto 0);
+	type memory is array (0 to 2**N-1) of std_logic_vector(31 downto 0);
 	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
 
 	-- generates initial values of possible_outputs signal
