@@ -1,4 +1,5 @@
 % filtro IIR
+clear all;
 close all;
 disp('Script iniciado!');
 
@@ -25,6 +26,13 @@ b_direct_form_1 = b
 a_direct_form_1 = -a(2:end)
 P=length(b_direct_form_1)-1
 Q=length(a_direct_form_1)
+% coeficientes dos multiplicadores no circuito
+% u(1:P+1): coeficientes de feed forward
+% u(P+2:end): coeficientes de feedback
+% u = [b0 .. bP a1 .. aQ]
+% y(n) = b0x(n)+..+bPx(n-P)+a1y(n-1)..aQy(n-Q)
+u=[b_direct_form_1 a_direct_form_1]
+
 d=filter(u(1:P+1),[1 -u(P+2:end)],x);% d of desired response, same length as x
 
 disp('iniciando filtro');
