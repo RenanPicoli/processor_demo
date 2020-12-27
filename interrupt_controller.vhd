@@ -48,10 +48,13 @@ architecture behv of interrupt_controller is
 
 	signal IRQ_pend: 			std_logic_vector(31 downto 0);-- data to be written: from processor or IRQ lines
 	signal IRQ_pend_out:		std_logic_vector(31 downto 0);-- status of all IRQs
+	signal previous_IRQ_pend:		std_logic_vector(31 downto 0);-- previous vlue of status of all IRQs
 	signal IRQ_IN_extended: std_logic_vector(31 downto 0);-- zero-extension of IRQ lines
 	signal irq:					std_logic;
-	signal tmp: std_logic_vector(L-1 downto 0);
+	signal tmp:					std_logic_vector(L-1 downto 0);
 	signal cleared: 			std_logic_vector(31 downto 0);-- '1' in positions where the pending bit went from '1' to '0'.
+	signal clr_rst:			std_logic := '0';
+	signal clr_set:			std_logic := '0';
 
 begin
 	
@@ -64,8 +67,8 @@ begin
 														);
 		
 		IRQ_IN_extended <= (31 downto L => '0') & IRQ_IN;
-		-- based on IRQ lines and signal WREN, decides what to write in IRQ_pend
-		IRQ_pend_write: process(WREN, IRQ_IN_extended, D)
+		-- based on IRQ lines and signal WREN, decides what to write in IRQ_pend, BEFORE irq_pend_out UPDATE
+		IRQ_pend_write: process(WREN, IRQ_IN_extended, D, CLK)
 		begin
 			if (WREN='1') then
 				IRQ_pend	<= D and IRQ_IN_extended;
@@ -74,27 +77,30 @@ begin
 			end if;
 		end process;
 		
-		tmp(0) <= IRQ_pend_out(0);
-		irq_out_write: for i in 1 to L-1 generate
-				tmp(i) <= tmp(i-1) or IRQ_pend_out(i);
-		end generate;
+		cleared <= (not IRQ_pend_out) and previous_IRQ_pend;--identifica com '1' as posições que foram de '1' a '0'
 		
-		irq <= tmp(L-1);
-		IRQ_OUT <= irq;
-		output <= IRQ_pend_out;
+		process (CLK)
+		begin
+			if (rising_edge(CLK)) then
+				previous_IRQ_pend <= IRQ_pend_out;
+			end if;
+		end process;
 		
+		-- AFTER irq_pend_out UPDATE
 		--é necessário que o software zere os bits das IRQ atendidas e
 		--DEPOIS envie o IACK.
 		iack_out_write: for i in 0 to L-1 generate
-				IACK_OUT(i) <= IACK_IN and cleared(i);
+					IACK_OUT(i) <= IACK_IN and cleared(i);
 		end generate;
-		
-		process (WREN, IRQ_pend, IRQ_pend_out, IACK_OUT)
-		begin
-			if (WREN='1') then--identifica a escrita por software
-				cleared	<= (not IRQ_pend) and IRQ_pend_out;--identifica com '1' as posições de que foram de '1' a '0'
-			end if;
-		end process;
+
+		-- AFTER irq_pend_out UPDATE
+		tmp(0) <= IRQ_pend_out(0);
+		irq_out_write: for i in 1 to L-1 generate
+				tmp(i) <= tmp(i-1) or IRQ_pend_out(i);
+		end generate;		
+		irq <= tmp(L-1);
+		IRQ_OUT <= irq;
+		output <= IRQ_pend_out;
 end behv;
 
 ---------------------------------------------------------------------------------------------
