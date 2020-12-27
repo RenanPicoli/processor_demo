@@ -39,8 +39,8 @@ architecture behv of generic_coeffs_mem is
 	function initial_values return memory is
 		variable retval: memory := (others => x"0000_0000");
 	begin
-		retval (0) := x"3F00_0000";-- b0: 0.5
-		retval (P+1) := x"BF00_0000";-- a1: -0.5
+--		retval (0) := x"3F00_0000";-- b0: 0.5
+--		retval (P+1) := x"BF00_0000";-- a1: -0.5
 		return retval;		
 	end function;
 	signal possible_outputs: memory := initial_values;
