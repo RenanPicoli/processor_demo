@@ -114,21 +114,21 @@ begin
 	end process;
 	
 	--reads adaptive filter response
-	write_proc: process(data_out)--writes output file every time data_out changes
+	write_proc: process(data_out, filter_CLK)--writing output file every time data_out changes introduces spurious pulses
 		variable v_oline: line;
 		variable v_C: std_logic_vector(31 downto 0);--data to be written
 	begin
-
-		file_open(output_file,"output_vectors.txt",append_mode);--PRECISA FICAR NA PASTA simulation/modelsim
-		
-		v_C := data_out;
-		hwrite(v_oline, v_C);--write values in hex notation
---		write(v_oline,string'(" "));
---		write(v_oline,time'image(now));
-		writeline(output_file, v_oline);
+		if (filter_CLK'event and filter_CLK='0') then-- falling_edge(filter_CLK): when outputs are sampled in filter and xN
+			file_open(output_file,"output_vectors.txt",append_mode);--PRECISA FICAR NA PASTA simulation/modelsim
 			
-		file_close(output_file);
-
+			v_C := data_out;
+			hwrite(v_oline, v_C);--write values in hex notation
+--			write(v_oline,string'(" "));
+--			write(v_oline,time'image(now));
+			writeline(output_file, v_oline);
+				
+			file_close(output_file);
+		end if;
 	end process;
 	
 	clock: process--50MHz input clock
