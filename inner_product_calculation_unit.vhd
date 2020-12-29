@@ -123,9 +123,10 @@ begin
 				);
 				
 ---------------------------------- result register ---------------------------------------------
+------------------(READ-ONLY, always WRITTEN by fpu_inner_product)------------------------------
 		d_ff_result: d_flip_flop port map(	D => result,
 														RST=> RST,--resets all previous history of input signal
-														ENA=> ena_reg((2**(N-1)+1)),
+														ENA=> '1',--ena_reg((2**(N-1)+1)),
 														CLK=>CLK,--sampling clock
 														Q=> reg_result_out
 														);
