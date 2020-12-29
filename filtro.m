@@ -85,12 +85,16 @@ val=val{1,1};
 disp('val');
 disp(val);
 
-%ignorar os X até o primeiro 0000_0000 inclusive
+%ignorar os X até o segundo 0000_0000 inclusive
 count_invalid_outputs=0;
 while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)% o circuito inicia a saída com esse valor após reset
   count_invalid_outputs++;
 endwhile
-count_invalid_outputs++;% 00000000 também é inválida
+count_invalid_outputs++;% o 1º 00000000 também é inválido
+while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)
+  count_invalid_outputs++;
+endwhile
+%count_invalid_outputs++;% 00000000 também é inválida
 val = val(count_invalid_outputs+1:end,1);
 
 disp('Resutados lidos do circuito:');

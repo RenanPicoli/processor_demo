@@ -16,11 +16,11 @@
 function [y,w,filters,err,step,n] = adaptive_filter(x,d,Pmax,Qmax,tol,varargin)
 N=Pmax+Qmax+1;
 L=length(x);
-err=zeros(1,L);
-y=zeros(1,L);
-xN=zeros(1,N);% vector with last Pmax+1 inputs AND last Qmax outputs
-filter_mat=zeros(1,N,L);
-step=zeros(1,L);% this parameter is adjusted to accelerate convergence
+err=single(zeros(1,L));
+y=single(zeros(1,L));
+xN=single(zeros(1,N));% vector with last Pmax+1 inputs AND last Qmax outputs
+filter_mat=single(zeros(1,N,L));
+step=single(zeros(1,L));% this parameter is adjusted to accelerate convergence
 if (nargin > 5)
   string = sprintf('Using input step=%d\n',varargin{1});
   disp(string);
