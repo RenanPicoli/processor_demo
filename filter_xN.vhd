@@ -17,11 +17,12 @@ entity filter_xN is
 -- 0..P: índices dos x
 -- P+1..P+Q: índices dos y
 generic	(N: natural; P: natural; Q: natural);--N: address width in bits (must be >= log2(P+1+Q))
-port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral supports only read)
+port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral is read-only)
 		DX: in std_logic_vector(31 downto 0);--current filter input
 		DY: in std_logic_vector(31 downto 0);--current filter output
 		ADDR: in std_logic_vector(N-1 downto 0);-- input
-		CLK: in std_logic;-- must be filter clock
+		CLK_x: in std_logic;-- must be filter clock (input sampling)
+		CLK_y: in std_logic;-- must be not filter clock (output storing)
 		RST: in std_logic;-- input
 		WREN: in std_logic;--not used (peripheral supports only read)
 		RDEN: in std_logic;-- input
@@ -33,16 +34,6 @@ end filter_xN;
 ---------------------------------------------------
 
 architecture behv of filter_xN is
-
-	-- * implements FIFOs for input data and output of filter; and
-	-- * permits parallel reading of these data (feature not used here).
-	component shift_register
-		generic (N: integer; OS: integer);--number of stages and number of stages in the output, respectively.
-		port (CLK: in std_logic;
-				rst: in std_logic;
-				D: in std_logic_vector (31 downto 0);
-				Q: out array32 (0 to OS-1));
-	end component;
 
 	component address_decoder_register_map
 	--N: address width in bits
@@ -57,7 +48,7 @@ architecture behv of filter_xN is
 	);
 	end component;
 	
-	signal all_registers_output: array32(0 to P+Q);--P+1 reg x, Q reg y
+	signal all_registers_output: array32(0 to P+Q);--P+1 reg x, Q reg y, others will be zeroed in decoder
 	signal x_fifo_output: array32(0 to P);--outputs of register holding previous samples
 	signal y_fifo_output: array32(0 to Q-1);--outputs of register holding previous filter outputs
 	
@@ -66,21 +57,25 @@ architecture behv of filter_xN is
 	
 begin
 -------------------------- fifo storing previous P+1 sammples --------------------------------
-	x_fifo: shift_register generic map (N => P+2, OS => P+1)--this shift_register needs OS < N 
-									port map(CLK => CLK,
-												rst => RST,
-												D => DX,
-												Q => x_fifo_output);
+	x_fifo: process(CLK_x,RST,DX)
+	begin
+		if (RST='1') then
+			x_fifo_output <= (others=>(others=>'0'));
+		elsif(CLK_x'event and CLK_x='1') then
+			x_fifo_output <= DX & x_fifo_output(0 to P-1);--DX já entra na posição 0
+		end if;
+	end process;
 												
 -------------------------- fifo storing previous Q outputs ----------------------------------
-	y_fifo: shift_register generic map (N => Q+1, OS => Q)--this shift_register needs OS < N
-									port map(CLK => CLK,
-												rst => RST,
-												D => DY,
-												Q => y_fifo_output);
+	y_fifo: process(CLK_y,RST,DY)
+	begin
+		if (RST='1') then
+			y_fifo_output <= (others=>(others=>'0'));
+		elsif(CLK_y'event and CLK_y='1') then
+			y_fifo_output <= DY & y_fifo_output(0 to Q-2);--DY já entra na posição 0
+		end if;
+	end process;
 
-	-- 0..P: índices dos x
-	-- P+1..P+Q: índices dos y
 	all_registers_output <= x_fifo_output & y_fifo_output;
 
 -------------------------- address decoder ---------------------------------------------------
