@@ -31,18 +31,26 @@ end address_decoder_register_map;
 
 architecture behv of address_decoder_register_map is
 signal output: std_logic_vector(31 downto 0);-- data read
+signal data_in_extended: array32 (0 to 2**N-1):= (others=>(others=>'0'));--exetended so that we might read (as zero) invalid memory regions
 begin
 	-- mux of data read
-	process(ADDR,data_in)
+	process(ADDR,data_in_extended)
 	begin
-		output <= (others=>'Z');
-		-- i-th element of data_in is associated with address i
-		for i in data_in'range loop
+		-- i-th element of data_in_extended is associated with address i
+		for i in data_in_extended'range loop
 			if (i = to_integer(unsigned(ADDR))) then
-				output <= data_in(i);
+				output <= data_in_extended(i);
 			end if;
 		end loop;
 	end process;
+	
+	-- 0..data_in'range: índices das posições válidas (associadas ao periférico)
+	data_in_wiring: for i in data_in'range generate
+		data_in_extended(i) <= data_in(i);
+	end generate;
+	data_default: for j in data_in'length to (2**N-1) generate
+		data_in_extended(j) <= (others=>'0');
+	end generate;
 	
 	data_out <= output when RDEN='1' else (others=>'Z');
 	
