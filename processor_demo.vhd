@@ -113,7 +113,7 @@ component generic_coeffs_mem
 			WREN:	in std_logic;--write enable
 			CLK:	in std_logic;
 			Q_coeffs: out std_logic_vector(31 downto 0);--single coefficient reading
-			all_coeffs:	out std_logic_vector(32*(P+Q+1)-1 downto 0)-- todos os coeficientes são lidos de uma vez
+			all_coeffs:	out array32((P+Q) downto 0)-- todos os coeficientes VÁLIDOS são lidos de uma vez
 	);
 
 end component;
@@ -128,7 +128,7 @@ component filter
 			RST:	in std_logic;--synchronous reset
 			WREN:	in std_logic;--enables writing on coefficients
 			CLK:	in std_logic;--sampling clock
-			coeffs:	in std_logic_vector(32*(P+Q+1)-1 downto 0);-- todos os coeficientes são lidos de uma vez
+			coeffs:	in array32((P+Q) downto 0);-- todos os coeficientes são lidos de uma vez
 			IACK: in std_logic;--iack
 			IRQ:	out std_logic;--interrupt request: new sample arrived
 			output: out std_logic_vector(31 downto 0)-- output
@@ -222,7 +222,8 @@ port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral supports only 
 		DX: in std_logic_vector(31 downto 0);--current filter input
 		DY: in std_logic_vector(31 downto 0);--current filter output
 		ADDR: in std_logic_vector(N-1 downto 0);-- input
-		CLK: in std_logic;-- must be filter clock
+		CLK_x: in std_logic;-- must be filter clock (input sampling)
+		CLK_y: in std_logic;-- must be not filter clock (output storing)
 		RST: in std_logic;-- input
 		WREN: in std_logic;--not used (peripheral supports only read)
 		RDEN: in std_logic;-- input
@@ -304,7 +305,7 @@ signal fifo_invalidate_output: std_logic;
 constant P: natural := 5;
 constant Q: natural := 5;
 signal coeffs_mem_Q: std_logic_vector(31 downto 0);--signal for single coefficient reading
-signal coefficients: std_logic_vector(32*(P+Q+1)-1 downto 0);
+signal coefficients: array32 (P+Q downto 0);
 signal coeffs_mem_wren: std_logic;
 signal coeffs_mem_rden: std_logic;
 
@@ -484,8 +485,7 @@ signal mmu_iack: std_logic;
 												 output => filter_wren
 												);
 	
-	-- must be the same frequency as filter clock, but can't be the same polarity
-	--otherwise, there would be problems reading filter output while its changing
+	-- must be the clock of filter output updating
 	filter_xN_CLK <= not filter_CLK;
 	xN: filter_xN
 	-- 0..P: índices dos x
@@ -495,7 +495,8 @@ signal mmu_iack: std_logic;
 			DX => filter_input,--current filter input
 			DY => filter_output,--current filter output
 			ADDR => ram_addr(3 downto 0),-- input
-			CLK => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
+			CLK_x => filter_CLK,
+			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
 			RST => RST,-- input
 			WREN => filter_xN_wren,--not used (peripheral supports only read)
 			RDEN => filter_xN_rden,-- input

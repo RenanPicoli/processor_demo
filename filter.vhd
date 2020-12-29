@@ -21,7 +21,7 @@ port(	input:	in std_logic_vector(31 downto 0);-- input
 		RST:	in std_logic;--synchronous reset
 		WREN:	in std_logic;--enables writing on coefficients
 		CLK:	in std_logic;--sampling clock
-		coeffs:	in std_logic_vector(32*(P+Q+1)-1 downto 0);-- todos os coeficientes são lidos de uma vez
+		coeffs:	in array32((P+Q) downto 0);-- todos os coeficientes são lidos de uma vez
 		IACK: in std_logic;--iack
 		IRQ:	out std_logic;--interrupt request: new sample arrived
 		output: out std_logic_vector(31 downto 0)-- output
@@ -185,11 +185,11 @@ begin
 	if (CLK'event and CLK = '1') then
 		if (WREN ='1') then--if the filter is allowed to update its coefficients
 			coeffs_b: for i in 0 to P loop--coeficientes de x (b)
-				b(i) <= coeffs((32*i+31) downto (32*i));
+				b(i) <= coeffs(i);
 			end loop;
 			
 			coeffs_a: for j in 1 to Q loop--coeficientes de y (a)
-				a(j) <= coeffs((32*(j+P)+31) downto (32*(j+P)));
+				a(j) <= coeffs(j+P);
 			end loop;
 		end if;
 	end if;
