@@ -26,11 +26,19 @@ signal count: std_logic_vector(0 downto 0) := "0";
 signal output_s: std_logic:='0';
 signal output_r: std_logic:='0';
 
+signal pending: std_logic:='0';--indicates a WREN request was set before the current is finished (WREN falling_edge)
+
 begin
 	set: process (input, output_r)
 	begin
 		if (input'event and input='1') then--output is set
-			output_s <= '1';
+--			output_s <= '1';
+			if (output_s = '1') then--keep output set, set pending too
+				pending <= '1';
+			else
+				pending <= '0';
+				output_s <= '1';
+			end if;
 		end if;
 		if (output_r = '1') then--output_r exists only to allow reset of output_s
 			output_s <= '0';--output is reset
@@ -51,7 +59,7 @@ begin
 	reset: process (count, input, CLK)
 	begin
 		if (CLK'event and CLK='0') then
-			if (count = "1") then
+			if (count = "1" and pending = '0') then
 				output_r <= '1';--output_r exists only to allow reset of output_s
 --				output_s <= '0';
 			end if;
