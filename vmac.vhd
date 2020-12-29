@@ -79,10 +79,10 @@ architecture behv of vectorial_multiply_accumulator_unit is
 	end component;
 	
 	-- 2**(N-2): maximum number of vector components
-	signal A_in: 		array32((2**(N-2)-1) downto 0);--A registers input
-	signal A_out: 		array32((2**(N-2)-1) downto 0);--A registers output
-	signal B_in:		array32((2**(N-2)-1) downto 0);--B registers input
-	signal B_out:		array32((2**(N-2)-1) downto 0);--B registers output
+	signal A_in: 		array32(0 to (2**(N-2)-1));--A registers input
+	signal A_out: 		array32(0 to (2**(N-2)-1));--A registers output
+	signal B_in:		array32(0 to (2**(N-2)-1));--B registers input
+	signal B_out:		array32(0 to (2**(N-2)-1));--B registers output
 	signal lambda_in:	std_logic_vector(31 downto 0)	;--scalar lambda input
 	signal lambda_out:std_logic_vector(31 downto 0)	;--scalar lambda input
 	
@@ -97,7 +97,7 @@ architecture behv of vectorial_multiply_accumulator_unit is
 	signal ena_reg: std_logic_vector(0  to 2**N-1);--ena input of registers (write enable)
 	signal all_registers_output: array32(0 to (2**(N-1)));--16 reg A, 16 reg B, 1 reg scalar (0 to 32)
 	signal address_decoder_output: std_logic_vector(31 downto 0);--result of a read will be here
-	signal address_decoder_wren: std_logic_vector(0  to 2**N-1);--write enable of registers (for individual writes)
+	signal address_decoder_wren: std_logic_vector(0 to 2**N-1);--write enable of registers (for individual writes)
 
 begin
 
