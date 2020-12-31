@@ -387,12 +387,12 @@ signal mmu_iack: std_logic;
 									Q	 => instruction_memory_output
 	);
 	
-	fifo_input <= data_in;
-	fifo: shift_register generic map (N => F, OS => 2**(5))
-								port map(CLK => fifo_clock,
-											rst => rst,
-											D => fifo_input,
-											Q => fifo_output);
+--	fifo_input <= data_in;
+--	fifo: shift_register generic map (N => F, OS => 2**(5))
+--								port map(CLK => fifo_clock,
+--											rst => rst,
+--											D => fifo_input,
+--											Q => fifo_output);
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
@@ -407,17 +407,17 @@ signal mmu_iack: std_logic;
 												wren	=> cache_wren,
 												Q		=> cache_Q);
 												
-	memory_management_unit:
-	mmu generic map (N => F, F => 2**(5))
-	port map(CLK => CLK,
-				CLK_fifo => fifo_clock,
-				rst => rst,
-				receive_cache_request => send_cache_request,
-				iack => mmu_iack,
-				irq => mmu_irq,
-				invalidate_output => fifo_invalidate_output,
-				fill_cache => cache_fill_cache
-	);
+--	memory_management_unit:
+--	mmu generic map (N => F, F => 2**(5))
+--	port map(CLK => CLK,
+--				CLK_fifo => fifo_clock,
+--				rst => rst,
+--				receive_cache_request => send_cache_request,
+--				iack => mmu_iack,
+--				irq => mmu_irq,
+--				invalidate_output => fifo_invalidate_output,
+--				fill_cache => cache_fill_cache
+--	);
 	
 	coeffs_mem: generic_coeffs_mem generic map (N=> 4, P => P,Q => Q)
 									port map(D => ram_write_data,
