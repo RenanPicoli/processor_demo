@@ -636,14 +636,6 @@ signal mmu_iack: std_logic;
 --	CLK_OUT => CLK);
 	CLK <= CLK_IN;
 	
-	--produces 500kHz clock (for fifo) from 50MHz input
-	clk_500kHz: prescaler
-	generic map (factor => 100)
-	port map (
-	CLK_IN => CLK_IN,
-	rst => rst,
-	CLK_OUT => fifo_clock);
-	
 	--produces 5MHz clock (processor and cache) from 50MHz input
 	clk_5MHz: pll_5MHz
 	port map (
