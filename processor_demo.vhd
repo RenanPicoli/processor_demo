@@ -392,9 +392,7 @@ signal mmu_iack: std_logic;
 								port map(CLK => fifo_clock,
 											rst => rst,
 											D => fifo_input,
---											invalidate_output => fifo_invalidate_output,
 											Q => fifo_output);
---											valid => fifo_valid);
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
