@@ -626,14 +626,6 @@ signal mmu_iack: std_logic;
 			output => irq_ctrl_Q -- output of register reading
 	);
 
-	--são 9 instruções para cada dado em cache, clock do processador precisa ser pelo menos 9x mais rápido
-	--produces 10MHz clock (processor and cache) from 50MHz input
---	clk_10MHz: prescaler
---	generic map (factor => 5)
---	port map (
---	CLK_IN => CLK_IN,
---	rst => rst,
---	CLK_OUT => CLK);
 	CLK <= CLK_IN;
 	
 	--produces 5MHz clock (processor and cache) from 50MHz input
