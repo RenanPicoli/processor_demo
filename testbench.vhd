@@ -98,7 +98,7 @@ begin
 			-- se TIME_DELTA em ps, use 1000000000000 e 1 ps
 			if (count = COUNT_MAX) then
 				wait until filter_CLK ='1';-- waits until the first rising edge occurs
-				wait for (TIME_DELTA/2);-- reestabelece o devido dely entre amostras e clock de amostragem
+				wait for (TIME_DELTA/2);-- reestabelece o devido delay entre amostras e clock de amostragem
 			else
 				if (count = COUNT_MAX + 1) then
 					count := 0;--variable assignment takes place immediately
