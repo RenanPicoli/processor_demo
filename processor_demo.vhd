@@ -56,43 +56,54 @@ end component;
 
 -- * implements a FIFO for reading sensor data; and
 -- * permits parallel reading of these data.
-component shift_register
-	generic (N: integer; OS: integer);--number of stages and number of stages in the output, respectively.
-	port (CLK: in std_logic;
-			rst: in std_logic;
-			D: in std_logic_vector (31 downto 0);
-			Q: out array32 (0 to OS-1));
-end component;
+--component shift_register
+--	generic (N: integer; OS: integer);--number of stages and number of stages in the output, respectively.
+--	port (CLK: in std_logic;
+--			rst: in std_logic;
+--			D: in std_logic_vector (31 downto 0);
+--			Q: out array32 (0 to OS-1));
+--end component;
 
-component parallel_load_cache
+--component parallel_load_cache
+--	generic (N: integer);--size in bits of address 
+--	port (CLK: in std_logic;--borda de subida para escrita, memória pode ser lida a qq momento desde que rden=1
+--			ADDR: in std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
+--			write_data: in std_logic_vector(31 downto 0);
+--			parallel_write_data: in array32 (0 to 2**N-1);
+--			fill_cache: in std_logic;
+--			rden: in std_logic;--habilita leitura
+--			wren: in std_logic;--habilita escrita
+--			Q:	out std_logic_vector(31 downto 0)
+--			);
+--end component;
+
+component mini_ram
 	generic (N: integer);--size in bits of address 
 	port (CLK: in std_logic;--borda de subida para escrita, memória pode ser lida a qq momento desde que rden=1
 			ADDR: in std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 			write_data: in std_logic_vector(31 downto 0);
-			parallel_write_data: in array32 (0 to 2**N-1);
-			fill_cache: in std_logic;
 			rden: in std_logic;--habilita leitura
 			wren: in std_logic;--habilita escrita
 			Q:	out std_logic_vector(31 downto 0)
 			);
 end component;
 
-component mmu
-	generic (N: integer; F: integer);--total number of fifo stages and fifo output stage depth, respectively
-	port (
-	out_fifo_full: 	out std_logic_vector(1 downto 0):= "00";
-	out_cache_request: out	std_logic:= '0';
-	out_fifo_out_isempty: out std_logic:= '1';--'1' means fifo output stage is empty
-			CLK: in std_logic;--same clock of processor
-			CLK_fifo: in std_logic;--fifo clock
-			rst: in std_logic;
-			receive_cache_request: in std_logic;
-			iack: in std_logic;
-			irq: out std_logic;--data sent
-			invalidate_output: buffer std_logic;--invalidate memmory positions after parallel transfer
-			fill_cache:  out std_logic
-	);
-end component;
+--component mmu
+--	generic (N: integer; F: integer);--total number of fifo stages and fifo output stage depth, respectively
+--	port (
+--	out_fifo_full: 	out std_logic_vector(1 downto 0):= "00";
+--	out_cache_request: out	std_logic:= '0';
+--	out_fifo_out_isempty: out std_logic:= '1';--'1' means fifo output stage is empty
+--			CLK: in std_logic;--same clock of processor
+--			CLK_fifo: in std_logic;--fifo clock
+--			rst: in std_logic;
+--			receive_cache_request: in std_logic;
+--			iack: in std_logic;
+--			irq: out std_logic;--data sent
+--			invalidate_output: buffer std_logic;--invalidate memmory positions after parallel transfer
+--			fill_cache:  out std_logic
+--	);
+--end component;
 
 component prescaler
 	generic(factor: integer);
@@ -396,13 +407,20 @@ signal mmu_iack: std_logic;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
-	cache_parallel_write_data <= fifo_output(0 to 2**(5)-1);--2^5=32 addresses
-	cache: parallel_load_cache generic map (N => 5)
+--	cache_parallel_write_data <= fifo_output(0 to 2**(5)-1);--2^5=32 addresses
+--	cache: parallel_load_cache generic map (N => 5)
+--									port map(CLK	=> ram_clk,
+--												ADDR	=> ram_addr(4 downto 0),
+--												write_data => ram_write_data,
+--												parallel_write_data => cache_parallel_write_data,
+--												fill_cache => cache_fill_cache,
+--												rden	=> cache_rden,
+--												wren	=> cache_wren,
+--												Q		=> cache_Q);
+	cache: mini_ram generic map (N => 3)
 									port map(CLK	=> ram_clk,
-												ADDR	=> ram_addr(4 downto 0),
+												ADDR	=> ram_addr(2 downto 0),
 												write_data => ram_write_data,
-												parallel_write_data => cache_parallel_write_data,
-												fill_cache => cache_fill_cache,
 												rden	=> cache_rden,
 												wren	=> cache_wren,
 												Q		=> cache_Q);
