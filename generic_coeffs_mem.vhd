@@ -46,6 +46,8 @@ architecture behv of generic_coeffs_mem is
 --	signal possible_outputs: memory := initial_values;
 	signal possible_outputs: memory := (others => x"0000_0000");
 	
+	signal ADDR_r: std_logic_vector(N-1 downto 0);--registered address for reading
+	
 begin					   
 
    process(CLK)
@@ -57,10 +59,11 @@ begin
 		elsif (WREN ='1') then
 			possible_outputs(to_integer(unsigned(ADDR))) <= D;
 		end if;
+		ADDR_r <= ADDR;
 	end if;
    end process;
 
-	Q_coeffs <= possible_outputs(to_integer(unsigned(ADDR)));	
+	Q_coeffs <= possible_outputs(to_integer(unsigned(ADDR_r)));	
 
 	--filtro tem acesso simultâneo a todos os coeficientes pela porta all_coeffs
 	coeffs_b: for i in 0 to P generate--coeficientes de x (b)
