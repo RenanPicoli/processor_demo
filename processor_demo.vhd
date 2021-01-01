@@ -313,8 +313,8 @@ signal fifo_output: array32 (0 to (2**(5))-1);--because cache has 32 addresses
 signal fifo_invalidate_output: std_logic;
 
 --signals for coefficients memory----------------------------
-constant P: natural := 5;
-constant Q: natural := 5;
+constant P: natural := 3;
+constant Q: natural := 4;
 signal coeffs_mem_Q: std_logic_vector(31 downto 0);--signal for single coefficient reading
 signal coefficients: array32 (P+Q downto 0);
 signal coeffs_mem_wren: std_logic;
@@ -437,9 +437,9 @@ signal mmu_iack: std_logic;
 --				fill_cache => cache_fill_cache
 --	);
 	
-	coeffs_mem: generic_coeffs_mem generic map (N=> 4, P => P,Q => Q)
+	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
 									port map(D => ram_write_data,
-												ADDR	=> ram_addr(3 downto 0),
+												ADDR	=> ram_addr(2 downto 0),
 												RST => rst,
 												RDEN	=> coeffs_mem_rden,
 												WREN	=> coeffs_mem_wren,
@@ -506,11 +506,11 @@ signal mmu_iack: std_logic;
 	xN: filter_xN
 	-- 0..P: índices dos x
 	-- P+1..P+Q: índices dos y
-	generic map (N => 4, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
+	generic map (N => 3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
 	port map (	D => ram_write_data,-- not used (peripheral supports only read)
 			DX => filter_input,--current filter input
 			DY => filter_output,--current filter output
-			ADDR => ram_addr(3 downto 0),-- input
+			ADDR => ram_addr(2 downto 0),-- input
 			CLK_x => filter_CLK,
 			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
 			RST => RST,-- input
@@ -520,9 +520,9 @@ signal mmu_iack: std_logic;
 			);
 												
 	inner_product: inner_product_calculation_unit
-	generic map (N => 6)
+	generic map (N => 5)
 	port map(D => ram_write_data,--supposed to be normalized
-				ADDR => ram_addr(5 downto 0),
+				ADDR => ram_addr(4 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => inner_product_wren,
@@ -534,9 +534,9 @@ signal mmu_iack: std_logic;
 				);
 				
 	vmac: vectorial_multiply_accumulator_unit
-	generic map (N => 6)
+	generic map (N => 5)
 	port map(D => ram_write_data,
-				ADDR => ram_addr(5 downto 0),
+				ADDR => ram_addr(4 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => vmac_wren,
