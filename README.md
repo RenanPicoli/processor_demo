@@ -1,6 +1,8 @@
 # processor_demo
 Setup for testing microprocessor repo (https://github.com/RenanPicoli/microprocessor) and IIR system identification in Altera DE2-115 board
 
+* Tries to adapt filters of up to 16 weights (direct form I, feed-forward + feddback).
+* Tries to reduce usages of FPGA logic elements by using embedded memories, multipliers, shift-registers and DSP (multiply-accumulate).
 * A filtered audio signal is fed to the system, which performs a Full gradient IIR LMS algorithm to identify the filter used (guess its coeffients).
 * reads inputs and previous outputs from a file, applies a IIR filter, then writes the new output to data_out output.
 * Processor reads this output, compares it with the desired response, performs calculations and updates filter coefficients.
