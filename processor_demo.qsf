@@ -42,7 +42,7 @@ set_global_assignment -name DEVICE EP4CE115F29C7
 set_global_assignment -name TOP_LEVEL_ENTITY processor_demo
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 17.0.0
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "18:19:00  OCTOBER 20, 2019"
-set_global_assignment -name LAST_QUARTUS_VERSION "17.0.0 Lite Edition"
+set_global_assignment -name LAST_QUARTUS_VERSION "18.1.0 Lite Edition"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
@@ -53,30 +53,6 @@ set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
-set_global_assignment -name VHDL_FILE binary_to_bcd_digit.vhd
-set_global_assignment -name VHDL_FILE binary_to_bcd.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/single_prec_type.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/multiplier.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/full_adder.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_mult.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_divider.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_adder.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu.vhd
-set_global_assignment -name VHDL_FILE microprocessor/reg_file.vhd
-set_global_assignment -name VHDL_FILE microprocessor/my_types.vhd
-set_global_assignment -name VHDL_FILE microprocessor/mux.vhd
-set_global_assignment -name VHDL_FILE microprocessor/multiplier.vhd
-set_global_assignment -name VHDL_FILE microprocessor/mini_rom.vhd
-set_global_assignment -name VHDL_FILE microprocessor/mini_ram.vhd
-set_global_assignment -name VHDL_FILE microprocessor/microprocessor.vhd
-set_global_assignment -name VHDL_FILE microprocessor/full_adder.vhd
-set_global_assignment -name VHDL_FILE microprocessor/demux.vhd
-set_global_assignment -name VHDL_FILE microprocessor/d_flip_flop.vhd
-set_global_assignment -name VHDL_FILE microprocessor/control_unit.vhd
-set_global_assignment -name VHDL_FILE microprocessor/ALU.vhd
-set_global_assignment -name VHDL_FILE processor_demo.vhd
-set_global_assignment -name VHDL_FILE decimal_converter.vhd
-set_global_assignment -name VHDL_FILE 7seg_controller.vhd
 set_location_assignment PIN_AB28 -to rst
 set_location_assignment PIN_G18 -to segments[0][0]
 set_location_assignment PIN_F22 -to segments[0][1]
@@ -138,4 +114,52 @@ set_global_assignment -name EDA_SIMULATION_TOOL "ModelSim-Altera (VHDL)"
 set_global_assignment -name EDA_OUTPUT_DATA_FORMAT VHDL -section_id eda_simulation
 set_location_assignment PIN_Y2 -to CLK_IN
 set_global_assignment -name AUTO_RAM_RECOGNITION OFF
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name VHDL_SHOW_LMF_MAPPING_MESSAGES OFF
+set_global_assignment -name VHDL_FILE address_decoder_register_map.vhd
+set_global_assignment -name VHDL_FILE fpu_inner_product.vhd
+set_global_assignment -name VHDL_FILE shift_register.vhd
+set_global_assignment -name VHDL_FILE microprocessor/parallel_load_cache.vhd
+set_global_assignment -name VHDL_FILE binary_to_bcd_digit.vhd
+set_global_assignment -name VHDL_FILE binary_to_bcd.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/single_prec_type.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/multiplier.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/full_adder.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_mult.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_divider.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_adder.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu.vhd
+set_global_assignment -name VHDL_FILE microprocessor/reg_file.vhd
+set_global_assignment -name VHDL_FILE microprocessor/my_types.vhd
+set_global_assignment -name VHDL_FILE microprocessor/mux.vhd
+set_global_assignment -name VHDL_FILE microprocessor/multiplier.vhd
+set_global_assignment -name VHDL_FILE microprocessor/mini_rom.vhd
+set_global_assignment -name VHDL_FILE microprocessor/mini_ram.vhd
+set_global_assignment -name VHDL_FILE microprocessor/microprocessor.vhd
+set_global_assignment -name VHDL_FILE microprocessor/full_adder.vhd
+set_global_assignment -name VHDL_FILE microprocessor/demux.vhd
+set_global_assignment -name VHDL_FILE microprocessor/d_flip_flop.vhd
+set_global_assignment -name VHDL_FILE microprocessor/control_unit.vhd
+set_global_assignment -name VHDL_FILE microprocessor/ALU.vhd
+set_global_assignment -name VHDL_FILE processor_demo.vhd
+set_global_assignment -name VHDL_FILE decimal_converter.vhd
+set_global_assignment -name VHDL_FILE 7seg_controller.vhd
+set_global_assignment -name VHDL_FILE prescaler.vhd
+set_global_assignment -name VHDL_FILE mmu.vhd
+set_global_assignment -name VHDL_FILE generic_coeffs_mem.vhd
+set_global_assignment -name VHDL_FILE filter.vhd
+set_global_assignment -name VHDL_FILE wren_ctrl.vhd
+set_global_assignment -name QIP_FILE pll.qip
+set_global_assignment -name VHDL_FILE inner_product_calculation_unit.vhd
+set_global_assignment -name VHDL_FILE address_decoder_memory_map.vhd
+set_global_assignment -name VHDL_FILE filter_xN.vhd
+set_global_assignment -name QIP_FILE pll_5MHz.qip
+set_global_assignment -name VHDL_FILE vmac.vhd
+set_global_assignment -name VHDL_FILE interrupt_controller.vhd
+set_global_assignment -name ALLOW_ANY_RAM_SIZE_FOR_RECOGNITION ON
+set_global_assignment -name ALLOW_ANY_ROM_SIZE_FOR_RECOGNITION ON
+set_global_assignment -name ALLOW_ANY_SHIFT_REGISTER_SIZE_FOR_RECOGNITION ON
+set_global_assignment -name SYNTH_TIMING_DRIVEN_SYNTHESIS OFF
+set_global_assignment -name AUTO_ROM_RECOGNITION OFF
+set_global_assignment -name AUTO_DSP_RECOGNITION OFF
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
