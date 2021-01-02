@@ -18,8 +18,8 @@ L=length(x);
 y=zeros(1,L);
 y=single(y);% converte y para precisão simples
 
-b=[1 0.1 -0.1 -0.5 0.5 -0.2]
-a=[1 0.1 -0.2 -0.4 0.1 -0.1]
+b=[1 0 -2 1]
+a=[1 0.590110 0.582896 0.302579 0.076053]
 
 % diplay P, Q, direct form 1 coeffs
 b_direct_form_1 = b
@@ -38,8 +38,8 @@ d=filter(u(1:P+1),[1 -u(P+2:end)],x);% d of desired response, same length as x
 disp('iniciando filtro');
 tic;
 %%% Adaptive Filter with adapted step size %%%%%%%%
-Pmax=5;
-Qmax=5;
+Pmax=3;
+Qmax=4;
 tol=1e-13;
 [y,w,filters,err,step,n] = adaptive_filter(x,d,Pmax,Qmax,tol);
 toc;
