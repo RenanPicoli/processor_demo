@@ -288,7 +288,7 @@ signal instruction_memory_address: std_logic_vector(6 downto 0);
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
-constant N: integer := 8;-- size in bits of data addresses (each address refers to a 32 bit word)
+constant N: integer := 7;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
 signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_rden: std_logic;
@@ -363,15 +363,15 @@ signal all_iack: std_logic_vector(1 downto 0);
 
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
-											(16#00#,16#0F#),--filter coeffs
-											(16#10#,16#1F#),--filter xN
-											(16#20#,16#3F#),--cache
-											(16#40#,16#7F#),--inner_product
-											(16#80#,16#BF#),--VMAC
-											(16#C0#,16#C0#),--current filter output
-											(16#C1#,16#C1#),--desired response
-											(16#C2#,16#C2#),--filter status
-											(16#C3#,16#C3#) --interrupt controller
+											(16#00#,16#07#),--filter coeffs
+											(16#08#,16#0F#),--filter xN
+											(16#10#,16#17#),--cache
+											(16#20#,16#3F#),--inner_product
+											(16#40#,16#5F#),--VMAC
+											(16#60#,16#60#),--current filter output
+											(16#61#,16#61#),--desired response
+											(16#62#,16#62#),--filter status
+											(16#63#,16#63#) --interrupt controller
 											);
 signal all_periphs_output: array32 (8 downto 0);
 signal all_periphs_rden: std_logic_vector(8 downto 0);
