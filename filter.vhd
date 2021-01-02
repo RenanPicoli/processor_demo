@@ -32,13 +32,6 @@ end filter;
 ---------------------------------------------------
 
 architecture behv of filter is
-
-	constant initial_values: array32 (0 to P+Q) := (
-		others 	=> x"0000_0000"
-	);
-	
-	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
-	signal possible_outputs: array32 (0 to P+Q) := initial_values;
 	
 	component fpu_adder
 	port (
