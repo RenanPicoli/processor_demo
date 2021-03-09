@@ -16,7 +16,7 @@ use work.single_precision_type.all;--float--defines floating point single precis
 entity fp32_to_integer is
 generic	(N: natural);--number of bits in output
 port(	fp_in:in std_logic_vector(31 downto 0);--floating point input
-		output: out std_logic_vector(N-1 downto 0)-- output in range [-2^(N-1),+(2^(N-1)-1)]
+		output: out std_logic_vector(N-1 downto 0)-- valid input range [-1,1] maps to output range [-2^(N-1),+(2^(N-1)-1)]
 );
 end fp32_to_integer;
 
@@ -37,13 +37,14 @@ signal int_output: std_logic_vector(N-1 downto 0);
 
 begin
 	sign <= fp_in(31);
-	mantissa <= fp_in(30 downto 8);
-	exponent <= fp_in(7 downto 0);
-	unbiased_exponent <= exponent - EXP_BIAS;
+	exponent <= fp_in(30 downto 23);
+	mantissa <= fp_in(22 downto 0);
+	unbiased_exponent <= exponent - EXP_BIAS + (N);--also the number of shifts
 	extended_mantissa <= '1' & mantissa;
 	
 	--int_absolute calculation
 	--shifts extended_mantissa the number of exponent without bias (*2^(EXP-bias))
+
 	
 	--output write
 	int_output <= ((not int_absolute)+'1')when sign='1' else int_absolute;
