@@ -24,18 +24,19 @@ end var_shift;
 
 architecture behv of var_shift is
 
-signal possible_outputs: array (0 to 2**S-1) of std_logic_vector(N-1 downto 0);
+type choices is array (0 to 2**S-1) of std_logic_vector(N-1 downto 0);
+signal possible_outputs: choices;
 
 begin
 	--implements all possible shifts at once, let the user select the appropriate
 
 	shifts: for i in 0 to 2**S-1 generate
-		possible_outputs(i) <=  input rol to_integer(unsigned(shift));
+		possible_outputs(i) <= to_stdlogicvector(to_bitvector(input) rol to_integer(unsigned(shift)));
 	end generate;
 
 	
 	--output write
-	int_output <= ((not int_absolute)+'1')when sign='1' else int_absolute;
+	output <= possible_outputs(to_integer(unsigned(shift)));
 
 end behv;
 

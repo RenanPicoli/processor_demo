@@ -24,6 +24,14 @@ end fp32_to_integer;
 
 architecture behv of fp32_to_integer is
 
+component var_shift
+generic	(N: natural; S: natural);--N: number of bits in output; S: number of bits in shift
+port(	input:in std_logic_vector(N-1 downto 0);--input vector that will be shifted
+		shift:in std_logic_vector(S-1 downto 0);--unsigned integer meaning number of shifts to left
+		output: out std_logic_vector(N-1 downto 0)--
+);
+end component;
+
 --signals of floating point input
 signal sign: std_logic;--floating point sign bit, '1' means negative
 signal mantissa: std_logic_vector(22 downto 0);--mantissa plus implicit '1'
@@ -32,6 +40,7 @@ signal exponent: std_logic_vector(7 downto 0);--BIASED exponent
 signal unbiased_exponent: std_logic_vector(7 downto 0);--exponent without bias
 
 --signals of integer output
+signal shifted_ext_mantissa: std_logic_vector(23 downto 0);
 signal int_absolute: std_logic_vector(N-1 downto 0);
 signal int_output: std_logic_vector(N-1 downto 0);
 
@@ -44,9 +53,14 @@ begin
 	
 	--int_absolute calculation
 	--shifts extended_mantissa the number of exponent without bias (*2^(EXP-bias))
-
+	shift: var_shift
+	generic map (N => 24, S => 8)
+	port map (input => extended_mantissa,
+				 shift => unbiased_exponent,
+				 output => shifted_ext_mantissa);
 	
 	--output write
+	int_absolute <= shifted_ext_mantissa(N-1 downto 0);
 	int_output <= ((not int_absolute)+'1')when sign='1' else int_absolute;
 
 end behv;
