@@ -31,7 +31,7 @@ begin
 	--implements all possible shifts at once, let the user select the appropriate
 
 	shifts: for i in 0 to 2**S-1 generate
-		possible_outputs(i) <= to_stdlogicvector(to_bitvector(input) ror (N -  O) -  to_integer(signed(shift)))(O-1 downto 0);
+		possible_outputs(i) <= to_stdlogicvector(to_bitvector(input) ror ((N - O) - i))(O-1 downto 0);
 	end generate;
 
 	
