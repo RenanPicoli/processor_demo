@@ -61,5 +61,6 @@ begin
 	--output write
 	int_absolute <= shifted_ext_mantissa(N-1 downto 0);
 	int_output <= ((not int_absolute)+'1')when sign='1' else int_absolute;
+	output <= int_output;
 
 end behv;
