@@ -9,9 +9,6 @@ use ieee.std_logic_unsigned.all;
 
 use ieee.numeric_std.all;--to_integer
 use work.all;--includes fp32_to_integer
-use work.my_types.all;--array32
-use work.single_precision_type.all;--float--defines floating point single precision fields and constants
-
 ---------------------------------------------------
 
 entity tb_fp32_to_integer is
@@ -32,7 +29,7 @@ begin
 	port map(fp_in => fp_in,
 				output => output);
 				
-	fp_in <= x"3F80_0000", x"BF80_0000" after 1 us;-- 1.0, -1.0
+	fp_in <= x"BF80_0000", x"3F80_0000" after 1 us, x"3F00_0000" after 2 us;-- -1.0, +1.0, +0.5
 end behv;
 
 ---------------------------------------------------------------------------------------------
