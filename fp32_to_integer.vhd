@@ -8,8 +8,7 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 
 use ieee.numeric_std.all;--to_integer
-use work.my_types.all;--array32
-use work.single_precision_type.all;--float--defines floating point single precision fields and constants
+use work.single_precision_type.all;--defines floating point single precision fields and constants
 
 ---------------------------------------------------
 
@@ -25,10 +24,10 @@ end fp32_to_integer;
 architecture behv of fp32_to_integer is
 
 component var_shift
-generic	(N: natural; S: natural);--N: number of bits in output; S: number of bits in shift
+generic	(N: natural; O: natural; S: natural);--N: number of bits in input, O in output; S: number of bits in shift
 port(	input:in std_logic_vector(N-1 downto 0);--input vector that will be shifted
 		shift:in std_logic_vector(S-1 downto 0);--unsigned integer meaning number of shifts to left
-		output: out std_logic_vector(N-1 downto 0)--
+		output: out std_logic_vector(O-1 downto 0)--
 );
 end component;
 
@@ -40,7 +39,7 @@ signal exponent: std_logic_vector(7 downto 0);--BIASED exponent
 signal unbiased_exponent: std_logic_vector(7 downto 0);--exponent without bias
 
 --signals of integer output
-signal shifted_ext_mantissa: std_logic_vector(23 downto 0);
+signal shifted_ext_mantissa: std_logic_vector(N-1 downto 0);
 signal int_absolute: std_logic_vector(N-1 downto 0);
 signal int_output: std_logic_vector(N-1 downto 0);
 
@@ -48,13 +47,13 @@ begin
 	sign <= fp_in(31);
 	exponent <= fp_in(30 downto 23);
 	mantissa <= fp_in(22 downto 0);
-	unbiased_exponent <= exponent - EXP_BIAS + (N);--also the number of shifts
+	unbiased_exponent <= exponent - EXP_BIAS;
 	extended_mantissa <= '1' & mantissa;
 	
 	--int_absolute calculation
 	--shifts extended_mantissa the number of exponent without bias (*2^(EXP-bias))
 	shift: var_shift
-	generic map (N => 24, S => 8)
+	generic map (N => 24, O=> N, S => 8)
 	port map (input => extended_mantissa,
 				 shift => unbiased_exponent,
 				 output => shifted_ext_mantissa);
@@ -64,5 +63,3 @@ begin
 	int_output <= ((not int_absolute)+'1')when sign='1' else int_absolute;
 
 end behv;
-
----------------------------------------------------------------------------------------------
