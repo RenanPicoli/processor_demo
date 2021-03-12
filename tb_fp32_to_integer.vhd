@@ -21,6 +21,7 @@ architecture behv of tb_fp32_to_integer is
 constant N: natural:=16;
 signal fp_in: std_logic_vector(31 downto 0);--input: fp32
 signal output: std_logic_vector(N-1 downto 0);--output: signed integer N bits, 2's complement
+signal reconstructed_float: real;--what dac output would be (as a fraction of maximum output)
 
 begin
 	
@@ -36,6 +37,8 @@ begin
 				x"B800_0000" after 7 us,-- -0.000030517578125 = -2^(-15)
 				x"0000_0001" after 8 us,-- 1.40129846432481707092372958329E-45
 				x"8000_0001" after 9 us;-- -1.40129846432481707092372958329E-45
+				
+	reconstructed_float <= real(to_integer(signed(output)))/real(2**(N-1));
 
 end behv;
 
