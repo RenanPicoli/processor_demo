@@ -30,13 +30,19 @@ begin
 	port map(fp_in => fp_in,
 				output => output);
 				
-	fp_in <= x"BF80_0000", x"3F80_0000" after 1 us, x"3F00_0000" after 2 us,-- -1.0, +1.0, +0.5
+	fp_in <= x"BF80_0000",-- -1.0,
+				x"3F80_0000" after 1 us,-- +1.0
+				x"3F00_0000" after 2 us,-- +0.5
 				x"3F7F_FE00" after 3 us,-- 0.999969482421875=1-(2^(-15))
-				x"0000_0000" after 4 us, x"8000_0000" after 5 us,-- +0, -0
+				x"0000_0000" after 4 us,-- +0,
+				x"8000_0000" after 5 us,-- -0
 				x"3800_0000" after 6 us,-- 0.000030517578125 = 2^(-15)
 				x"B800_0000" after 7 us,-- -0.000030517578125 = -2^(-15)
 				x"0000_0001" after 8 us,-- 1.40129846432481707092372958329E-45
-				x"8000_0001" after 9 us;-- -1.40129846432481707092372958329E-45
+				x"8000_0001" after 9 us,-- -1.40129846432481707092372958329E-45
+				x"C000_0000" after 10 us,-- -2.0
+				x"4180_0000" after 11 us,-- 16.0
+				x"C180_0000" after 12 us;-- -16.0
 				
 	reconstructed_float <= real(to_integer(signed(output)))/real(2**(N-1));
 
