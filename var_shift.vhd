@@ -16,7 +16,7 @@ entity var_shift is
 generic	(N: natural;O: natural; S: natural);--N: number of bits in input, O in output; S: number of bits in shift
 port(	input:in std_logic_vector(N-1 downto 0);--input vector that will be shifted
 		shift:in std_logic_vector(S-1 downto 0);--signed integer: number of shifts to left (if positive)
-		overflow: out std_logic;-- there are ones dropped
+		overflow: out std_logic;-- '1' if there are ones that were dropped in the output
 		output: out std_logic_vector(O-1 downto 0)--
 );
 end var_shift;

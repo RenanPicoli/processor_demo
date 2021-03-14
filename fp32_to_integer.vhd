@@ -27,6 +27,7 @@ component var_shift
 generic	(N: natural; O: natural; S: natural);--N: number of bits in input, O in output; S: number of bits in shift
 port(	input:in std_logic_vector(N-1 downto 0);--input vector that will be shifted
 		shift:in std_logic_vector(S-1 downto 0);--unsigned integer meaning number of shifts to left
+		overflow: out std_logic;-- '1' if there are ones that were dropped in the output
 		output: out std_logic_vector(O-1 downto 0)--
 );
 end component;
@@ -42,6 +43,7 @@ signal unbiased_exponent: std_logic_vector(7 downto 0);--exponent without bias
 signal shifted_ext_mantissa: std_logic_vector(N-1 downto 0);
 signal int_absolute: std_logic_vector(N-1 downto 0);
 signal int_output: std_logic_vector(N-1 downto 0);
+signal overflow: std_logic;
 
 begin
 	sign <= fp_in(31);
@@ -56,11 +58,31 @@ begin
 	generic map (N => 24, O=> N, S => 8)
 	port map (input => extended_mantissa,
 				 shift => unbiased_exponent,
+				 overflow => overflow,
 				 output => shifted_ext_mantissa);
 	
 	--output write
 	int_absolute <= shifted_ext_mantissa(N-1 downto 0);
-	int_output <= ((not int_absolute)+'1')when sign='1' else int_absolute;
+	process(int_absolute,sign,overflow)
+	begin
+		if(overflow='0') then
+			if(int_absolute=x"8000" and sign='0')then-- this means output would be +1.0, which is not allowed
+				int_output <= x"7FFF";
+			else-- int_absolute with it's sign form a representable integer
+				if (sign='1') then
+					int_output <= ((not int_absolute)+'1');
+				else-- sign='0'
+					int_output <= int_absolute;
+				end if;
+			end if;
+		else-- overflow='1'
+			if(sign='1')then--DAC will saturate at (-1)*Vref
+				int_output <= x"8000";
+			else--DAC will saturate at (+1)*Vref
+				int_output <= x"7FFF";
+			end if;
+		end if;
+	end process;
 	output <= int_output;
 
 end behv;
