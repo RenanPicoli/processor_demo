@@ -32,6 +32,29 @@ port(	input:in std_logic_vector(N-1 downto 0);--input vector that will be shifte
 );
 end component;
 
+--useful functions
+-- +2^(N-1)-1
+function max_int(N: natural) return std_logic_vector is-- Don't constrain the length at the return type declaration.
+	variable result: std_logic_vector(N-1 downto 0);
+begin
+	result(N-1) := '0';
+	for i in 0 to N-2 loop
+		result(i) := '1';
+	end loop;
+	return result;
+end;
+
+-- -2^(N-1)
+function min_int(N: natural) return std_logic_vector is-- Don't constrain the length at the return type declaration.
+	variable result: std_logic_vector(N-1 downto 0);
+begin
+	result(N-1) := '1';
+	for i in 0 to N-2 loop
+		result(i) := '0';
+	end loop;
+	return result;
+end;
+
 --signals of floating point input
 signal sign: std_logic;--floating point sign bit, '1' means negative
 signal mantissa: std_logic_vector(22 downto 0);--mantissa plus implicit '1'
@@ -66,8 +89,8 @@ begin
 	process(int_absolute,sign,overflow)
 	begin
 		if(overflow='0') then
-			if(int_absolute=x"8000" and sign='0')then-- this means output would be +1.0, which is not allowed
-				int_output <= x"7FFF";
+			if(int_absolute=min_int(N) and sign='0')then-- this means output would be +1.0, which is not allowed
+				int_output <= max_int(N);
 			else-- int_absolute with it's sign form a representable integer
 				if (sign='1') then
 					int_output <= ((not int_absolute)+'1');
@@ -77,9 +100,9 @@ begin
 			end if;
 		else-- overflow='1'
 			if(sign='1')then--DAC will saturate at (-1)*Vref
-				int_output <= x"8000";
+				int_output <= min_int(N);
 			else--DAC will saturate at (+1)*Vref
-				int_output <= x"7FFF";
+				int_output <= max_int(N);
 			end if;
 		end if;
 	end process;
