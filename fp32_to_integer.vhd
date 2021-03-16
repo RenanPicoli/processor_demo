@@ -91,6 +91,8 @@ begin
 		if(overflow='0') then
 			if(int_absolute>=min_int(N) and sign='0')then-- this means output would be >= +1.0, which is not allowed
 				int_output <= max_int(N);
+			elsif(int_absolute>=min_int(N) and sign='1')then-- this means output would be <= -1.0, which is not allowed
+				int_output <= min_int(N);
 			else-- int_absolute with it's sign form a representable integer
 				if (sign='1') then
 					int_output <= ((not int_absolute)+'1');
