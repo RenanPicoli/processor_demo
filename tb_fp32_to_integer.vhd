@@ -42,7 +42,11 @@ begin
 				x"8000_0001" after 9 us,-- -1.40129846432481707092372958329E-45
 				x"C000_0000" after 10 us,-- -2.0
 				x"4180_0000" after 11 us,-- 16.0
-				x"C180_0000" after 12 us;-- -16.0
+				x"C180_0000" after 12 us,-- -16.0
+                x"3FC0_0000" after 13 us,-- 1.5
+                x"BFC0_0000" after 14 us,-- -1.5
+                x"3F47_AE14" after 15 us,-- 0.78
+                x"BF47_AE14" after 16 us;-- -0.78
 				
 	reconstructed_float <= real(to_integer(signed(output)))/real(2**(N-1));
 
