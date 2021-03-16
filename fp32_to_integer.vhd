@@ -89,7 +89,7 @@ begin
 	process(int_absolute,sign,overflow)
 	begin
 		if(overflow='0') then
-			if(int_absolute=min_int(N) and sign='0')then-- this means output would be +1.0, which is not allowed
+			if(int_absolute>=min_int(N) and sign='0')then-- this means output would be >= +1.0, which is not allowed
 				int_output <= max_int(N);
 			else-- int_absolute with it's sign form a representable integer
 				if (sign='1') then
