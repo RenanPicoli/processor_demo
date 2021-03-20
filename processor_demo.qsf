@@ -122,6 +122,13 @@ set_global_assignment -name ALLOW_ANY_SHIFT_REGISTER_SIZE_FOR_RECOGNITION ON
 set_global_assignment -name SYNTH_TIMING_DRIVEN_SYNTHESIS OFF
 set_global_assignment -name AUTO_ROM_RECOGNITION OFF
 set_global_assignment -name AUTO_DSP_RECOGNITION OFF
+set_global_assignment -name VHDL_FILE i2s_master_transmitter/smart_fifo.vhd
+set_global_assignment -name VHDL_FILE i2s_master_transmitter/i2s_master_transmitter_generic.vhd
+set_global_assignment -name VHDL_FILE i2s_master_transmitter/i2s_master_transmitter.vhd
+set_global_assignment -name VHDL_FILE i2c_master/i2c_slave_generic.vhd
+set_global_assignment -name VHDL_FILE i2c_master/i2c_slave.vhd
+set_global_assignment -name VHDL_FILE i2c_master/i2c_master_generic.vhd
+set_global_assignment -name VHDL_FILE i2c_master/i2c_master.vhd
 set_global_assignment -name VHDL_FILE testbench.vhd
 set_global_assignment -name VHDL_FILE address_decoder_register_map.vhd
 set_global_assignment -name VHDL_FILE fpu_inner_product.vhd
