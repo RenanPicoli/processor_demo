@@ -2,3 +2,9 @@
 	path = microprocessor
 	url = https://github.com/RenanPicoli/microprocessor
 	branch = master
+[submodule "i2c_master"]
+	path = i2c_master
+	url = https://github.com/RenanPicoli/i2c_master
+[submodule "i2s_master_transmitter"]
+	path = i2s_master_transmitter
+	url = https://github.com/RenanPicoli/i2s_master_transmitter
