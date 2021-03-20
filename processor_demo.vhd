@@ -277,6 +277,16 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
 end component;
 
 ---------------------------------------------------
+
+component fp32_to_integer
+generic	(N: natural);--number of bits in output
+port(	fp_in:in std_logic_vector(31 downto 0);--floating point input
+		output: out std_logic_vector(N-1 downto 0)-- valid input range [-1,1] maps to output range [-2^(N-1),+(2^(N-1)-1)]
+);
+end component;
+
+---------------------------------------------------
+
 signal CLK: std_logic;--clock for processor and cache
 signal CLK5MHz: std_logic;--clock input for PLL
 signal CLK220_5kHz: std_logic;--clock output for PLL
@@ -360,6 +370,11 @@ signal irq: std_logic;
 signal iack: std_logic;
 signal all_irq: std_logic_vector(1 downto 0);
 signal all_iack: std_logic_vector(1 downto 0);
+
+--signals for fp32_to_integer----------------------------------
+constant audio_resolution: natural := 16;
+signal fp_in: std_logic_vector(31 downto 0);
+signal fp32_to_int_out: std_logic_vector(audio_resolution-1 downto 0);
 
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
@@ -547,6 +562,13 @@ signal mmu_iack: std_logic;
 				--underflow:		out std_logic,
 				output => vmac_Q
 	);
+	
+	
+	fp_in <= filter_output;
+	fp32_to_int: fp32_to_integer
+	generic map (N=> audio_resolution)
+	port map (fp_in => fp_in,
+				 output=> fp32_to_int_out);
 
 	all_periphs_output	<= (8 => irq_ctrl_Q, 7 => filter_status_Q, 6 => d_ff_desired_Q, 5 => filter_out_Q, 4 => vmac_Q,
 									3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
