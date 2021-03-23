@@ -287,6 +287,43 @@ end component;
 
 ---------------------------------------------------
 
+component i2c_master
+	port (
+			D: in std_logic_vector(31 downto 0);--for register write
+			ADDR: in std_logic_vector(1 downto 0);--address offset of registers relative to peripheral base address
+			CLK: in std_logic;--for register read/write, also used to generate SCL
+			RST: in std_logic;--reset
+			WREN: in std_logic;--enables register write
+			RDEN: in std_logic;--enables register read
+			IACK: in std_logic;--interrupt acknowledgement
+			Q: out std_logic_vector(31 downto 0);--for register read
+			IRQ: out std_logic;--interrupt request
+			SDA: inout std_logic;--open drain data line
+			SCL: inout std_logic --open drain clock line
+	);
+end component;
+
+---------------------------------------------------
+
+component i2s_master_transmitter
+	port (
+			D: in std_logic_vector(31 downto 0);--for register write
+			ADDR: in std_logic_vector(1 downto 0);--address offset of registers relative to peripheral base address
+			CLK: in std_logic;--for register read/write, also used to generate SCK
+			RST: in std_logic;--reset
+			WREN: in std_logic;--enables register write
+			RDEN: in std_logic;--enables register read
+			IACK: in std_logic;--interrupt acknowledgement
+			Q: out std_logic_vector(31 downto 0);--for register read
+			IRQ: out std_logic;--interrupt request
+			SD: out std_logic;--data line
+			WS: buffer std_logic;--left/right clock
+			SCK: out std_logic--continuous clock (bit clock)
+	);
+end component;
+
+---------------------------------------------------
+
 signal CLK: std_logic;--clock for processor and cache
 signal CLK5MHz: std_logic;--clock input for PLL
 signal CLK220_5kHz: std_logic;--clock output for PLL
@@ -383,10 +420,10 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#10#,16#17#),--cache
 											(16#20#,16#3F#),--inner_product
 											(16#40#,16#5F#),--VMAC
-											(16#60#,16#60#),--current filter output
-											(16#61#,16#61#),--desired response
-											(16#62#,16#62#),--filter status
-											(16#63#,16#63#) --interrupt controller
+											(16#68#,16#68#),--current filter output
+											(16#69#,16#69#),--desired response
+											(16#6A#,16#6A#),--filter status
+											(16#6B#,16#6B#) --interrupt controller
 											);
 signal all_periphs_output: array32 (8 downto 0);
 signal all_periphs_rden: std_logic_vector(8 downto 0);
