@@ -413,6 +413,22 @@ constant audio_resolution: natural := 16;
 signal fp_in: std_logic_vector(31 downto 0);
 signal fp32_to_int_out: std_logic_vector(audio_resolution-1 downto 0);
 
+--signals for I2C----------------------------------
+signal i2c_rden: std_logic;
+signal i2c_wren: std_logic;
+signal i2c_irq: std_logic;
+signal i2c_iack: std_logic;
+signal i2c_Q: std_logic_vector(31 downto 0);
+signal i2c_sda: std_logic;--open drain data line
+signal i2c_scl: std_logic;--open drain clock line
+
+--signals for I2S----------------------------------
+signal i2s_rden: std_logic;
+signal i2s_wren: std_logic;
+signal i2s_irq: std_logic;
+signal i2s_iack: std_logic;
+signal i2s_Q: std_logic_vector(31 downto 0);
+
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
 											(16#00#,16#07#),--filter coeffs
@@ -420,14 +436,16 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#10#,16#17#),--cache
 											(16#20#,16#3F#),--inner_product
 											(16#40#,16#5F#),--VMAC
+											(16#60#,16#63#),--I2C
+											(16#64#,16#67#),--I2S
 											(16#68#,16#68#),--current filter output
 											(16#69#,16#69#),--desired response
 											(16#6A#,16#6A#),--filter status
 											(16#6B#,16#6B#) --interrupt controller
 											);
-signal all_periphs_output: array32 (8 downto 0);
-signal all_periphs_rden: std_logic_vector(8 downto 0);
-signal all_periphs_wren: std_logic_vector(8 downto 0);
+signal all_periphs_output: array32 (10 downto 0);
+signal all_periphs_rden: std_logic_vector(10 downto 0);
+signal all_periphs_wren: std_logic_vector(10 downto 0);
 
 signal filter_CLK: std_logic;
 signal proc_filter_wren: std_logic;
@@ -606,27 +624,45 @@ signal mmu_iack: std_logic;
 	generic map (N=> audio_resolution)
 	port map (fp_in => fp_in,
 				 output=> fp32_to_int_out);
+				 
+	i2c: i2c_master
+	port map(D => ram_write_data,
+				ADDR => ram_addr(1 downto 0),
+				CLK => ram_clk,
+				RST => rst,
+				WREN => i2c_wren,
+				RDEN => i2c_rden,
+				IACK => i2c_iack,
+				Q => i2c_Q, --for register read
+				IRQ => i2c_irq,
+				SDA => i2c_sda, --open drain data line
+				SCL => i2c_scl --open drain clock line
+			);
 
-	all_periphs_output	<= (8 => irq_ctrl_Q, 7 => filter_status_Q, 6 => d_ff_desired_Q, 5 => filter_out_Q, 4 => vmac_Q,
-									3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,		0 => coeffs_mem_Q);
+	all_periphs_output	<= (10 => irq_ctrl_Q, 9 => filter_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
+									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	irq_ctrl_rden			<= all_periphs_rden(8);-- not used, just to keep form
-	filter_status_rden	<= all_periphs_rden(7);-- not used, just to keep form
-	d_ff_desired_rden		<= all_periphs_rden(6);-- not used, just to keep form
-	filter_out_rden		<= all_periphs_rden(5);-- not used, just to keep form
+	irq_ctrl_rden			<= all_periphs_rden(10);-- not used, just to keep form
+	filter_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
+	d_ff_desired_rden		<= all_periphs_rden(8);-- not used, just to keep form
+	filter_out_rden		<= all_periphs_rden(7);-- not used, just to keep form
+	i2s_rden					<= all_periphs_rden(6);
+	i2c_rden					<= all_periphs_rden(5);
 	vmac_rden				<=	all_periphs_rden(4);
 	inner_product_rden	<= all_periphs_rden(3);
 	cache_rden				<= all_periphs_rden(2);
 	filter_xN_rden			<= all_periphs_rden(1);
 	coeffs_mem_rden		<= all_periphs_rden(0);
 
-	irq_ctrl_wren			<= all_periphs_wren(8);
-	filter_status_wren	<= all_periphs_wren(7);
-	d_ff_desired_wren		<= all_periphs_wren(6);-- not used, just to keep form
-	filter_out_wren		<= all_periphs_wren(5);-- not used, just to keep form
+	irq_ctrl_wren			<= all_periphs_wren(10);
+	filter_status_wren	<= all_periphs_wren(9);
+	d_ff_desired_wren		<= all_periphs_wren(8);-- not used, just to keep form
+	filter_out_wren		<= all_periphs_wren(7);-- not used, just to keep form
+	i2s_wren					<= all_periphs_wren(6);
+	i2c_wren					<= all_periphs_wren(5);
 	vmac_wren				<= all_periphs_wren(4);
 	inner_product_wren	<= all_periphs_wren(3);
 	cache_wren				<= all_periphs_wren(2);
