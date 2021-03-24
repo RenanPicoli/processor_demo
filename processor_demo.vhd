@@ -412,6 +412,7 @@ signal all_iack: std_logic_vector(1 downto 0);
 constant audio_resolution: natural := 16;
 signal fp_in: std_logic_vector(31 downto 0);
 signal fp32_to_int_out: std_logic_vector(audio_resolution-1 downto 0);
+signal left_padded_fp32_to_int_out: std_logic_vector(31 downto 0);--fp32_to_int_out left padded with zeroes
 
 --signals for I2C----------------------------------
 signal i2c_rden: std_logic;
@@ -642,9 +643,10 @@ signal mmu_iack: std_logic;
 				SCL => i2c_scl --open drain clock line
 			);
 			
+	left_padded_fp32_to_int_out <= (31 downto audio_resolution => '0') & fp32_to_int_out;
 	i2s: i2s_master_transmitter
 	port map (
-				D => ram_write_data,
+				D => left_padded_fp32_to_int_out,
 				ADDR => ram_addr(1 downto 0),
 				CLK => ram_clk,
 				RST => rst,
