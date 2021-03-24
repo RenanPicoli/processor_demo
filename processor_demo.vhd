@@ -428,6 +428,9 @@ signal i2s_wren: std_logic;
 signal i2s_irq: std_logic;
 signal i2s_iack: std_logic;
 signal i2s_Q: std_logic_vector(31 downto 0);
+signal i2s_SD: std_logic;--data line
+signal i2s_WS: std_logic;--left/right clock
+signal i2s_SCK: std_logic;--continuous clock (bit clock)
 
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
@@ -638,6 +641,22 @@ signal mmu_iack: std_logic;
 				SDA => i2c_sda, --open drain data line
 				SCL => i2c_scl --open drain clock line
 			);
+			
+	i2s: i2s_master_transmitter
+	port map (
+				D => ram_write_data,
+				ADDR => ram_addr(1 downto 0),
+				CLK => ram_clk,
+				RST => rst,
+				WREN => i2s_wren,
+				RDEN => i2s_rden,
+				IACK => i2s_iack,
+				Q => i2s_Q,--for register read
+				IRQ => i2s_irq,
+				SD => i2s_SD, --data line
+				WS => i2s_WS, --left/right clock
+				SCK => i2s_SCK --continuous clock (bit clock)
+		);
 
 	all_periphs_output	<= (10 => irq_ctrl_Q, 9 => filter_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
