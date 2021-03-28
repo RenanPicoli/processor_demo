@@ -405,8 +405,8 @@ signal irq_ctrl_rden: std_logic;-- not used, just to keep form
 signal irq_ctrl_wren: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
-signal all_irq: std_logic_vector(1 downto 0);
-signal all_iack: std_logic_vector(1 downto 0);
+signal all_irq: std_logic_vector(2 downto 0);
+signal all_iack: std_logic_vector(2 downto 0);
 
 --signals for fp32_to_integer----------------------------------
 constant audio_resolution: natural := 16;
@@ -725,11 +725,12 @@ signal mmu_iack: std_logic;
 		Q_ram => ram_Q
 	);
 	
-	all_irq		<= (1 => mmu_irq, 0 => filter_irq);
-	mmu_iack		<= all_iack(1);
+	all_irq		<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq);
+	i2s_iack	<= all_iack(2);										 
+	i2c_iack	<= all_iack(1);
 	filter_iack	<= all_iack(0);
 	irq_ctrl: interrupt_controller
-	generic map (L => 2)--L: number of IRQ lines
+	generic map (L => 3)--L: number of IRQ lines
 	port map (	D => ram_write_data,-- input: data to register write
 			CLK => ram_clk,-- input
 			RST => RST,-- input
