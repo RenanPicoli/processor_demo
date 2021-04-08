@@ -186,32 +186,20 @@ begin
 			end loop;
 		end if;
 	end if;
-   end process;
-	
-	--scheme for IRQ signal
-	irq_set: process (CLK,irq_reset_Q,RST)
+   end process;	
+
+	---------------IRQ--------------------------------
+	---------new sample arrived-----------------------
+	irq_set: process(CLK,IACK,RST)
 	begin
-		if (RST='1') then
-			irq_set_Q <= '0';
-		elsif (irq_reset_Q = '1') then
-			irq_set_Q <= '0';
+		if(RST='1') then
+			IRQ <= '0';
+		elsif (IACK ='1') then
+			IRQ <= '0';
 		elsif rising_edge(CLK) then
-			irq_set_Q <='1';
+			IRQ <= '1';
 		end if;
-	end process;
-	
-	irq_reset: process (IACK,irq_set_Q,RST)
-	begin
-		if (RST='1') then
-			irq_reset_Q <= '0';
-		elsif (irq_set_Q = '0') then
-			irq_reset_Q <= '0';
-		elsif rising_edge(IACK) then
-			irq_reset_Q <= '1';
-		end if;
-	end process;
-	IRQ <= irq_set_Q and (not irq_reset_Q);
-	
+	end process;	
 
 end behv;
 
