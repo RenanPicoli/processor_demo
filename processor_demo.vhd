@@ -263,6 +263,7 @@ end component;
 component interrupt_controller
 generic	(L: natural);--L: number of IRQ lines
 port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
+		ADDR: in std_logic_vector(1 downto 0);--address offset of registers relative to peripheral base address
 		CLK: in std_logic;-- input
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
@@ -270,7 +271,7 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
 		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines
 		IRQ_OUT: out std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
-		IACK_OUT: out std_logic_vector(L-1 downto 0);--output: all IACK lines going to peripherals
+		IACK_OUT: buffer std_logic_vector(L-1 downto 0);--output: all IACK lines going to peripherals
 		output: out std_logic_vector(31 downto 0)-- output of register reading
 );
 
@@ -440,12 +441,12 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#10#,16#17#),--cache
 											(16#20#,16#3F#),--inner_product
 											(16#40#,16#5F#),--VMAC
-											(16#60#,16#63#),--I2C
-											(16#64#,16#67#),--I2S
-											(16#68#,16#68#),--current filter output
-											(16#69#,16#69#),--desired response
-											(16#6A#,16#6A#),--filter status
-											(16#6B#,16#6B#) --interrupt controller
+											(16#60#,16#67#),--I2C
+											(16#68#,16#6F#),--I2S
+											(16#70#,16#70#),--current filter output
+											(16#71#,16#71#),--desired response
+											(16#72#,16#72#),--filter status
+											(16#74#,16#77#) --interrupt controller
 											);
 signal all_periphs_output: array32 (10 downto 0);
 signal all_periphs_rden: std_logic_vector(10 downto 0);
@@ -732,6 +733,7 @@ signal mmu_iack: std_logic;
 	irq_ctrl: interrupt_controller
 	generic map (L => 3)--L: number of IRQ lines
 	port map (	D => ram_write_data,-- input: data to register write
+			ADDR => ram_addr(1 downto 0),
 			CLK => ram_clk,-- input
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
