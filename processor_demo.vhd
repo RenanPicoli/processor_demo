@@ -291,7 +291,7 @@ end component;
 component i2c_master
 	port (
 			D: in std_logic_vector(31 downto 0);--for register write
-			ADDR: in std_logic_vector(1 downto 0);--address offset of registers relative to peripheral base address
+			ADDR: in std_logic_vector(2 downto 0);--address offset of registers relative to peripheral base address
 			CLK: in std_logic;--for register read/write, also used to generate SCL
 			RST: in std_logic;--reset
 			WREN: in std_logic;--enables register write
@@ -309,7 +309,7 @@ end component;
 component i2s_master_transmitter
 	port (
 			D: in std_logic_vector(31 downto 0);--for register write
-			ADDR: in std_logic_vector(1 downto 0);--address offset of registers relative to peripheral base address
+			ADDR: in std_logic_vector(2 downto 0);--address offset of registers relative to peripheral base address
 			CLK: in std_logic;--for register read/write, also used to generate SCK
 			RST: in std_logic;--reset
 			WREN: in std_logic;--enables register write
@@ -632,7 +632,7 @@ signal mmu_iack: std_logic;
 				 
 	i2c: i2c_master
 	port map(D => ram_write_data,
-				ADDR => ram_addr(1 downto 0),
+				ADDR => ram_addr(2 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => i2c_wren,
@@ -648,7 +648,7 @@ signal mmu_iack: std_logic;
 	i2s: i2s_master_transmitter
 	port map (
 				D => left_padded_fp32_to_int_out,
-				ADDR => ram_addr(1 downto 0),
+				ADDR => ram_addr(2 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => i2s_wren,
