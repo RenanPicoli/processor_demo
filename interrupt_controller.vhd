@@ -62,9 +62,9 @@ architecture behv of interrupt_controller is
 	signal iack_finished_rden: std_logic;
 	signal iack_finished_wren: std_logic;-- not used, just to keep form
 	
-	signal all_registers_output: array32 (3 downto 0);
-	signal all_periphs_rden: std_logic_vector(3 downto 0);
-	signal address_decoder_wren: std_logic_vector(3 downto 0);
+	signal all_registers_output: array32 (2 downto 0);
+	signal all_periphs_rden: std_logic_vector(2 downto 0);
+	signal address_decoder_wren: std_logic_vector(2 downto 0);
 	
 	------------signals for IRQ control-------------------	
 	signal IRQ_pend_out:		std_logic_vector(31 downto 0);-- status of all IRQs
@@ -90,7 +90,7 @@ begin
 			end process;
 		end generate irq_pending_i;		
 		IRQ_pend_out(31 downto L) <= (others => '0');--unused bits receive '0'
-		
+		irq_pend_Q <= IRQ_pend_out;--signal renaming
 		
 ---------------------------------- IACK pending register ------------------------------------
 		iack_pend_wren <= address_decoder_wren(1);
@@ -108,7 +108,7 @@ begin
 			end process;
 		end generate iack_pending_i;
 		IACK_pend_out(31 downto L) <= (others => '0');--unused bits receive '0'
-		
+		iack_pend_Q <= IACK_pend_out;--signal renaming
 
 ---------------------------------- IACK finished register ------------------------------------
 		iack_finished_wren <= address_decoder_wren(2);
@@ -125,6 +125,7 @@ begin
 			end process;
 		end generate iack_finished_i;
 		IACK_finished(31 downto L) <= (others => '0');--unused bits receive '0'
+		iack_finished_Q <= IACK_finished;--signal renaming
 		
 		-- AFTER irq_pend_out UPDATE
 		--é necessário que o software zere os bits das IRQ atendidas e
@@ -140,7 +141,6 @@ begin
 		end generate;		
 		irq <= tmp(L-1);
 		IRQ_OUT <= irq;
-		output <= IRQ_pend_out;
 		
 -------------------------- address decoder ---------------------------------------------------
 	--addr 00: irq_pend
