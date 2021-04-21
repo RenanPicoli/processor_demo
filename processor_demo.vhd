@@ -415,6 +415,11 @@ signal fp_in: std_logic_vector(31 downto 0);
 signal fp32_to_int_out: std_logic_vector(audio_resolution-1 downto 0);
 signal left_padded_fp32_to_int_out: std_logic_vector(31 downto 0);--fp32_to_int_out left padded with zeroes
 
+--signals for converted_out----------------------------------
+signal converted_out_Q: std_logic_vector(31 downto 0);-- register containing current filter output converted to 2's complement
+signal converted_out_rden: std_logic;-- not used, just to keep form
+signal converted_out_wren: std_logic;-- not used, just to keep form
+
 --signals for I2C----------------------------------
 signal i2c_rden: std_logic;
 signal i2c_wren: std_logic;
@@ -446,11 +451,12 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#70#,16#70#),--current filter output
 											(16#71#,16#71#),--desired response
 											(16#72#,16#72#),--filter status
-											(16#74#,16#77#) --interrupt controller
+											(16#74#,16#77#),--interrupt controller
+											(16#78#,16#78#)--converted_out
 											);
-signal all_periphs_output: array32 (10 downto 0);
-signal all_periphs_rden: std_logic_vector(10 downto 0);
-signal all_periphs_wren: std_logic_vector(10 downto 0);
+signal all_periphs_output: array32 (11 downto 0);
+signal all_periphs_rden: std_logic_vector(11 downto 0);
+signal all_periphs_wren: std_logic_vector(11 downto 0);
 
 signal filter_CLK: std_logic;
 signal proc_filter_wren: std_logic;
@@ -630,6 +636,13 @@ signal mmu_iack: std_logic;
 	port map (fp_in => fp_in,
 				 output=> fp32_to_int_out);
 				 
+	converted_output: d_flip_flop
+	 port map(	D => fp32_to_int_out,
+					RST=> RST,--resets all previous history of filter output
+					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
+					Q=> converted_out_Q
+	);
+
 	i2c: i2c_master
 	port map(D => ram_write_data,
 				ADDR => ram_addr(2 downto 0),
@@ -661,12 +674,13 @@ signal mmu_iack: std_logic;
 				SCK => i2s_SCK --continuous clock (bit clock)
 		);
 
-	all_periphs_output	<= (10 => irq_ctrl_Q, 9 => filter_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
+	converted_out_rden	<= all_periphs_rden(11);-- not used, just to keep form
 	irq_ctrl_rden			<= all_periphs_rden(10);-- not used, just to keep form
 	filter_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
 	d_ff_desired_rden		<= all_periphs_rden(8);-- not used, just to keep form
@@ -679,6 +693,7 @@ signal mmu_iack: std_logic;
 	filter_xN_rden			<= all_periphs_rden(1);
 	coeffs_mem_rden		<= all_periphs_rden(0);
 
+	converted_out_wren	<= all_periphs_wren(11);-- not used, just to keep form
 	irq_ctrl_wren			<= all_periphs_wren(10);
 	filter_status_wren	<= all_periphs_wren(9);
 	d_ff_desired_wren		<= all_periphs_wren(8);-- not used, just to keep form
