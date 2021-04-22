@@ -762,15 +762,16 @@ signal mmu_iack: std_logic;
 
 	CLK <= CLK_IN;
 	
-	--produces 5MHz clock (processor and cache) from 50MHz input
-	clk_5MHz: pll_5MHz
+	--produces 5MHz intermediary clock from 50MHz input
+	clk_5MHz: prescaler
+	generic map (factor => 10)
 	port map (
-	inclk0 => CLK_IN,
-	areset => rst,
-	c0 => CLK5MHz
-	);
+	CLK_IN => CLK_IN,
+	rst => rst,
+	CLK_OUT => CLK5MHz
+	);	
 	
-	--produces 220.5kHz clock
+	--produces 220.5kHz clock from 5MHz input
 	pll_220_5kHz: pll
 	port map (
 	inclk0 => CLK5MHz,
@@ -778,7 +779,7 @@ signal mmu_iack: std_logic;
 	c0 => CLK220_5kHz
 	);
 	
-	--produces 22050Hz clock (sampling frequency) from 220.5kMHz input
+	--produces 22050Hz clock (sampling frequency) from 220.5kHz input
 	clk_22_05kHz: prescaler
 	generic map (factor => 10)
 	port map (
