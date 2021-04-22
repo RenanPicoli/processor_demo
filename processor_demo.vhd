@@ -158,7 +158,7 @@ end component;
 
 ---------------------------------------------------
 
-component d_flip_flop--  current filter output
+component d_flip_flop
 		port (D:	in std_logic_vector(31 downto 0);
 				RST: in std_logic;
 				ENA:	in std_logic:='1';--enables writes
@@ -167,26 +167,15 @@ component d_flip_flop--  current filter output
 				);
 	end component;
 
----------------------------------------------------	
-	
---produces 220.5kHz from 5MHz
-component pll
-	port (areset: in std_logic  := '0';
-			inclk0: in std_logic  := '0';
-			c0		: out std_logic ;
-			locked: out std_logic
-	);
-end component;
-
 ---------------------------------------------------
---produces 5MHz from 50MHz
-component pll_5MHz
+--produces 12MHz and 22050Hz from 50MHz
+component pll_12MHz_22k05
 	port
 	(
 		areset		: in std_logic  := '0';
 		inclk0		: in std_logic  := '0';
 		c0				: out std_logic ;
-		locked		: out std_logic 
+		c1				: out std_logic 
 	);
 end component;
 
@@ -329,6 +318,7 @@ signal CLK: std_logic;--clock for processor and cache
 signal CLK5MHz: std_logic;--clock input for PLL
 signal CLK220_5kHz: std_logic;--clock output for PLL
 signal CLK22_05kHz: std_logic;-- 22.05kHz clock
+signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 
 -----------signals for ROM interfacing---------------------
 signal instruction_memory_output: std_logic_vector(31 downto 0);
@@ -637,7 +627,7 @@ signal mmu_iack: std_logic;
 				 output=> fp32_to_int_out);
 				 
 	converted_output: d_flip_flop
-	 port map(	D => fp32_to_int_out,
+	 port map(	D => left_padded_fp32_to_int_out,
 					RST=> RST,--resets all previous history of filter output
 					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
 					Q=> converted_out_Q
@@ -761,29 +751,14 @@ signal mmu_iack: std_logic;
 	);
 
 	CLK <= CLK_IN;
-	
-	--produces 5MHz intermediary clock from 50MHz input
-	clk_5MHz: prescaler
-	generic map (factor => 10)
+
+	--produces 12MHz (MCLK) and 22.05kHz clocks (sampling frequency) from 50MHz input
+	clk_22_05kHz_and_12MHz: pll_12MHz_22k05
 	port map (
-	CLK_IN => CLK_IN,
-	rst => rst,
-	CLK_OUT => CLK5MHz
-	);	
-	
-	--produces 220.5kHz clock from 5MHz input
-	pll_220_5kHz: pll
-	port map (
-	inclk0 => CLK5MHz,
+	inclk0 => CLK_IN,
 	areset => rst,
-	c0 => CLK220_5kHz
+	c0 => CLK12MHz,
+	c1 => CLK22_05kHz
 	);
-	
-	--produces 22050Hz clock (sampling frequency) from 220.5kHz input
-	clk_22_05kHz: prescaler
-	generic map (factor => 10)
-	port map (
-	CLK_IN => CLK220_5kHz,
-	rst => rst,
-	CLK_OUT => CLK22_05kHz);
+
 end setup;

@@ -163,14 +163,13 @@ set_global_assignment -name VHDL_FILE mmu.vhd
 set_global_assignment -name VHDL_FILE generic_coeffs_mem.vhd
 set_global_assignment -name VHDL_FILE filter.vhd
 set_global_assignment -name VHDL_FILE wren_ctrl.vhd
-set_global_assignment -name QIP_FILE pll.qip
 set_global_assignment -name VHDL_FILE inner_product_calculation_unit.vhd
 set_global_assignment -name VHDL_FILE address_decoder_memory_map.vhd
 set_global_assignment -name VHDL_FILE filter_xN.vhd
-set_global_assignment -name QIP_FILE pll_5MHz.qip
 set_global_assignment -name VHDL_FILE vmac.vhd
 set_global_assignment -name VHDL_FILE interrupt_controller.vhd
 set_global_assignment -name VHDL_FILE fp32_to_integer.vhd
 set_global_assignment -name VHDL_FILE tb_fp32_to_integer.vhd
 set_global_assignment -name VHDL_FILE var_shift.vhd
+set_global_assignment -name QIP_FILE pll_12MHz_22k05.qip
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
