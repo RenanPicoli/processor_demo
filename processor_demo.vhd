@@ -19,6 +19,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		desired: in std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
 		filter_CLK_out: out std_logic;--filter clock: used as port so the testbench can synchronize sample presenting
 		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
+		MCLK: out std_logic;-- master clock output for audio codec (12MHz)
 		instruction_addr: buffer std_logic_vector(31 downto 0)
 );
 end entity;
@@ -662,7 +663,8 @@ signal mmu_iack: std_logic;
 				SD => i2s_SD, --data line
 				WS => i2s_WS, --left/right clock
 				SCK => i2s_SCK --continuous clock (bit clock)
-		);
+		);		
+		MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
 	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
