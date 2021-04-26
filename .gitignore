@@ -5,6 +5,7 @@ incremental_db/
 greybox_tmp/
 db/
 atom_netlists/
+*.exe
 *.qsf
 *.qdf
 *.rpt
