@@ -15,12 +15,23 @@ use work.my_types.all;
 entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
 		rst: in std_logic;
-		data_in: in std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
-		desired: in std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
-		filter_CLK_out: out std_logic;--filter clock: used as port so the testbench can synchronize sample presenting
 		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
+		--I2C
+		I2C_SDAT: inout std_logic;--I2C SDA
+		I2C_SCLK: inout std_logic;--I2C SCL
+		--I2S/codec
 		MCLK: out std_logic;-- master clock output for audio codec (12MHz)
-		instruction_addr: buffer std_logic_vector(31 downto 0)
+		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
+		AUD_DACDAT: out std_logic;--DACDAT aka SD
+		AUD_DACLRCK: out std_logic;--DACLRCK aka WS
+		--SRAM
+		sram_IO: in std_logic_vector(15 downto 0);--sram data; input because we'll only read
+		sram_ADDR: out std_logic_vector(19 downto 0);--ADDR for SRAM
+		sram_CE_n: out std_logic;--chip enable, active LOW
+		sram_OE_n: out std_logic;--output enable, active LOW
+		sram_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
+		sram_UB_n: out std_logic;--upper IO byte access, active LOW
+		sram_LB_n: out std_logic --lower	IO byte access, active LOW
 );
 end entity;
 
@@ -34,7 +45,7 @@ port (CLK_IN: in std_logic;
 		iack: out std_logic;--interrupt acknowledgement
 		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
 		-----ROM----------
-		ADDR_rom: out std_logic_vector(6 downto 0);--addr é endereço de byte, mas os Lsb são 00
+		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		Q_rom:	in std_logic_vector(31 downto 0);
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
@@ -50,7 +61,7 @@ end component;
 
 component mini_rom
 	port (--CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
-			ADDR: in std_logic_vector(6 downto 0);--addr é endereço de byte, mas os Lsb são 00
+			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 			Q:	out std_logic_vector(31 downto 0)
 			);
 end component;
@@ -169,14 +180,25 @@ component d_flip_flop
 	end component;
 
 ---------------------------------------------------
---produces 12MHz and 22050Hz from 50MHz
-component pll_12MHz_22k05
+--produces 12MHz from 50MHz
+component pll_12MHz
 	port
 	(
 		areset		: in std_logic  := '0';
 		inclk0		: in std_logic  := '0';
-		c0				: out std_logic ;
-		c1				: out std_logic 
+		c0				: out std_logic 
+	);
+end component;
+
+---------------------------------------------------
+--produces fs and 256fs from 12MHz
+component pll_audio
+	port
+	(
+		areset		: in std_logic  := '0';
+		inclk0		: in std_logic  := '0';
+		c0				: out std_logic;
+		c1				: out std_logic
 	);
 end component;
 
@@ -307,23 +329,36 @@ component i2s_master_transmitter
 			IACK: in std_logic;--interrupt acknowledgement
 			Q: out std_logic_vector(31 downto 0);--for register read
 			IRQ: out std_logic;--interrupt request
+			SCK_IN: in std_logic;--clock for SCK generation (must be 256*fs, because SCK_IN is divided by 2 to generate SCK)
 			SD: out std_logic;--data line
 			WS: buffer std_logic;--left/right clock
-			SCK: out std_logic--continuous clock (bit clock)
+			SCK: out std_logic--continuous clock (bit clock); fSCK=128fs
 	);
 end component;
 
----------------------------------------------------
+--000: will read* lower 16bits of input vectors
+--001: will read* lower 16bits of desired vectors
+--010: will read* upper 16bits of input vectors
+--011: will read* upper 16bits of desired vectors
+--100: will wait until filter_CLK falling edge (since sampling edge is the rising) to read again
+-- * : on next rising edge of CLK, sram_ADDR will be updated, at next CLK falling edge IO will be latched
+signal sram_reading_state: std_logic_vector(2 downto 0);
+signal count: std_logic_vector(18 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
 
-signal CLK: std_logic;--clock for processor and cache
-signal CLK5MHz: std_logic;--clock input for PLL
-signal CLK220_5kHz: std_logic;--clock output for PLL
+----------adaptive filter algorithm inputs----------------
+signal data_in: std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
+signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
+
+-------------------clocks---------------------------------
+signal CLK: std_logic;--clock for processor and cache (50MHz)
+signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK22_05kHz: std_logic;-- 22.05kHz clock
+signal CLK5_647059MHz: std_logic;-- 5.647059MHz clock (for I2S peripheral)
 signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 
 -----------signals for ROM interfacing---------------------
 signal instruction_memory_output: std_logic_vector(31 downto 0);
-signal instruction_memory_address: std_logic_vector(6 downto 0);
+signal instruction_memory_address: std_logic_vector(7 downto 0);
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
@@ -508,6 +543,73 @@ signal mmu_iack: std_logic;
 --				invalidate_output => fifo_invalidate_output,
 --				fill_cache => cache_fill_cache
 --	);
+
+	
+-------------------SRAM interfacing---------------------
+	sram_CE_n <= '0';--chip always enabled
+	sram_OE_n <= '0';--output always enabled
+	sram_WE_n <= '1';--reading always enabled
+	sram_UB_n <= '0';--upper byte always enabled
+	sram_LB_n <= '0';--lower byte always enabled
+	
+	sram_reading: process(CLK,filter_CLK,count,rst)
+	begin
+		if(rst='1')then
+			sram_reading_state <= "000";
+			sram_ADDR <= (others=>'0');
+		elsif(rising_edge(CLK))then
+			sram_ADDR <= sram_reading_state(0) & count;
+			if(sram_reading_state/="100")then
+				sram_reading_state <= sram_reading_state + 1;
+			elsif(filter_CLK='0') then
+				sram_reading_state <= "000";
+			end if;
+		end if;
+	end process;
+	
+	--generates address for reading SRAM
+	--counts from 0 to 512K
+	counter: process(CLK25MHz,rst,sram_reading_state)
+	begin
+		if(rst='1')then
+			count <= (others=>'0');
+		elsif(falling_edge(CLK25MHz))then--this ensures, count is updated after used for sram_ADDR
+			count <= count + 1;
+		end if;
+	end process;
+	
+	process(CLK,rst,sram_ADDR)
+	begin
+		if(rst='1')then
+			data_in <= (others=>'0');
+			desired <= (others=>'0');
+		elsif (rising_edge(CLK)) then
+			if(sram_ADDR(19)='0')then--reading input vectors
+				if(sram_ADDR(0)='0')then--reading lower half
+					data_in(15 downto 0) <= sram_IO;
+				else--reading upper half
+					data_in(31 downto 16) <= sram_IO;
+				end if;
+			else--reading desired vectors
+				if(sram_ADDR(0)='0')then--reading lower half
+					desired(15 downto 0) <= sram_IO;
+				else--reading upper half
+					desired(31 downto 16) <= sram_IO;
+				end if;
+			end if;
+		end if;
+	end process;
+	
+--	--sram_ADDR generation
+--	process(CLK,rst)
+--	begin
+--		if(rst='1')then
+--			sram_ADDR <= (others=>'0');
+--		elsif(rising_edge(CLK))then
+--			sram_ADDR <= sram_reading_state(0) & count;
+--		end if;
+--	end process;
+--------------------------------------------------------
 	
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
 									port map(D => ram_write_data,
@@ -533,7 +635,6 @@ signal mmu_iack: std_logic;
 											);
 	filter_input <= data_in;
 	data_out <= filter_output;
-	filter_CLK_out <= filter_CLK;
 	
 	filter_out: d_flip_flop
 	 port map(	D => filter_output,
@@ -627,6 +728,8 @@ signal mmu_iack: std_logic;
 	port map (fp_in => fp_in,
 				 output=> fp32_to_int_out);
 				 
+
+	left_padded_fp32_to_int_out <= (31 downto audio_resolution => '0') & fp32_to_int_out;
 	converted_output: d_flip_flop
 	 port map(	D => left_padded_fp32_to_int_out,
 					RST=> RST,--resets all previous history of filter output
@@ -634,6 +737,8 @@ signal mmu_iack: std_logic;
 					Q=> converted_out_Q
 	);
 
+	I2C_SCLK <= i2c_scl;
+	I2C_SDAT <= i2c_sda;
 	i2c: i2c_master
 	port map(D => ram_write_data,
 				ADDR => ram_addr(2 downto 0),
@@ -647,11 +752,13 @@ signal mmu_iack: std_logic;
 				SDA => i2c_sda, --open drain data line
 				SCL => i2c_scl --open drain clock line
 			);
-			
-	left_padded_fp32_to_int_out <= (31 downto audio_resolution => '0') & fp32_to_int_out;
+	
+	AUD_BCLK <= i2s_SCK;
+	AUD_DACDAT <= i2s_SD;
+	AUD_DACLRCK <= i2s_WS;
 	i2s: i2s_master_transmitter
 	port map (
-				D => left_padded_fp32_to_int_out,
+				D => ram_write_data,
 				ADDR => ram_addr(2 downto 0),
 				CLK => ram_clk,
 				RST => rst,
@@ -660,6 +767,7 @@ signal mmu_iack: std_logic;
 				IACK => i2s_iack,
 				Q => i2s_Q,--for register read
 				IRQ => i2s_irq,
+				SCK_IN => CLK5_647059MHz,--256fs=256fSCK
 				SD => i2s_SD, --data line
 				WS => i2s_WS, --left/right clock
 				SCK => i2s_SCK --continuous clock (bit clock)
@@ -720,7 +828,7 @@ signal mmu_iack: std_logic;
 		rst => rst,
 		irq => irq,
 		iack => iack,
-		instruction_addr => instruction_addr,
+		instruction_addr => open,
 		ADDR_rom => instruction_memory_address,
 		Q_rom => instruction_memory_output,
 		ADDR_ram => ram_addr,
@@ -754,13 +862,29 @@ signal mmu_iack: std_logic;
 
 	CLK <= CLK_IN;
 
-	--produces 12MHz (MCLK) and 22.05kHz clocks (sampling frequency) from 50MHz input
-	clk_22_05kHz_and_12MHz: pll_12MHz_22k05
+	process(CLK,rst)
+	begin
+		if(rst='1')then
+			CLK25MHz <= '0';
+		elsif(falling_edge(CLK))then--this ensures, count is updated after used for sram_ADDR
+			CLK25MHz <= not CLK25MHz;
+		end if;
+	end process;
+	
+	--produces 12MHz (MCLK) from 50MHz input
+	clk_12MHz: pll_12MHz
 	port map (
 	inclk0 => CLK_IN,
 	areset => rst,
-	c0 => CLK12MHz,
-	c1 => CLK22_05kHz
+	c0 => CLK12MHz
 	);
 
+	--produces 22059Hz (fs) and 5.647059MHz (256fs for BCLK_IN) from 12MHz input
+	clk_fs_256fs: pll_audio
+	port map (
+	inclk0 => CLK12MHz,
+	areset => rst,
+	c0 => CLK22_05kHz,
+	c1 => CLK5_647059MHz
+	);
 end setup;
