@@ -56,7 +56,6 @@ set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_location_assignment PIN_AB28 -to rst
 set_location_assignment PIN_G18 -to segments[0][0]
 set_location_assignment PIN_F22 -to segments[0][1]
-set_location_assignment PIN_E17 -to segments[0][2]
 set_location_assignment PIN_L26 -to segments[0][3]
 set_location_assignment PIN_L25 -to segments[0][4]
 set_location_assignment PIN_J22 -to segments[0][5]
@@ -129,7 +128,6 @@ set_global_assignment -name VHDL_FILE i2c_master/i2c_slave_generic.vhd
 set_global_assignment -name VHDL_FILE i2c_master/i2c_slave.vhd
 set_global_assignment -name VHDL_FILE i2c_master/i2c_master_generic.vhd
 set_global_assignment -name VHDL_FILE i2c_master/i2c_master.vhd
-set_global_assignment -name VHDL_FILE testbench.vhd
 set_global_assignment -name VHDL_FILE address_decoder_register_map.vhd
 set_global_assignment -name VHDL_FILE fpu_inner_product.vhd
 set_global_assignment -name VHDL_FILE shift_register.vhd
@@ -171,5 +169,94 @@ set_global_assignment -name VHDL_FILE interrupt_controller.vhd
 set_global_assignment -name VHDL_FILE fp32_to_integer.vhd
 set_global_assignment -name VHDL_FILE tb_fp32_to_integer.vhd
 set_global_assignment -name VHDL_FILE var_shift.vhd
-set_global_assignment -name QIP_FILE pll_12MHz_22k05.qip
+set_global_assignment -name QIP_FILE pll_12MHz.qip
+set_global_assignment -name QIP_FILE pll_audio.qip
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_WE_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[19]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[18]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[17]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[16]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[15]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[14]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[13]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_ADDR[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_CE_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[15]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[14]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[13]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_IO[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_LB_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_OE_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to sram_UB_n
+set_location_assignment PIN_AB7 -to sram_ADDR[0]
+set_location_assignment PIN_AD7 -to sram_ADDR[1]
+set_location_assignment PIN_AE7 -to sram_ADDR[2]
+set_location_assignment PIN_AC7 -to sram_ADDR[3]
+set_location_assignment PIN_AB6 -to sram_ADDR[4]
+set_location_assignment PIN_AE6 -to sram_ADDR[5]
+set_location_assignment PIN_AB5 -to sram_ADDR[6]
+set_location_assignment PIN_AC5 -to sram_ADDR[7]
+set_location_assignment PIN_AF5 -to sram_ADDR[8]
+set_location_assignment PIN_T7 -to sram_ADDR[9]
+set_location_assignment PIN_AF2 -to sram_ADDR[10]
+set_location_assignment PIN_AD3 -to sram_ADDR[11]
+set_location_assignment PIN_AB4 -to sram_ADDR[12]
+set_location_assignment PIN_AC3 -to sram_ADDR[13]
+set_location_assignment PIN_AA4 -to sram_ADDR[14]
+set_location_assignment PIN_AB11 -to sram_ADDR[15]
+set_location_assignment PIN_AC11 -to sram_ADDR[16]
+set_location_assignment PIN_AB9 -to sram_ADDR[17]
+set_location_assignment PIN_AB8 -to sram_ADDR[18]
+set_location_assignment PIN_T8 -to sram_ADDR[19]
+set_location_assignment PIN_AF8 -to sram_CE_n
+set_location_assignment PIN_AH3 -to sram_IO[0]
+set_location_assignment PIN_AF4 -to sram_IO[1]
+set_location_assignment PIN_AG4 -to sram_IO[2]
+set_location_assignment PIN_AH4 -to sram_IO[3]
+set_location_assignment PIN_AF6 -to sram_IO[4]
+set_location_assignment PIN_AG6 -to sram_IO[5]
+set_location_assignment PIN_AH6 -to sram_IO[6]
+set_location_assignment PIN_AF7 -to sram_IO[7]
+set_location_assignment PIN_AD1 -to sram_IO[8]
+set_location_assignment PIN_AD2 -to sram_IO[9]
+set_location_assignment PIN_AE2 -to sram_IO[10]
+set_location_assignment PIN_AE1 -to sram_IO[11]
+set_location_assignment PIN_AE3 -to sram_IO[12]
+set_location_assignment PIN_AE4 -to sram_IO[13]
+set_location_assignment PIN_AF3 -to sram_IO[14]
+set_location_assignment PIN_AG3 -to sram_IO[15]
+set_location_assignment PIN_AD4 -to sram_LB_n
+set_location_assignment PIN_AD5 -to sram_OE_n
+set_location_assignment PIN_AC4 -to sram_UB_n
+set_location_assignment PIN_AE8 -to sram_WE_n
+set_location_assignment PIN_E1 -to MCLK
+set_location_assignment PIN_F2 -to AUD_BCLK
+set_location_assignment PIN_D1 -to AUD_DACDAT
+set_location_assignment PIN_E3 -to AUD_DACLRCK
+set_location_assignment PIN_B7 -to I2C_SCLK
+set_location_assignment PIN_A8 -to I2C_SDAT
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
