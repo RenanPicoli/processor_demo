@@ -191,7 +191,7 @@ component pll_12MHz
 end component;
 
 ---------------------------------------------------
---produces fs and 256fs from 12MHz
+--produces fs and 128fs from 12MHz
 component pll_audio
 	port
 	(
@@ -353,7 +353,7 @@ signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEE
 signal CLK: std_logic;--clock for processor and cache (50MHz)
 signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK22_05kHz: std_logic;-- 22.05kHz clock
-signal CLK5_647059MHz: std_logic;-- 5.647059MHz clock (for I2S peripheral)
+signal CLK2_8235295MHz: std_logic;-- 2.8235295MHz clock (for I2S peripheral)
 signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 
 -----------signals for ROM interfacing---------------------
@@ -767,7 +767,7 @@ signal mmu_iack: std_logic;
 				IACK => i2s_iack,
 				Q => i2s_Q,--for register read
 				IRQ => i2s_irq,
-				SCK_IN => CLK5_647059MHz,--256fs=256fSCK
+				SCK_IN => CLK2_8235295MHz,--128fs=128fSCK
 				SD => i2s_SD, --data line
 				WS => i2s_WS, --left/right clock
 				SCK => i2s_SCK --continuous clock (bit clock)
@@ -879,12 +879,12 @@ signal mmu_iack: std_logic;
 	c0 => CLK12MHz
 	);
 
-	--produces 22059Hz (fs) and 5.647059MHz (256fs for BCLK_IN) from 12MHz input
-	clk_fs_256fs: pll_audio
+	--produces 22059Hz (fs) and 2.8235295MHz (128fs for BCLK_IN) from 12MHz input
+	clk_fs_128fs: pll_audio
 	port map (
 	inclk0 => CLK12MHz,
 	areset => rst,
 	c0 => CLK22_05kHz,
-	c1 => CLK5_647059MHz
+	c1 => CLK2_8235295MHz
 	);
 end setup;
