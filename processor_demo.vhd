@@ -198,7 +198,8 @@ component pll_audio
 		areset		: in std_logic  := '0';
 		inclk0		: in std_logic  := '0';
 		c0				: out std_logic;
-		c1				: out std_logic
+		c1				: out std_logic;
+		locked		: out std_logic
 	);
 end component;
 
@@ -330,6 +331,7 @@ component i2s_master_transmitter
 			Q: out std_logic_vector(31 downto 0);--for register read
 			IRQ: out std_logic;--interrupt request
 			SCK_IN: in std_logic;--clock for SCK generation (must be 256*fs, because SCK_IN is divided by 2 to generate SCK)
+			SCK_IN_PLL_LOCKED: in std_logic;--'1' if PLL that provides SCK_IN is locked
 			SD: out std_logic;--data line
 			WS: buffer std_logic;--left/right clock
 			SCK: out std_logic--continuous clock (bit clock); fSCK=128fs
@@ -464,6 +466,7 @@ signal i2s_Q: std_logic_vector(31 downto 0);
 signal i2s_SD: std_logic;--data line
 signal i2s_WS: std_logic;--left/right clock
 signal i2s_SCK: std_logic;--continuous clock (bit clock)
+signal i2s_SCK_IN_PLL_LOCKED: std_logic;--'1' if PLL that provides SCK_IN is locked
 
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
@@ -768,6 +771,7 @@ signal mmu_iack: std_logic;
 				Q => i2s_Q,--for register read
 				IRQ => i2s_irq,
 				SCK_IN => CLK2_8235295MHz,--128fs=128fSCK
+				SCK_IN_PLL_LOCKED => i2s_SCK_IN_PLL_LOCKED,--'1' if PLL that provides SCK_IN is locked
 				SD => i2s_SD, --data line
 				WS => i2s_WS, --left/right clock
 				SCK => i2s_SCK --continuous clock (bit clock)
@@ -885,6 +889,7 @@ signal mmu_iack: std_logic;
 	inclk0 => CLK12MHz,
 	areset => rst,
 	c0 => CLK22_05kHz,
-	c1 => CLK2_8235295MHz
+	c1 => CLK2_8235295MHz,
+	locked => i2s_SCK_IN_PLL_LOCKED
 	);
 end setup;
