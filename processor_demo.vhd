@@ -31,7 +31,15 @@ port (CLK_IN: in std_logic;--50MHz input
 		sram_OE_n: out std_logic;--output enable, active LOW
 		sram_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
 		sram_UB_n: out std_logic;--upper IO byte access, active LOW
-		sram_LB_n: out std_logic --lower	IO byte access, active LOW
+		sram_LB_n: out std_logic; --lower	IO byte access, active LOW
+		--GREEN LEDS
+		LEDG: out std_logic_vector(8 downto 0);
+		--RED LEDS
+		LEDR: out std_logic_vector(17 downto 0);
+		--GPIO 14 PINS
+		EX_IO: out std_logic_vector(6 downto 0);
+		--GPIO 40 PINS
+		GPIO: out std_logic_vector(35 downto 0)
 );
 end entity;
 
@@ -503,30 +511,20 @@ signal mmu_iack: std_logic;
 
 	begin
 	
+	--debug outputs
+	LEDR <= (17 downto 1 =>'0') & rst;
+	LEDG <= (8 downto 4 =>'1') & "00" & filter_state & i2s_SCK_IN_PLL_LOCKED;
+	EX_IO <= (6 downto 0 =>'0');
+	GPIO <= (35 downto 0 =>'0');
+	
+	
 	rom: mini_rom port map(	--CLK => CLK,
 									ADDR=> instruction_memory_address,
 									Q	 => instruction_memory_output
 	);
 	
---	fifo_input <= data_in;
---	fifo: shift_register generic map (N => F, OS => 2**(5))
---								port map(CLK => fifo_clock,
---											rst => rst,
---											D => fifo_input,
---											Q => fifo_output);
-	
-	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR Na MEMÓRIA NA BORDA DE DESCIDA
+	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
---	cache_parallel_write_data <= fifo_output(0 to 2**(5)-1);--2^5=32 addresses
---	cache: parallel_load_cache generic map (N => 5)
---									port map(CLK	=> ram_clk,
---												ADDR	=> ram_addr(4 downto 0),
---												write_data => ram_write_data,
---												parallel_write_data => cache_parallel_write_data,
---												fill_cache => cache_fill_cache,
---												rden	=> cache_rden,
---												wren	=> cache_wren,
---												Q		=> cache_Q);
 	cache: mini_ram generic map (N => 3)
 									port map(CLK	=> ram_clk,
 												ADDR	=> ram_addr(2 downto 0),
@@ -534,19 +532,6 @@ signal mmu_iack: std_logic;
 												rden	=> cache_rden,
 												wren	=> cache_wren,
 												Q		=> cache_Q);
-												
---	memory_management_unit:
---	mmu generic map (N => F, F => 2**(5))
---	port map(CLK => CLK,
---				CLK_fifo => fifo_clock,
---				rst => rst,
---				receive_cache_request => send_cache_request,
---				iack => mmu_iack,
---				irq => mmu_irq,
---				invalidate_output => fifo_invalidate_output,
---				fill_cache => cache_fill_cache
---	);
-
 	
 -------------------SRAM interfacing---------------------
 	sram_CE_n <= '0';--chip always enabled
@@ -602,16 +587,6 @@ signal mmu_iack: std_logic;
 			end if;
 		end if;
 	end process;
-	
---	--sram_ADDR generation
---	process(CLK,rst)
---	begin
---		if(rst='1')then
---			sram_ADDR <= (others=>'0');
---		elsif(rising_edge(CLK))then
---			sram_ADDR <= sram_reading_state(0) & count;
---		end if;
---	end process;
 --------------------------------------------------------
 	
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
