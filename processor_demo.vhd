@@ -39,7 +39,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		--GPIO 14 PINS
 		EX_IO: out std_logic_vector(6 downto 0);
 		--GPIO 40 PINS
-		GPIO: out std_logic_vector(35 downto 0)
+		GPIO: inout std_logic_vector(35 downto 0)
 );
 end entity;
 
@@ -353,17 +353,18 @@ end component;
 --100: will wait until filter_CLK falling edge (since sampling edge is the rising) to read again
 -- * : on next rising edge of CLK, sram_ADDR will be updated, at next CLK falling edge IO will be latched
 signal sram_reading_state: std_logic_vector(2 downto 0);
-signal count: std_logic_vector(18 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
+signal count: std_logic_vector(17 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
 
 ----------adaptive filter algorithm inputs----------------
 signal data_in: std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
 signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
 
 -------------------clocks---------------------------------
+signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
 signal CLK: std_logic;--clock for processor and cache (50MHz)
 signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK22_05kHz: std_logic;-- 22.05kHz clock
-signal CLK2_8235295MHz: std_logic;-- 2.8235295MHz clock (for I2S peripheral)
+signal CLK5_647059MHz: std_logic;-- 5.647059MHz clock (for I2S peripheral)
 signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 
 -----------signals for ROM interfacing---------------------
@@ -431,10 +432,11 @@ signal d_ff_desired_Q: std_logic_vector(31 downto 0);-- register containing desi
 signal d_ff_desired_rden: std_logic;-- not used, just to keep form
 signal d_ff_desired_wren: std_logic;-- not used, just to keep form
 
---signals for filter_status-----------------------------------
-signal filter_status_Q: std_logic_vector(31 downto 0);-- register containing filter status of convergency
-signal filter_status_rden: std_logic;-- not used, just to keep form
-signal filter_status_wren: std_logic;
+--signals for filter_ctrl_status-----------------------------------
+signal filter_enable: std_logic;--bit 0, enables filter_CLK
+signal filter_ctrl_status_Q: std_logic_vector(31 downto 0);-- register containing filter status of convergency
+signal filter_ctrl_status_rden: std_logic;-- not used, just to keep form
+signal filter_ctrl_status_wren: std_logic;
 
 --signals for interrupt controller----------------------------
 signal irq_ctrl_Q: std_logic_vector(31 downto 0);-- register containing filter status of convergency
@@ -462,8 +464,8 @@ signal i2c_wren: std_logic;
 signal i2c_irq: std_logic;
 signal i2c_iack: std_logic;
 signal i2c_Q: std_logic_vector(31 downto 0);
-signal i2c_sda: std_logic;--open drain data line
-signal i2c_scl: std_logic;--open drain clock line
+--signal i2c_sda: std_logic;--open drain data line
+--signal i2c_scl: std_logic;--open drain clock line
 
 --signals for I2S----------------------------------
 signal i2s_rden: std_logic;
@@ -504,7 +506,7 @@ signal filter_output: std_logic_vector(31 downto 0);
 signal filter_irq: std_logic;
 signal filter_iack: std_logic;
 
-signal filter_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
+signal filter_CLK_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
 signal mmu_irq: std_logic;
 signal mmu_iack: std_logic;
@@ -512,11 +514,13 @@ signal mmu_iack: std_logic;
 	begin
 	
 	--debug outputs
-	LEDR <= (17 downto 1 =>'0') & rst;
-	LEDG <= (8 downto 4 =>'1') & "00" & filter_state & i2s_SCK_IN_PLL_LOCKED;
-	EX_IO <= (6 downto 0 =>'0');
-	GPIO <= (35 downto 0 =>'0');
-	
+	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
+	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
+	EX_IO <= ram_clk & filter_rst & filter_CLK & CLK & sram_reading_state;
+	GPIO <= (35 downto 16 => '0') & filter_rst & filter_CLK &
+											AUD_DACDAT & AUD_DACLRCK & AUD_BCLK & MCLK &
+											i2s_irq & i2c_irq &
+											instruction_memory_address;	
 	
 	rom: mini_rom port map(	--CLK => CLK,
 									ADDR=> instruction_memory_address,
@@ -525,13 +529,13 @@ signal mmu_iack: std_logic;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= not CLK;
-	cache: mini_ram generic map (N => 3)
-									port map(CLK	=> ram_clk,
-												ADDR	=> ram_addr(2 downto 0),
-												write_data => ram_write_data,
-												rden	=> cache_rden,
-												wren	=> cache_wren,
-												Q		=> cache_Q);
+	cache: mini_ram 	generic map (N => 3)
+							port map(CLK	=> ram_clk,
+										ADDR	=> ram_addr(2 downto 0),
+										write_data => ram_write_data,
+										rden	=> cache_rden,
+										wren	=> cache_wren,
+										Q		=> cache_Q);
 	
 -------------------SRAM interfacing---------------------
 	sram_CE_n <= '0';--chip always enabled
@@ -540,38 +544,38 @@ signal mmu_iack: std_logic;
 	sram_UB_n <= '0';--upper byte always enabled
 	sram_LB_n <= '0';--lower byte always enabled
 	
-	sram_reading: process(CLK,filter_CLK,count,rst)
+	sram_reading: process(CLK,filter_rst,sram_reading_state,filter_CLK,count,rst)
 	begin
 		if(rst='1')then
 			sram_reading_state <= "000";
 			sram_ADDR <= (others=>'0');
-		elsif(rising_edge(CLK))then
-			sram_ADDR <= sram_reading_state(0) & count;
-			if(sram_reading_state/="100")then
-				sram_reading_state <= sram_reading_state + 1;
-			elsif(filter_CLK='0') then
-				sram_reading_state <= "000";
-			end if;
+		elsif(filter_CLK='1')then
+			sram_reading_state <= "000";
+		elsif(rising_edge(CLK) and filter_rst='0' and sram_reading_state/="100" and filter_CLK='0')then
+			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);
+			sram_reading_state <= sram_reading_state + 1;
 		end if;
 	end process;
 	
+	--index of sample being fetched
 	--generates address for reading SRAM
-	--counts from 0 to 512K
-	counter: process(CLK25MHz,rst,sram_reading_state)
+	--counts from 0 to 256K
+	counter: process(rst,filter_rst,sram_reading_state,filter_CLK)
 	begin
-		if(rst='1')then
+		if(rst='1' or filter_rst='1')then
 			count <= (others=>'0');
-		elsif(falling_edge(CLK25MHz))then--this ensures, count is updated after used for sram_ADDR
+		elsif(rising_edge(filter_CLK) and filter_rst='0')then--this ensures, count is updated after used for sram_ADDR
 			count <= count + 1;
 		end if;
 	end process;
 	
-	process(CLK,rst,sram_ADDR)
+	process(CLK,rst,sram_ADDR,filter_rst,filter_CLK)
 	begin
 		if(rst='1')then
 			data_in <= (others=>'0');
 			desired <= (others=>'0');
-		elsif (rising_edge(CLK)) then
+		--sram_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
+		elsif (falling_edge(CLK) and filter_rst='0' and filter_CLK='0') then
 			if(sram_ADDR(19)='0')then--reading input vectors
 				if(sram_ADDR(0)='0')then--reading lower half
 					data_in(15 downto 0) <= sram_IO;
@@ -628,21 +632,22 @@ signal mmu_iack: std_logic;
 					Q=> d_ff_desired_Q
 					);
 					
-	filter_status: d_flip_flop
+	filter_ctrl_status: d_flip_flop
 	 port map(	D => ram_write_data,--written by software
 					RST=> RST,--resets all previous history of filter output
-					ENA=> filter_status_wren,
+					ENA=> filter_ctrl_status_wren,
 					CLK=>ram_clk,--must be the same as filter_CLK
-					Q=> filter_status_Q
+					Q=> filter_ctrl_status_Q
 					);
+	filter_enable <= filter_ctrl_status_Q(0);--bit 0 enables filter_CLK
 											
-	filter_reset_process: process (filter_CLK,filter_state)
+	filter_reset_process: process (filter_CLK,filter_CLK_state,filter_enable,i2s_SCK_IN_PLL_LOCKED)
 	begin
 --		filter_rst <= '1';
-		if (filter_CLK'event and filter_CLK = '1') then
-			filter_state <= '1';
+		if (rising_edge(filter_CLK) and i2s_SCK_IN_PLL_LOCKED='1') then--pll_audio must be locked
+			filter_CLK_state <= '1';
 		end if;
-		if (filter_CLK'event and filter_CLK = '0' and filter_state = '1') then
+		if (falling_edge(filter_CLK) and filter_CLK_state = '1' and filter_enable='1' and i2s_SCK_IN_PLL_LOCKED='1') then
 				filter_rst <= '0';
 		end if;
 	end process filter_reset_process;
@@ -715,8 +720,6 @@ signal mmu_iack: std_logic;
 					Q=> converted_out_Q
 	);
 
-	I2C_SCLK <= i2c_scl;
-	I2C_SDAT <= i2c_sda;
 	i2c: i2c_master
 	port map(D => ram_write_data,
 				ADDR => ram_addr(2 downto 0),
@@ -727,8 +730,8 @@ signal mmu_iack: std_logic;
 				IACK => i2c_iack,
 				Q => i2c_Q, --for register read
 				IRQ => i2c_irq,
-				SDA => i2c_sda, --open drain data line
-				SCL => i2c_scl --open drain clock line
+				SDA => I2C_SDAT, --open drain data line
+				SCL => I2C_SCLK --open drain clock line
 			);
 	
 	AUD_BCLK <= i2s_SCK;
@@ -745,45 +748,45 @@ signal mmu_iack: std_logic;
 				IACK => i2s_iack,
 				Q => i2s_Q,--for register read
 				IRQ => i2s_irq,
-				SCK_IN => CLK2_8235295MHz,--128fs=128fSCK
+				SCK_IN => CLK5_647059MHz,--256fs=256fSCK
 				SCK_IN_PLL_LOCKED => i2s_SCK_IN_PLL_LOCKED,--'1' if PLL that provides SCK_IN is locked
 				SD => i2s_SD, --data line
 				WS => i2s_WS, --left/right clock
 				SCK => i2s_SCK --continuous clock (bit clock)
 		);		
-		MCLK <= CLK12MHz;--master clock for audio codec in USB mode
+	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_ctrl_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	converted_out_rden	<= all_periphs_rden(11);-- not used, just to keep form
-	irq_ctrl_rden			<= all_periphs_rden(10);-- not used, just to keep form
-	filter_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
-	d_ff_desired_rden		<= all_periphs_rden(8);-- not used, just to keep form
-	filter_out_rden		<= all_periphs_rden(7);-- not used, just to keep form
-	i2s_rden					<= all_periphs_rden(6);
-	i2c_rden					<= all_periphs_rden(5);
-	vmac_rden				<=	all_periphs_rden(4);
-	inner_product_rden	<= all_periphs_rden(3);
-	cache_rden				<= all_periphs_rden(2);
-	filter_xN_rden			<= all_periphs_rden(1);
-	coeffs_mem_rden		<= all_periphs_rden(0);
+	converted_out_rden		<= all_periphs_rden(11);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(10);-- not used, just to keep form
+	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
+	d_ff_desired_rden			<= all_periphs_rden(8);-- not used, just to keep form
+	filter_out_rden			<= all_periphs_rden(7);-- not used, just to keep form
+	i2s_rden						<= all_periphs_rden(6);
+	i2c_rden						<= all_periphs_rden(5);
+	vmac_rden					<=	all_periphs_rden(4);
+	inner_product_rden		<= all_periphs_rden(3);
+	cache_rden					<= all_periphs_rden(2);
+	filter_xN_rden				<= all_periphs_rden(1);
+	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	converted_out_wren	<= all_periphs_wren(11);-- not used, just to keep form
-	irq_ctrl_wren			<= all_periphs_wren(10);
-	filter_status_wren	<= all_periphs_wren(9);
-	d_ff_desired_wren		<= all_periphs_wren(8);-- not used, just to keep form
-	filter_out_wren		<= all_periphs_wren(7);-- not used, just to keep form
-	i2s_wren					<= all_periphs_wren(6);
-	i2c_wren					<= all_periphs_wren(5);
-	vmac_wren				<= all_periphs_wren(4);
-	inner_product_wren	<= all_periphs_wren(3);
-	cache_wren				<= all_periphs_wren(2);
-	filter_xN_wren			<= all_periphs_wren(1);
-	coeffs_mem_wren		<= all_periphs_wren(0);
+	converted_out_wren		<= all_periphs_wren(11);-- not used, just to keep form
+	irq_ctrl_wren				<= all_periphs_wren(10);
+	filter_ctrl_status_wren	<= all_periphs_wren(9);
+	d_ff_desired_wren			<= all_periphs_wren(8);-- not used, just to keep form
+	filter_out_wren			<= all_periphs_wren(7);-- not used, just to keep form
+	i2s_wren						<= all_periphs_wren(6);
+	i2c_wren						<= all_periphs_wren(5);
+	vmac_wren					<= all_periphs_wren(4);
+	inner_product_wren		<= all_periphs_wren(3);
+	cache_wren					<= all_periphs_wren(2);
+	filter_xN_wren				<= all_periphs_wren(1);
+	coeffs_mem_wren			<= all_periphs_wren(0);
 
 	memory_map: address_decoder_memory_map
 	--N: word address width in bits
@@ -820,7 +823,7 @@ signal mmu_iack: std_logic;
 		Q_ram => ram_Q
 	);
 	
-	all_irq		<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq);
+	all_irq	<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq);
 	i2s_iack	<= all_iack(2);										 
 	i2c_iack	<= all_iack(1);
 	filter_iack	<= all_iack(0);
@@ -841,11 +844,20 @@ signal mmu_iack: std_logic;
 
 	CLK <= CLK_IN;
 
-	process(CLK,rst)
+	process(CLK,rst,filter_CLK,filter_rst)
+	begin
+		if(rst='1' or filter_rst='1' or filter_CLK='1')then
+			rising_CLK_occur <= '0';
+		elsif(rising_edge(CLK) and filter_CLK='0')then
+			rising_CLK_occur <='1';
+		end if;
+	end process;
+	
+	process(CLK,rst,filter_CLK,filter_rst)
 	begin
 		if(rst='1')then
 			CLK25MHz <= '0';
-		elsif(falling_edge(CLK))then--this ensures, count is updated after used for sram_ADDR
+		elsif(falling_edge(CLK) and filter_rst='0' and filter_CLK='0' and rising_CLK_occur='1')then--this ensures, count is updated after used for sram_ADDR
 			CLK25MHz <= not CLK25MHz;
 		end if;
 	end process;
@@ -858,13 +870,13 @@ signal mmu_iack: std_logic;
 	c0 => CLK12MHz
 	);
 
-	--produces 22059Hz (fs) and 2.8235295MHz (128fs for BCLK_IN) from 12MHz input
-	clk_fs_128fs: pll_audio
+	--produces 22059Hz (fs) and 5.647059MHz (256fs for BCLK_IN) from 12MHz input
+	clk_fs_256fs: pll_audio
 	port map (
 	inclk0 => CLK12MHz,
 	areset => rst,
 	c0 => CLK22_05kHz,
-	c1 => CLK2_8235295MHz,
+	c1 => CLK5_647059MHz,
 	locked => i2s_SCK_IN_PLL_LOCKED
 	);
 end setup;
