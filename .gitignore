@@ -15,3 +15,8 @@ atom_netlists/
 *.pdf
 rise_original
 simulation/
+*.xlsx
+*.xml
+input.mif
+input.csv
+
