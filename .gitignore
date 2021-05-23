@@ -17,6 +17,7 @@ rise_original
 simulation/
 *.xlsx
 *.xml
+*.dwf3work
 input.mif
 input.csv
 
