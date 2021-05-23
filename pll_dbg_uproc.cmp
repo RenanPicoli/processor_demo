@@ -13,7 +13,7 @@
 --refer to the applicable agreement for further details.
 
 
-component pll_dbg_200MHz
+component pll_dbg_uproc
 	PORT
 	(
 		areset		: IN STD_LOGIC  := '0';
