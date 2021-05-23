@@ -213,6 +213,19 @@ end component;
 
 ---------------------------------------------------
 
+component pll_dbg_200MHz
+	PORT
+	(
+		areset		: IN STD_LOGIC  := '0';
+		inclk0		: IN STD_LOGIC  := '0';
+		c0		: OUT STD_LOGIC ;
+		c1 	: OUT STD_LOGIC ;
+		locked		: OUT STD_LOGIC 
+	);
+END component;
+
+---------------------------------------------------
+
 component inner_product_calculation_unit
 generic	(N: natural);--N: address width in bits
 port(	D: in std_logic_vector(31 downto 0);-- input
@@ -362,6 +375,7 @@ signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEE
 -------------------clocks---------------------------------
 signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
 signal CLK: std_logic;--clock for processor and cache (50MHz)
+signal CLK_dbg_200MHz: std_logic;--clock for debug, 200MHz
 signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK22_05kHz: std_logic;-- 22.05kHz clock
 signal CLK5_647059MHz: std_logic;-- 5.647059MHz clock (for I2S peripheral)
@@ -517,9 +531,11 @@ signal mmu_iack: std_logic;
 	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
 	EX_IO <= ram_clk & filter_rst & filter_CLK & CLK & sram_reading_state;
-	GPIO <= (35 downto 16 => '0') & filter_rst & filter_CLK &
-											AUD_DACDAT & AUD_DACLRCK & AUD_BCLK & MCLK &
-											i2s_irq & i2c_irq &
+--	GPIO <= (35 downto 16 => '0') & filter_rst & filter_CLK &
+--											AUD_DACDAT & AUD_DACLRCK & AUD_BCLK & MCLK &
+--											i2s_irq & i2c_irq &
+--											instruction_memory_address;
+	GPIO <= (35 downto 16 => '0') & cache_wren & cache_rden & ram_addr(2 downto 0) & ram_clk & rst & CLK &
 											instruction_memory_address;	
 	
 	rom: mini_rom port map(	--CLK => CLK,
@@ -842,7 +858,17 @@ signal mmu_iack: std_logic;
 --			output => irq_ctrl_Q -- output of register reading
 --	);
 
-	CLK <= CLK_IN;
+--	CLK <= CLK_IN;
+	
+	clk_dbg:	pll_dbg_200MHz
+	port map
+	(
+		areset=> '0',
+		inclk0=> CLK_IN,
+		c0		=> CLK_dbg_200MHz,
+		c1		=> CLK,--produz CLK=10MHz
+		locked=> open
+	);
 
 --	process(CLK,rst,filter_CLK,filter_rst)
 --	begin
