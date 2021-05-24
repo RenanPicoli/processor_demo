@@ -647,16 +647,16 @@ signal mmu_iack: std_logic;
 --					CLK=>filter_CLK,--must be the same as filter_CLK
 --					Q=> d_ff_desired_Q
 --					);
---					
---	filter_ctrl_status: d_flip_flop
---	 port map(	D => ram_write_data,--written by software
---					RST=> RST,--resets all previous history of filter output
---					ENA=> filter_ctrl_status_wren,
---					CLK=>ram_clk,--must be the same as filter_CLK
---					Q=> filter_ctrl_status_Q
---					);
---	filter_enable <= filter_ctrl_status_Q(0);--bit 0 enables filter_CLK
---											
+					
+	filter_ctrl_status: d_flip_flop
+	 port map(	D => ram_write_data,--written by software
+					RST=> RST,--resets all previous history of filter output
+					ENA=> filter_ctrl_status_wren,
+					CLK=>ram_clk,--must be the same as filter_CLK
+					Q=> filter_ctrl_status_Q
+					);
+	filter_enable <= filter_ctrl_status_Q(0);--bit 0 enables filter_CLK
+											
 --	filter_reset_process: process (filter_CLK,filter_CLK_state,filter_enable,i2s_SCK_IN_PLL_LOCKED)
 --	begin
 ----		filter_rst <= '1';
