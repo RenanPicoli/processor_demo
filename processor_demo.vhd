@@ -661,7 +661,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					Q=> filter_ctrl_status_Q
 					);
 	filter_enable <= filter_ctrl_status_Q(0);--bit 0 enables filter_CLK
-											
+					
 	filter_reset_process: process (filter_CLK,filter_CLK_state,filter_enable,i2s_SCK_IN_PLL_LOCKED)
 	begin
 --		filter_rst <= '1';
