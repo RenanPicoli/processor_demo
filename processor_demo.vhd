@@ -760,6 +760,7 @@ fp_in <= data_in;
 				sda_dbg_p => sda_dbg_s,
 				SCL => I2C_SCLK --open drain clock line
 			);
+
 	
 	AUD_BCLK <= i2s_SCK;
 	AUD_DACDAT <= i2s_SD;
@@ -898,7 +899,7 @@ fp_in <= data_in;
 			CLK25MHz <= not CLK25MHz;
 		end if;
 	end process;
-	
+
 	--produces 12MHz (MCLK) from 50MHz input
 	clk_12MHz: pll_12MHz
 	port map (
