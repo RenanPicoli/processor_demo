@@ -749,28 +749,28 @@ signal mmu_iack: std_logic;
 --				SDA => I2C_SDAT, --open drain data line
 --				SCL => I2C_SCLK --open drain clock line
 --			);
---	
---	AUD_BCLK <= i2s_SCK;
---	AUD_DACDAT <= i2s_SD;
---	AUD_DACLRCK <= i2s_WS;
---	i2s: i2s_master_transmitter
---	port map (
---				D => ram_write_data,
---				ADDR => ram_addr(2 downto 0),
---				CLK => ram_clk,
---				RST => rst,
---				WREN => i2s_wren,
---				RDEN => i2s_rden,
---				IACK => i2s_iack,
---				Q => i2s_Q,--for register read
---				IRQ => i2s_irq,
---				SCK_IN => CLK5_647059MHz,--256fs=256fSCK
---				SCK_IN_PLL_LOCKED => i2s_SCK_IN_PLL_LOCKED,--'1' if PLL that provides SCK_IN is locked
---				SD => i2s_SD, --data line
---				WS => i2s_WS, --left/right clock
---				SCK => i2s_SCK --continuous clock (bit clock)
---		);		
---	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
+	
+	AUD_BCLK <= i2s_SCK;
+	AUD_DACDAT <= i2s_SD;
+	AUD_DACLRCK <= i2s_WS;
+	i2s: i2s_master_transmitter
+	port map (
+				D => ram_write_data,
+				ADDR => ram_addr(2 downto 0),
+				CLK => ram_clk,
+				RST => rst,
+				WREN => i2s_wren,
+				RDEN => i2s_rden,
+				IACK => i2s_iack,
+				Q => i2s_Q,--for register read
+				IRQ => i2s_irq,
+				SCK_IN => CLK5_647059MHz,--256fs=256fSCK
+				SCK_IN_PLL_LOCKED => i2s_SCK_IN_PLL_LOCKED,--'1' if PLL that provides SCK_IN is locked
+				SD => i2s_SD, --data line
+				WS => i2s_WS, --left/right clock
+				SCK => i2s_SCK --continuous clock (bit clock)
+		);		
+	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
 	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_ctrl_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
@@ -887,22 +887,22 @@ signal mmu_iack: std_logic;
 --			CLK25MHz <= not CLK25MHz;
 --		end if;
 --	end process;
---	
---	--produces 12MHz (MCLK) from 50MHz input
---	clk_12MHz: pll_12MHz
---	port map (
---	inclk0 => CLK_IN,
---	areset => rst,
---	c0 => CLK12MHz
---	);
---
---	--produces 22059Hz (fs) and 5.647059MHz (256fs for BCLK_IN) from 12MHz input
---	clk_fs_256fs: pll_audio
---	port map (
---	inclk0 => CLK12MHz,
---	areset => rst,
---	c0 => CLK22_05kHz,
---	c1 => CLK5_647059MHz,
---	locked => i2s_SCK_IN_PLL_LOCKED
---	);
+	
+	--produces 12MHz (MCLK) from 50MHz input
+	clk_12MHz: pll_12MHz
+	port map (
+	inclk0 => CLK_IN,
+	areset => rst,
+	c0 => CLK12MHz
+	);
+
+	--produces 22059Hz (fs) and 5.647059MHz (256fs for BCLK_IN) from 12MHz input
+	clk_fs_256fs: pll_audio
+	port map (
+	inclk0 => CLK12MHz,
+	areset => rst,
+	c0 => CLK22_05kHz,
+	c1 => CLK5_647059MHz,
+	locked => i2s_SCK_IN_PLL_LOCKED
+	);
 end setup;
