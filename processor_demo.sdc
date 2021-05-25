@@ -1,4 +1,4 @@
-## Generated SDC file "processor_demo.out.sdc"
+## Generated SDC file "processor_demo.sdc"
 
 ## Copyright (C) 2018  Intel Corporation. All rights reserved.
 ## Your use of Intel Corporation's design tools, logic functions 
@@ -17,9 +17,9 @@
 
 ## VENDOR  "Altera"
 ## PROGRAM "Quartus Prime"
-## VERSION "Version 18.1.0 Build 625 09/12/2018 SJ Lite Edition"
+## VERSION "Version 18.0.0 Build 614 04/24/2018 SJ Standard Edition"
 
-## DATE    "Sun May 23 23:20:27 2021"
+## DATE    "Tue May 25 11:48:32 2021"
 
 ##
 ## DEVICE  "EP4CE115F29C7"
@@ -38,8 +38,8 @@ set_time_format -unit ns -decimal_places 3
 # Create Clock
 #**************************************************************
 
-create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports {CLK_IN}]
 create_clock -name {altera_reserved_tck} -period 100.000 -waveform { 0.000 50.000 } [get_ports {altera_reserved_tck}]
+create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports {CLK_IN}]
 
 
 #**************************************************************
@@ -47,6 +47,9 @@ create_clock -name {altera_reserved_tck} -period 100.000 -waveform { 0.000 50.00
 #**************************************************************
 
 create_generated_clock -name {uproc_clk} -source [get_ports {CLK_IN}] -divide_by 2 -master_clock {clk_in} [get_nets {processor|CLK}] 
+create_generated_clock -name {clk_dbg} -source [get_ports {CLK_IN}] -multiply_by 4 -master_clock {clk_in} [get_nets {clk_dbg|altpll_component|auto_generated|wire_pll1_clk[0]}] 
+create_generated_clock -name {clk_12M} -source [get_ports {CLK_IN}] -multiply_by 12 -divide_by 50 -master_clock {clk_in} [get_nets {clk_12MHz|altpll_component|auto_generated|wire_pll1_clk[0]}] 
+create_generated_clock -name {clk_256fs} -source [get_nets {clk_12MHz|altpll_component|auto_generated|wire_pll1_clk[0]}] -multiply_by 8 -divide_by 17 -master_clock {clk_12M} [get_nets {clk_fs_256fs|altpll_component|auto_generated|wire_pll1_clk[1]}] 
 
 
 #**************************************************************
@@ -77,6 +80,7 @@ create_generated_clock -name {uproc_clk} -source [get_ports {CLK_IN}] -divide_by
 # Set Clock Groups
 #**************************************************************
 
+set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}] 
 set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}] 
 set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}] 
 set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}] 
