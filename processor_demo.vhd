@@ -735,20 +735,20 @@ signal mmu_iack: std_logic;
 --					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
 --					Q=> converted_out_Q
 --	);
---
---	i2c: i2c_master
---	port map(D => ram_write_data,
---				ADDR => ram_addr(2 downto 0),
---				CLK => ram_clk,
---				RST => rst,
---				WREN => i2c_wren,
---				RDEN => i2c_rden,
---				IACK => i2c_iack,
---				Q => i2c_Q, --for register read
---				IRQ => i2c_irq,
---				SDA => I2C_SDAT, --open drain data line
---				SCL => I2C_SCLK --open drain clock line
---			);
+
+	i2c: i2c_master
+	port map(D => ram_write_data,
+				ADDR => ram_addr(2 downto 0),
+				CLK => ram_clk,
+				RST => rst,
+				WREN => i2c_wren,
+				RDEN => i2c_rden,
+				IACK => i2c_iack,
+				Q => i2c_Q, --for register read
+				IRQ => i2c_irq,
+				SDA => I2C_SDAT, --open drain data line
+				SCL => I2C_SCLK --open drain clock line
+			);
 	
 	AUD_BCLK <= i2s_SCK;
 	AUD_DACDAT <= i2s_SD;
@@ -839,27 +839,26 @@ signal mmu_iack: std_logic;
 		Q_ram => ram_Q
 	);
 	
---	all_irq	<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq);
---	i2s_iack	<= all_iack(2);										 
---	i2c_iack	<= all_iack(1);
---	filter_iack	<= all_iack(0);
---	irq_ctrl: interrupt_controller
---	generic map (L => 3)--L: number of IRQ lines
---	port map (	D => ram_write_data,-- input: data to register write
---			ADDR => ram_addr(1 downto 0),
---			CLK => ram_clk,-- input
---			RST => RST,-- input
---			WREN => irq_ctrl_wren,-- input
---			RDEN => irq_ctrl_rden,-- input
---			IRQ_IN => all_irq,--input: all IRQ lines
---			IRQ_OUT => irq,--output: IRQ line to cpu
---			IACK_IN => iack,--input: IACK line coming from cpu
---			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
---			output => irq_ctrl_Q -- output of register reading
---	);
+	all_irq	<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq);
+	i2s_iack	<= all_iack(2);										 
+	i2c_iack	<= all_iack(1);
+	filter_iack	<= all_iack(0);
+	irq_ctrl: interrupt_controller
+	generic map (L => 3)--L: number of IRQ lines
+	port map (	D => ram_write_data,-- input: data to register write
+			ADDR => ram_addr(1 downto 0),
+			CLK => ram_clk,-- input
+			RST => RST,-- input
+			WREN => irq_ctrl_wren,-- input
+			RDEN => irq_ctrl_rden,-- input
+			IRQ_IN => all_irq,--input: all IRQ lines
+			IRQ_OUT => irq,--output: IRQ line to cpu
+			IACK_IN => iack,--input: IACK line coming from cpu
+			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
+			output => irq_ctrl_Q -- output of register reading
+	);
 
---	CLK <= CLK_IN;
-	
+--	CLK <= CLK_IN;	
 	clk_dbg:	pll_dbg_200MHz
 	port map
 	(
