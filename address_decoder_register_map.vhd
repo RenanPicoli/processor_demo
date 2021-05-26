@@ -36,6 +36,7 @@ begin
 	-- mux of data read
 	process(ADDR,data_in_extended)
 	begin
+		output <= (others=>'0');--when ADDR does not match any, outputs zeros
 		-- i-th element of data_in_extended is associated with address i
 		for i in data_in_extended'range loop
 			if (i = to_integer(unsigned(ADDR))) then
