@@ -39,7 +39,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		--GPIO 14 PINS
 		EX_IO: out std_logic_vector(6 downto 0);
 		--GPIO 40 PINS
-		GPIO: inout std_logic_vector(35 downto 0)
+		GPIO: out std_logic_vector(35 downto 0)
 );
 end entity;
 
@@ -525,6 +525,8 @@ signal send_cache_request: std_logic;
 signal mmu_irq: std_logic;
 signal mmu_iack: std_logic;
 
+signal I2C_SDAT_pp: std_logic; --I2C_SDAT com saida push-pull
+
 	begin
 	
 	--debug outputs
@@ -535,8 +537,14 @@ signal mmu_iack: std_logic;
 --											AUD_DACDAT & AUD_DACLRCK & AUD_BCLK & MCLK &
 --											i2s_irq & i2c_irq &
 --											instruction_memory_address;
-	GPIO <= (35 downto 16 => '0') & cache_wren & cache_rden & ram_addr(2 downto 0) & ram_clk & rst & CLK &
-											instruction_memory_address;	
+--	GPIO <= (35 downto 16 => '0') & cache_wren & cache_rden & ram_addr(2 downto 0) & ram_clk & rst & CLK &
+--											instruction_memory_address;
+--	GPIO <= (35 downto 16 => '0') & cache_wren & cache_rden & ram_addr(2 downto 0) & ram_clk & I2C_SDAT & I2C_SCLK &
+--											instruction_memory_address;
+	GPIO <= (35 downto 16 => '0') & cache_wren & cache_rden & ram_addr(2 downto 0) & ram_clk & I2C_SDAT & I2C_SCLK &
+											instruction_memory_address;
+											
+--	I2C_SDAT_pp <= '1' when I2C_SDAT = 'H' else '0';
 	
 	rom: mini_rom port map(	--CLK => CLK,
 									ADDR=> instruction_memory_address,
