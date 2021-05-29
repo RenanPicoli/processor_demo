@@ -17,9 +17,9 @@
 
 ## VENDOR  "Altera"
 ## PROGRAM "Quartus Prime"
-## VERSION "Version 18.0.0 Build 614 04/24/2018 SJ Standard Edition"
+## VERSION "Version 18.1.0 Build 625 09/12/2018 SJ Lite Edition"
 
-## DATE    "Tue May 25 11:48:32 2021"
+## DATE    "Sat May 29 13:03:15 2021"
 
 ##
 ## DEVICE  "EP4CE115F29C7"
@@ -47,9 +47,10 @@ create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports
 #**************************************************************
 
 create_generated_clock -name {uproc_clk} -source [get_ports {CLK_IN}] -divide_by 2 -master_clock {clk_in} [get_nets {processor|CLK}] 
-create_generated_clock -name {clk_dbg} -source [get_ports {CLK_IN}] -multiply_by 4 -master_clock {clk_in} [get_nets {clk_dbg|altpll_component|auto_generated|wire_pll1_clk[0]}] 
+create_generated_clock -name {clk_dbg} -source [get_ports {CLK_IN}] -multiply_by 4 -phase 22.500 -master_clock {clk_in} [get_nets {clk_dbg|altpll_component|auto_generated|wire_pll1_clk[0]}] 
 create_generated_clock -name {clk_12M} -source [get_ports {CLK_IN}] -multiply_by 12 -divide_by 50 -master_clock {clk_in} [get_nets {clk_12MHz|altpll_component|auto_generated|wire_pll1_clk[0]}] 
 create_generated_clock -name {clk_256fs} -source [get_nets {clk_12MHz|altpll_component|auto_generated|wire_pll1_clk[0]}] -multiply_by 8 -divide_by 17 -master_clock {clk_12M} [get_nets {clk_fs_256fs|altpll_component|auto_generated|wire_pll1_clk[1]}] 
+create_generated_clock -name {i2c_scl} -source [get_nets {processor|CLK}] -divide_by 100 -phase 180.000 -master_clock {uproc_clk} [get_ports {I2C_SCLK}] 
 
 
 #**************************************************************
@@ -80,6 +81,7 @@ create_generated_clock -name {clk_256fs} -source [get_nets {clk_12MHz|altpll_com
 # Set Clock Groups
 #**************************************************************
 
+set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}] 
 set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}] 
 set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}] 
 set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}] 
