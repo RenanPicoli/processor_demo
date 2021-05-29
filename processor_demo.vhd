@@ -541,7 +541,7 @@ signal I2C_SDAT_pp: std_logic; --I2C_SDAT com saida push-pull
 --											instruction_memory_address;
 --	GPIO <= (35 downto 16 => '0') & cache_wren & cache_rden & ram_addr(2 downto 0) & ram_clk & I2C_SDAT & I2C_SCLK &
 --											instruction_memory_address;
-	GPIO <= (35 downto 16 => '0') & cache_wren & cache_rden & ram_addr(2 downto 0) & ram_clk & I2C_SDAT & I2C_SCLK &
+	GPIO <= (35 downto 16 => '0') & I2C_SDAT & I2C_SCLK & ram_addr(2 downto 0) & ram_clk & rst & CLK &
 											instruction_memory_address;
 											
 --	I2C_SDAT_pp <= '1' when I2C_SDAT = 'H' else '0';
