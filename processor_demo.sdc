@@ -46,10 +46,9 @@ create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports
 # Create Generated Clock
 #**************************************************************
 
-create_generated_clock -name {uproc_clk} -source [get_ports {CLK_IN}] -divide_by 2 -master_clock {clk_in} [get_nets {processor|CLK}] 
+create_generated_clock -name {uproc_clk} -source [get_ports {CLK_IN}] -divide_by 50 -master_clock {clk_in} [get_nets {processor|CLK}] 
 create_generated_clock -name {clk_12M} -source [get_ports {CLK_IN}] -multiply_by 12 -divide_by 50 -master_clock {clk_in} [get_nets {clk_12MHz|altpll_component|auto_generated|wire_pll1_clk[0]}] 
 create_generated_clock -name {clk_256fs} -source [get_nets {clk_12MHz|altpll_component|auto_generated|wire_pll1_clk[0]}] -multiply_by 8 -divide_by 17 -master_clock {clk_12M} [get_nets {clk_fs_256fs|altpll_component|auto_generated|wire_pll1_clk[1]}] 
-create_generated_clock -name {clk_dbg|altpll_component|auto_generated|pll1|clk[1]} -source [get_pins {clk_dbg|altpll_component|auto_generated|pll1|inclk[0]}] -duty_cycle 50/1 -multiply_by 1 -divide_by 2 -master_clock {clk_in} [get_pins {clk_dbg|altpll_component|auto_generated|pll1|clk[1]}] 
 create_generated_clock -name {scl} -source [get_pins {i2c|i2c|scl_clk|count[0]|clk}] -divide_by 100 -master_clock {clk_dbg|altpll_component|auto_generated|pll1|clk[1]} [get_ports {I2C_SCLK}] 
 
 
