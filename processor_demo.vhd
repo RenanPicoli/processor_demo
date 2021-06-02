@@ -379,6 +379,7 @@ signal CLK_dbg_200MHz: std_logic;--clock for debug, 200MHz
 signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK22_05kHz: std_logic;-- 22.05kHz clock
 signal CLK5_647059MHz: std_logic;-- 5.647059MHz clock (for I2S peripheral)
+signal CLK2_8224MHz: std_logic;--2.8224MHz clock (for I2S peripheral, 128fs)
 signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 
 -----------signals for ROM interfacing---------------------
@@ -772,7 +773,7 @@ signal I2C_SDAT_pp: std_logic; --I2C_SDAT com saida push-pull
 				IACK => i2s_iack,
 				Q => i2s_Q,--for register read
 				IRQ => i2s_irq,
-				SCK_IN => CLK5_647059MHz,--256fs=256fSCK
+				SCK_IN => CLK2_8224MHz,--128fs=64fWS
 				SCK_IN_PLL_LOCKED => i2s_SCK_IN_PLL_LOCKED,--'1' if PLL that provides SCK_IN is locked
 				SD => i2s_SD, --data line
 				WS => i2s_WS, --left/right clock
@@ -903,13 +904,13 @@ signal I2C_SDAT_pp: std_logic; --I2C_SDAT com saida push-pull
 	c0 => CLK12MHz
 	);
 
-	--produces 22059Hz (fs) and 5.647059MHz (256fs for BCLK_IN) from 12MHz input
-	clk_fs_256fs: pll_audio
+	--produces 22059Hz (fs) and 2.8224 MHz (128fs for BCLK_IN) from 12MHz input
+	clk_fs_128fs: pll_audio
 	port map (
 	inclk0 => CLK12MHz,
 	areset => rst,
 	c0 => CLK22_05kHz,
-	c1 => CLK5_647059MHz,
+	c1 => CLK2_8224MHz,
 	locked => i2s_SCK_IN_PLL_LOCKED
 	);
 end setup;
