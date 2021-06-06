@@ -18,6 +18,7 @@ simulation/
 *.xlsx
 *.xml
 *.dwf3work
+*.json
 input.mif
 input.csv
 
