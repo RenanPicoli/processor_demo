@@ -19,6 +19,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		--I2C
 		I2C_SDAT: inout std_logic;--I2C SDA
 		I2C_SCLK: inout std_logic;--I2C SCL
+		sda_dbg_p: out natural;--for debug, which statement is driving SDA
 		--I2S/codec
 		MCLK: out std_logic;-- master clock output for audio codec (12MHz)
 		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
@@ -334,6 +335,7 @@ component i2c_master
 			Q: out std_logic_vector(31 downto 0);--for register read
 			IRQ: out std_logic;--interrupt request
 			SDA: inout std_logic;--open drain data line
+			sda_dbg_p: out natural;--for debug, which statement is driving SDA
 			SCL: inout std_logic --open drain clock line
 	);
 end component;
@@ -528,7 +530,10 @@ signal mmu_iack: std_logic;
 
 signal I2C_SDAT_pp: std_logic; --I2C_SDAT com saida push-pull
 
+signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
+
+	sda_dbg_p <= sda_dbg_s;
 	
 	--debug outputs
 	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
@@ -756,6 +761,7 @@ signal I2C_SDAT_pp: std_logic; --I2C_SDAT com saida push-pull
 				Q => i2c_Q, --for register read
 				IRQ => i2c_irq,
 				SDA => I2C_SDAT, --open drain data line
+				sda_dbg_p => sda_dbg_s,
 				SCL => I2C_SCLK --open drain clock line
 			);
 	
