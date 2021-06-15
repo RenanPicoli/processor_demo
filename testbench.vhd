@@ -61,6 +61,7 @@ signal	ram_Q: std_logic_vector(15 downto 0);--needed for conversion between sram
 signal 	sram_WE_n: std_logic;--write enable ACTIVE LOW
 signal	sram_IO: std_logic_vector(15 downto 0);--sram data; input because we'll only read
 signal	sram_ADDR: std_logic_vector(19 downto 0);--ADDR for SRAM
+signal	sram_ADDR_shortened: std_logic_vector(15 downto 0);--ADDR for emulated SRAM (tb_sram is smaller than actual SRAM)
 
 --i2c interface
 signal	I2C_SDAT: std_logic;--I2C SDA
@@ -132,12 +133,12 @@ begin
 	--wren: active HIGH
 	--sram_WE_n: active LOW
 	ram_wren <= not sram_WE_n;
-	
+	sram_ADDR_shortened <= sram_ADDR(19) & sram_ADDR(14 downto 0);
 	ram: tb_sram
 	port map
 	(
 		--trick: in real SRAM, bit 19 divides upper and lower halfs, in tb_sram this is done by bit 15
-		address	=> sram_ADDR(19) & sram_ADDR(14 downto 0),
+		address	=> sram_ADDR_shortened,
 		clock		=> ram_CLK,--because address is updated at rising_edge of CLK_IN in my system
 		data		=> (others=>'0'),--data for write, but I will only read
 		wren		=> ram_wren,--active HIGH
