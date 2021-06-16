@@ -30,7 +30,7 @@
 # Time Information
 #**************************************************************
 
-set_time_format -unit ns -decimal_places 5
+set_time_format -unit ns -decimal_places 3
 
 
 
