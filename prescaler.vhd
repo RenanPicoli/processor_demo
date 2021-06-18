@@ -27,7 +27,7 @@ signal count: std_logic_vector(29 downto 0) := (others=>'0');
 begin
 	process(CLK_IN,CLK,count)
 	begin
-		if(rising_edge(CLK_IN)) then
+		if(falling_edge(CLK_IN)) then
 			if(count = factor-1)then
 				count <= (others => '0');
 			else
@@ -36,10 +36,12 @@ begin
 		end if;
 		
 		--this implementation does NOT guarantee 50% duty cycle
-		if (count < factor/2) then
-			CLK <= '0';
-		else			
-			CLK <= '1';
+		if(rising_edge(CLK_IN)) then
+			if (count < factor/2) then
+				CLK <= '0';
+			else			
+				CLK <= '1';
+			end if;
 		end if;
 	end process;
 	
