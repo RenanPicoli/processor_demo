@@ -52,8 +52,7 @@ create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg|altpll_compone
 create_generated_clock -name {i2s_WS} -source [get_pins {i2s|i2s|ws_gen|count[0]|clk}] -divide_by 64 -master_clock {i2s_128fs} [get_pins {i2s|i2s|WS|combout}] 
 create_generated_clock -name {i2s_128fs} -source [get_pins {clk_fs_128fs|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 4 -divide_by 17 -master_clock {clk_12M} [get_pins { clk_fs_128fs|altpll_component|auto_generated|pll1|clk[1] }] 
 create_generated_clock -name {i2c_scl_clk} -source [get_pins {i2c|i2c|scl_clk|count[0]|clk}] -divide_by 100 -master_clock {uproc_clk} [get_pins {rtl~1|combout}] 
-create_generated_clock -name {i2c_aux} -source [get_pins {i2c|i2c|CLK_aux_clk|count[0]|clk}] -divide_by 50 -master_clock {uproc_clk} [get_pins {rtl~0|combout}] 
-create_generated_clock -name {i2c_scl_90_lead} -source [get_pins {i2c|i2c|CLK_90_lead|clk}] -divide_by 2 -phase -90 -master_clock {i2c_aux} [get_pins {i2c|i2c|CLK_90_lead|q}] 
+create_generated_clock -name {i2c_aux} -source [get_pins {i2c|i2c|CLK_aux_clk|count[0]|clk}] -divide_by 50 -master_clock {uproc_clk} [get_pins {rtl~0|combout}]  
 create_generated_clock -name {i2c_scl} -source [get_pins {rtl~1|combout}] -master_clock {i2c_scl_clk} [get_pins {i2c|i2c|SCL~0|combout}] 
 
 
@@ -128,6 +127,9 @@ set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
 
 set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_dbg}]
 
+# following intel guidelines, asynchronous reset is excluded from timing analysis:
+set_false_path  -from  [get_ports {RST}] -to [all_registers]
+
 
 #**************************************************************
 # Set Multicycle Path
@@ -157,5 +159,3 @@ set_multicycle_path -setup -end -from [get_pins {i2s|i2s|WS|combout}] -to [get_c
 #**************************************************************
 # Set Net Delay
 #**************************************************************
-
-set_net_delay -max 10.000 -from [get_pins {processor|register_file|\registers:0:regx|Q[0]|q}] -to [get_pins {processor|register_file|\registers:0:regx|Q[0]|q}]
