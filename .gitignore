@@ -1,5 +1,6 @@
 *.bak
 *.txt
+old\ files/
 output_files/
 incremental_db/
 greybox_tmp/
@@ -17,6 +18,8 @@ rise_original
 simulation/
 *.xlsx
 *.xml
+*.dwf3work
+*.json
 input.mif
 input.csv
 

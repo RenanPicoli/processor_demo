@@ -40,6 +40,7 @@ begin
 	-- mux of data read
 	process(ADDR,RDEN,data_in)
 	begin
+		output <= (others=>'0');
 		-- i-th element of data_in is associated with address i
 		for i in data_in'range loop
 			if ((B(i)(0) <= to_integer(unsigned(ADDR))) and (to_integer(unsigned(ADDR)) <= B(i)(1))) then

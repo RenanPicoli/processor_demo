@@ -14,7 +14,7 @@ use work.my_types.all;
 
 entity prescaler is
 generic(factor: integer);
-port (CLK_IN: in std_logic;--50MHz input
+port (CLK_IN: in std_logic;
 		rst: in std_logic;--synchronous reset
 		CLK_OUT: out std_logic--output clock
 );
@@ -27,30 +27,22 @@ signal count: std_logic_vector(29 downto 0) := (others=>'0');
 begin
 	process(CLK_IN,CLK,count)
 	begin
-		if(CLK_IN'event and CLK_IN='1') then
---			if (rst = '1') then
---				CLK <= '0';
---				count <= (others => '0');
---			else
-
-				if(count + 1 = factor)then
-					count <= (others => '0');
-				else
-					count <= count + 1;
-				end if;
-					
---			end if;
+		if(falling_edge(CLK_IN)) then
+			if(count = factor-1)then
+				count <= (others => '0');
+			else
+				count <= count + 1;
+			end if;
 		end if;
 		
-		if (count < factor/2) then
-			CLK <= '0';
---					count <= (others => '0');
-		else
-			
-			CLK <= '1';
-
+		--this implementation does NOT guarantee 50% duty cycle
+		if(rising_edge(CLK_IN)) then
+			if (count < factor/2) then
+				CLK <= '0';
+			else			
+				CLK <= '1';
+			end if;
 		end if;
-
 	end process;
 	
 	CLK_OUT <= CLK;
