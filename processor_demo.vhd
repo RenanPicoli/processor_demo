@@ -396,7 +396,9 @@ signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_rden: std_logic;
 signal ram_wren: std_logic;
 signal ram_write_data: std_logic_vector(31 downto 0);
-signal ram_Q: std_logic_vector(31 downto 0);
+--signal ram_Q: std_logic_vector(31 downto 0);
+signal ram_Q_buffer_in: std_logic_vector(31 downto 0);
+signal ram_Q_buffer_out: std_logic_vector(31 downto 0);
 
 -----------signals for (parallel) cache interfacing--------
 signal cache_Q: std_logic_vector(31 downto 0);
@@ -831,8 +833,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			data_in => all_periphs_output,-- input: outputs of all peripheral
 			RDEN_OUT => all_periphs_rden,-- output
 			WREN_OUT => all_periphs_wren,-- output
-			data_out => ram_Q-- data read
+			data_out => ram_Q_buffer_in-- data read
 	);
+	
+	process(ram_clk,rst)
+	begin
+		if(rst='1') then
+			ram_Q_buffer_out <= (others=>'0');
+		elsif(falling_edge(ram_clk))then
+			ram_Q_buffer_out <= ram_Q_buffer_in;
+		end if;
+	end process;
 	
 	processor: microprocessor
 	generic map (N => N)
@@ -851,7 +862,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		wren_filter => proc_filter_wren,
 		vmac_en => vmac_en,
 		send_cache_request => send_cache_request,
-		Q_ram => ram_Q
+		Q_ram => ram_Q_buffer_out
 	);
 	
 	all_irq	<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq);
