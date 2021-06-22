@@ -15,7 +15,7 @@ use work.my_types.all;
 entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
 		rst: in std_logic;
-		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
+--		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
 		--I2C
 		I2C_SDAT: inout std_logic;--I2C SDA
 		I2C_SCLK: inout std_logic;--I2C SCL
@@ -25,14 +25,14 @@ port (CLK_IN: in std_logic;--50MHz input
 		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
 		AUD_DACDAT: out std_logic;--DACDAT aka SD
 		AUD_DACLRCK: out std_logic;--DACLRCK aka WS
-		--SRAM
-		sram_IO: in std_logic_vector(15 downto 0);--sram data; input because we'll only read
-		sram_ADDR: out std_logic_vector(19 downto 0);--ADDR for SRAM
-		sram_CE_n: out std_logic;--chip enable, active LOW
-		sram_OE_n: out std_logic;--output enable, active LOW
-		sram_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
-		sram_UB_n: out std_logic;--upper IO byte access, active LOW
-		sram_LB_n: out std_logic; --lower	IO byte access, active LOW
+--		--SRAM
+--		sram_IO: in std_logic_vector(15 downto 0);--sram data; input because we'll only read
+--		sram_ADDR: out std_logic_vector(19 downto 0);--ADDR for SRAM
+--		sram_CE_n: out std_logic;--chip enable, active LOW
+--		sram_OE_n: out std_logic;--output enable, active LOW
+--		sram_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
+--		sram_UB_n: out std_logic;--upper IO byte access, active LOW
+--		sram_LB_n: out std_logic; --lower	IO byte access, active LOW
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -844,6 +844,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			ram_Q_buffer_out <= ram_Q_buffer_in;
 		end if;
 	end process;
+--	ram_Q_buffer_out <= ram_Q_buffer_in;
 	
 	processor: microprocessor
 	generic map (N => N)
