@@ -836,15 +836,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			data_out => ram_Q_buffer_in-- data read
 	);
 	
-	process(ram_clk,rst)
-	begin
-		if(rst='1') then
-			ram_Q_buffer_out <= (others=>'0');
-		elsif(falling_edge(ram_clk))then
-			ram_Q_buffer_out <= ram_Q_buffer_in;
-		end if;
-	end process;
---	ram_Q_buffer_out <= ram_Q_buffer_in;
+--	process(ram_clk,rst)
+--	begin
+--		if(rst='1') then
+--			ram_Q_buffer_out <= (others=>'0');
+--		elsif(falling_edge(ram_clk))then
+--			ram_Q_buffer_out <= ram_Q_buffer_in;
+--		end if;
+--	end process;
+	ram_Q_buffer_out <= ram_Q_buffer_in;
 	
 	processor: microprocessor
 	generic map (N => N)
