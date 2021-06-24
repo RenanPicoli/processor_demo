@@ -98,7 +98,7 @@ begin
 	port map(
 		CLK_IN => CLK_IN,--50MHz input
 		rst => rst,
-		data_out => data_out,--filter output (encoded in IEEE 754 single precision)
+--		data_out => data_out,--filter output (encoded in IEEE 754 single precision)
 		--I2C
 		I2C_SDAT => I2C_SDAT,--I2C SDA
 		I2C_SCLK => I2C_SCLK,--I2C SCL
@@ -108,13 +108,13 @@ begin
 		AUD_DACDAT => AUD_DACDAT,--DACDAT aka SD
 		AUD_DACLRCK => AUD_DACLRCK,--DACLRCK aka WS
 		--SRAM
-		sram_IO => sram_IO,--sram data; input because we'll only read
-		sram_ADDR => sram_ADDR,--ADDR for SRAM
-		sram_CE_n => open,--chip enable, active LOW
-		sram_OE_n => open,--output enable, active LOW
-		sram_WE_n => sram_WE_n,--write enable, active LOW, HIGH enables reading
-		sram_UB_n => open,--upper IO byte access, active LOW
-		sram_LB_n => open, --lower	IO byte access, active LOW
+--		sram_IO => sram_IO,--sram data; input because we'll only read
+--		sram_ADDR => sram_ADDR,--ADDR for SRAM
+--		sram_CE_n => open,--chip enable, active LOW
+--		sram_OE_n => open,--output enable, active LOW
+--		sram_WE_n => sram_WE_n,--write enable, active LOW, HIGH enables reading
+--		sram_UB_n => open,--upper IO byte access, active LOW
+--		sram_LB_n => open, --lower	IO byte access, active LOW
 		--GREEN LEDS
 		LEDG => open,
 		--RED LEDS
