@@ -48,6 +48,7 @@ create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports
 
 create_generated_clock -name {clk_12M} -source [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 12 -divide_by 50 -master_clock {clk_in} [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|clk[0]}] 
 create_generated_clock -name {uproc_clk} -source [get_pins {clk_dbg|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 25 -master_clock {clk_in} [get_pins {clk_dbg|altpll_component|auto_generated|pll1|clk[1]}] 
+create_generated_clock -name {clk_fs} -source [get_pins {clk_fs_256fs|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 22 -divide_by 23937 -master_clock {clk_12M} [get_pins { clk_fs_256fs|altpll_component|auto_generated|pll1|clk[0] }] 
 
 # clk_dbg: 16MHz
 create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 16 -divide_by 50 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg|altpll_component|auto_generated|pll1|clk[0]}] 
