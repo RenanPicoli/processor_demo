@@ -200,7 +200,7 @@ component pll_12MHz
 end component;
 
 ---------------------------------------------------
---produces fs and 128fs from 12MHz
+--produces fs and 256fs from 12MHz
 component pll_audio
 	port
 	(
@@ -539,7 +539,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
 	EX_IO <= ram_clk & filter_rst & filter_CLK & CLK & sram_reading_state;
-	GPIO <= (35 downto 16 => '0') & I2C_SDAT & I2C_SCLK & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & ram_clk & rst & CLK &
+	GPIO <= (35 downto 16 => '0') & I2C_SDAT & I2C_SCLK & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_rst & filter_CLK & CLK &
 											instruction_memory_address;	
 	rom: mini_rom port map(	--CLK => CLK,
 									ADDR=> instruction_memory_address,
@@ -823,14 +823,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			data_out => ram_Q_buffer_in-- data read
 	);
 	
---	process(ram_clk,rst)
---	begin
---		if(rst='1') then
---			ram_Q_buffer_out <= (others=>'0');
---		elsif(falling_edge(ram_clk))then
---			ram_Q_buffer_out <= ram_Q_buffer_in;
---		end if;
---	end process;
 	ram_Q_buffer_out <= ram_Q_buffer_in;
 	
 	processor: microprocessor
