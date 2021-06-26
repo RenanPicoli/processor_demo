@@ -639,19 +639,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_input <= data_in;
 --	data_out <= filter_output;
 	
---	filter_out: d_flip_flop
---	 port map(	D => filter_output,
---					RST=> RST,--resets all previous history of filter output
---					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
---					Q=> filter_out_Q
---					);
---					
---	d_ff_desired: d_flip_flop
---	 port map(	D => desired,
---					RST=> RST,--resets all previous history of filter output
---					CLK=>filter_CLK,--must be the same as filter_CLK
---					Q=> d_ff_desired_Q
---					);
+	filter_out: d_flip_flop
+	 port map(	D => filter_output,
+					RST=> RST,--resets all previous history of filter output
+					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
+					Q=> filter_out_Q
+					);
+					
+	d_ff_desired: d_flip_flop
+	 port map(	D => desired,
+					RST=> RST,--resets all previous history of filter output
+					CLK=>filter_CLK,--must be the same as filter_CLK
+					Q=> d_ff_desired_Q
+					);
 					
 	filter_ctrl_status: d_flip_flop
 	 port map(	D => ram_write_data,--written by software
