@@ -25,14 +25,14 @@ port (CLK_IN: in std_logic;--50MHz input
 		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
 		AUD_DACDAT: out std_logic;--DACDAT aka SD
 		AUD_DACLRCK: out std_logic;--DACLRCK aka WS
-		--SRAM
-		sram_IO: in std_logic_vector(15 downto 0);--sram data; input because we'll only read
-		sram_ADDR: out std_logic_vector(19 downto 0);--ADDR for SRAM
-		sram_CE_n: out std_logic;--chip enable, active LOW
-		sram_OE_n: out std_logic;--output enable, active LOW
-		sram_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
-		sram_UB_n: out std_logic;--upper IO byte access, active LOW
-		sram_LB_n: out std_logic; --lower	IO byte access, active LOW
+--		--SRAM
+--		sram_IO: in std_logic_vector(15 downto 0);--sram data; input because we'll only read
+--		sram_ADDR: out std_logic_vector(19 downto 0);--ADDR for SRAM
+--		sram_CE_n: out std_logic;--chip enable, active LOW
+--		sram_OE_n: out std_logic;--output enable, active LOW
+--		sram_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
+--		sram_UB_n: out std_logic;--upper IO byte access, active LOW
+--		sram_LB_n: out std_logic; --lower	IO byte access, active LOW
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -538,8 +538,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--debug outputs
 	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
-	EX_IO <= ram_clk & filter_rst & filter_CLK & CLK & sram_reading_state;
-	GPIO <= (35 downto 16 => '0') & I2C_SDAT & I2C_SCLK & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_rst & filter_CLK & CLK &
+	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & sram_reading_state;
+	GPIO <= (35 downto 16 => '0') & filter_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq & filter_CLK & CLK &
 											instruction_memory_address;	
 	rom: mini_rom port map(	--CLK => CLK,
 									ADDR=> instruction_memory_address,
@@ -556,72 +556,72 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 										wren	=> cache_wren,
 										Q		=> cache_Q);
 	
------------------SRAM interfacing---------------------
-	sram_CE_n <= '0';--chip always enabled
-	sram_OE_n <= '0';--output always enabled
-	sram_WE_n <= '1';--reading always enabled
-	sram_UB_n <= '0';--upper byte always enabled
-	sram_LB_n <= '0';--lower byte always enabled
-	
-	sram_reading: process(CLK,filter_rst,sram_reading_state,filter_CLK,count,rst)
-	begin
-		if(rst='1')then
-			sram_reading_state <= "000";
-			sram_ADDR <= (others=>'0');
-		elsif(filter_CLK='1')then
-			sram_reading_state <= "000";
-		elsif(rising_edge(CLK) and filter_rst='0' and sram_reading_state/="100" and filter_CLK='0')then
-			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);
-			sram_reading_state <= sram_reading_state + 1;
-		end if;
-	end process;
-	
-	--index of sample being fetched
-	--generates address for reading SRAM
-	--counts from 0 to 256K
-	counter: process(rst,filter_rst,sram_reading_state,filter_CLK)
-	begin
-		if(rst='1' or filter_rst='1')then
-			count <= (others=>'0');
-		elsif(rising_edge(filter_CLK) and filter_rst='0')then--this ensures, count is updated after used for sram_ADDR
-			count <= count + 1;
-		end if;
-	end process;
-	
-	process(CLK,rst,sram_ADDR,filter_rst,filter_CLK)
-	begin
-		if(rst='1')then
-			data_in <= (others=>'0');
-			desired <= (others=>'0');
-		--sram_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
-		elsif (falling_edge(CLK) and filter_rst='0' and filter_CLK='0') then
-			if(sram_ADDR(19)='0')then--reading input vectors
-				if(sram_ADDR(0)='0')then--reading lower half
-					data_in(15 downto 0) <= sram_IO;
-				else--reading upper half
-					data_in(31 downto 16) <= sram_IO;
-				end if;
-			else--reading desired vectors
-				if(sram_ADDR(0)='0')then--reading lower half
-					desired(15 downto 0) <= sram_IO;
-				else--reading upper half
-					desired(31 downto 16) <= sram_IO;
-				end if;
-			end if;
-		end if;
-	end process;
---------------------------------------------------------
-	
-	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
-									port map(D => ram_write_data,
-												ADDR	=> ram_addr(2 downto 0),
-												RST => rst,
-												RDEN	=> coeffs_mem_rden,
-												WREN	=> coeffs_mem_wren,
-												CLK	=> ram_clk,
-												Q_coeffs => coeffs_mem_Q,
-												all_coeffs => coefficients
-												);
+-------------------SRAM interfacing---------------------
+--	sram_CE_n <= '0';--chip always enabled
+--	sram_OE_n <= '0';--output always enabled
+--	sram_WE_n <= '1';--reading always enabled
+--	sram_UB_n <= '0';--upper byte always enabled
+--	sram_LB_n <= '0';--lower byte always enabled
+--	
+--	sram_reading: process(CLK,filter_rst,sram_reading_state,filter_CLK,count,rst)
+--	begin
+--		if(rst='1')then
+--			sram_reading_state <= "000";
+--			sram_ADDR <= (others=>'0');
+--		elsif(filter_CLK='1')then
+--			sram_reading_state <= "000";
+--		elsif(rising_edge(CLK) and filter_rst='0' and sram_reading_state/="100" and filter_CLK='0')then
+--			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);
+--			sram_reading_state <= sram_reading_state + 1;
+--		end if;
+--	end process;
+--	
+--	--index of sample being fetched
+--	--generates address for reading SRAM
+--	--counts from 0 to 256K
+--	counter: process(rst,filter_rst,sram_reading_state,filter_CLK)
+--	begin
+--		if(rst='1' or filter_rst='1')then
+--			count <= (others=>'0');
+--		elsif(rising_edge(filter_CLK) and filter_rst='0')then--this ensures, count is updated after used for sram_ADDR
+--			count <= count + 1;
+--		end if;
+--	end process;
+--	
+--	process(CLK,rst,sram_ADDR,filter_rst,filter_CLK)
+--	begin
+--		if(rst='1')then
+--			data_in <= (others=>'0');
+--			desired <= (others=>'0');
+--		--sram_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
+--		elsif (falling_edge(CLK) and filter_rst='0' and filter_CLK='0') then
+--			if(sram_ADDR(19)='0')then--reading input vectors
+--				if(sram_ADDR(0)='0')then--reading lower half
+--					data_in(15 downto 0) <= sram_IO;
+--				else--reading upper half
+--					data_in(31 downto 16) <= sram_IO;
+--				end if;
+--			else--reading desired vectors
+--				if(sram_ADDR(0)='0')then--reading lower half
+--					desired(15 downto 0) <= sram_IO;
+--				else--reading upper half
+--					desired(31 downto 16) <= sram_IO;
+--				end if;
+--			end if;
+--		end if;
+--	end process;
+----------------------------------------------------------
+--	
+--	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
+--									port map(D => ram_write_data,
+--												ADDR	=> ram_addr(2 downto 0),
+--												RST => rst,
+--												RDEN	=> coeffs_mem_rden,
+--												WREN	=> coeffs_mem_wren,
+--												CLK	=> ram_clk,
+--												Q_coeffs => coeffs_mem_Q,
+--												all_coeffs => coefficients
+--												);
 												
 	filter_CLK <= CLK_fs;
 	IIR_filter: filter 	generic map (P => P, Q => Q)
@@ -634,22 +634,22 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 											irq => filter_irq,
 											output => filter_output											
 											);
-	filter_input <= data_in;
+--	filter_input <= data_in;
 --	data_out <= filter_output;
 	
-	filter_out: d_flip_flop
-	 port map(	D => filter_output,
-					RST=> RST,--resets all previous history of filter output
-					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
-					Q=> filter_out_Q
-					);
-					
-	d_ff_desired: d_flip_flop
-	 port map(	D => desired,
-					RST=> RST,--resets all previous history of filter output
-					CLK=>filter_CLK,--must be the same as filter_CLK
-					Q=> d_ff_desired_Q
-					);
+--	filter_out: d_flip_flop
+--	 port map(	D => filter_output,
+--					RST=> RST,--resets all previous history of filter output
+--					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
+--					Q=> filter_out_Q
+--					);
+--					
+--	d_ff_desired: d_flip_flop
+--	 port map(	D => desired,
+--					RST=> RST,--resets all previous history of filter output
+--					CLK=>filter_CLK,--must be the same as filter_CLK
+--					Q=> d_ff_desired_Q
+--					);
 					
 	filter_ctrl_status: d_flip_flop
 	 port map(	D => ram_write_data,--written by software
@@ -671,73 +671,81 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		end if;
 	end process filter_reset_process;
 											
-	wren_control: wren_ctrl port map (input => proc_filter_wren,
-												 CLK => filter_CLK,
-												 output => filter_wren
-												);
+--	wren_control: wren_ctrl port map (input => proc_filter_wren,
+--												 CLK => filter_CLK,
+--												 output => filter_wren
+--												);
+	process(proc_filter_wren,filter_CLK)
+	begin
+		if(proc_filter_wren=	'1')then
+			filter_wren <= '1';
+		elsif(rising_edge(filter_CLK))then--next rising_edge of filter means next sample
+			filter_wren <= '0';
+		end if;
+	end process;
 	
-	-- must be the clock of filter output updating
-	filter_xN_CLK <= not filter_CLK;
-	xN: filter_xN
-	-- 0..P: índices dos x
-	-- P+1..P+Q: índices dos y
-	generic map (N => 3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
-	port map (	D => ram_write_data,-- not used (peripheral supports only read)
-			DX => filter_input,--current filter input
-			DY => filter_output,--current filter output
-			ADDR => ram_addr(2 downto 0),-- input
-			CLK_x => filter_CLK,
-			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
-			RST => RST,-- input
-			WREN => filter_xN_wren,--not used (peripheral supports only read)
-			RDEN => filter_xN_rden,-- input
-			output => filter_xN_Q-- output
-			);
-												
-	inner_product: inner_product_calculation_unit
-	generic map (N => 5)
-	port map(D => ram_write_data,--supposed to be normalized
-				ADDR => ram_addr(4 downto 0),
-				CLK => ram_clk,
-				RST => rst,
-				WREN => inner_product_wren,
-				RDEN => inner_product_rden,
-				-------NEED ADD FLAGS (overflow, underflow, etc)
-				--overflow:		out std_logic,
-				--underflow:		out std_logic,
-				output => inner_product_result
-				);
-				
-	vmac: vectorial_multiply_accumulator_unit
-	generic map (N => 5)
-	port map(D => ram_write_data,
-				ADDR => ram_addr(4 downto 0),
-				CLK => ram_clk,
-				RST => rst,
-				WREN => vmac_wren,
-				RDEN => vmac_rden,
-				VMAC_EN => vmac_en,
-				-------NEED ADD FLAGS (overflow, underflow, etc)
-				--overflow:		out std_logic,
-				--underflow:		out std_logic,
-				output => vmac_Q
-	);
-	
-	
-	fp_in <= filter_output;
-	fp32_to_int: fp32_to_integer
-	generic map (N=> audio_resolution)
-	port map (fp_in => fp_in,
-				 output=> fp32_to_int_out);
-				 
-
-	left_padded_fp32_to_int_out <= (31 downto audio_resolution => '0') & fp32_to_int_out;
-	converted_output: d_flip_flop
-	 port map(	D => left_padded_fp32_to_int_out,
-					RST=> RST,--resets all previous history of filter output
-					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
-					Q=> converted_out_Q
-	);
+--	-- must be the clock of filter output updating
+--	filter_xN_CLK <= not filter_CLK;
+--	xN: filter_xN
+--	-- 0..P: índices dos x
+--	-- P+1..P+Q: índices dos y
+--	generic map (N => 3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
+--	port map (	D => ram_write_data,-- not used (peripheral supports only read)
+--			DX => filter_input,--current filter input
+--			DY => filter_output,--current filter output
+--			ADDR => ram_addr(2 downto 0),-- input
+--			CLK_x => filter_CLK,
+--			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
+--			RST => RST,-- input
+--			WREN => filter_xN_wren,--not used (peripheral supports only read)
+--			RDEN => filter_xN_rden,-- input
+--			output => filter_xN_Q-- output
+--			);
+--												
+--	inner_product: inner_product_calculation_unit
+--	generic map (N => 5)
+--	port map(D => ram_write_data,--supposed to be normalized
+--				ADDR => ram_addr(4 downto 0),
+--				CLK => ram_clk,
+--				RST => rst,
+--				WREN => inner_product_wren,
+--				RDEN => inner_product_rden,
+--				-------NEED ADD FLAGS (overflow, underflow, etc)
+--				--overflow:		out std_logic,
+--				--underflow:		out std_logic,
+--				output => inner_product_result
+--				);
+--				
+--	vmac: vectorial_multiply_accumulator_unit
+--	generic map (N => 5)
+--	port map(D => ram_write_data,
+--				ADDR => ram_addr(4 downto 0),
+--				CLK => ram_clk,
+--				RST => rst,
+--				WREN => vmac_wren,
+--				RDEN => vmac_rden,
+--				VMAC_EN => vmac_en,
+--				-------NEED ADD FLAGS (overflow, underflow, etc)
+--				--overflow:		out std_logic,
+--				--underflow:		out std_logic,
+--				output => vmac_Q
+--	);
+--	
+--	
+--	fp_in <= filter_output;
+--	fp32_to_int: fp32_to_integer
+--	generic map (N=> audio_resolution)
+--	port map (fp_in => fp_in,
+--				 output=> fp32_to_int_out);
+--				 
+--
+--	left_padded_fp32_to_int_out <= (31 downto audio_resolution => '0') & fp32_to_int_out;
+--	converted_output: d_flip_flop
+--	 port map(	D => left_padded_fp32_to_int_out,
+--					RST=> RST,--resets all previous history of filter output
+--					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
+--					Q=> converted_out_Q
+--	);
 
 	i2c: i2c_master
 	port map(D => ram_write_data,
@@ -874,23 +882,23 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		locked=> open
 	);
 
-	process(CLK,rst,filter_CLK,filter_rst)
-	begin
-		if(rst='1' or filter_rst='1' or filter_CLK='1')then
-			rising_CLK_occur <= '0';
-		elsif(rising_edge(CLK) and filter_CLK='0')then
-			rising_CLK_occur <='1';
-		end if;
-	end process;
-	
-	process(CLK,rst,filter_CLK,filter_rst)
-	begin
-		if(rst='1')then
-			CLK25MHz <= '0';
-		elsif(falling_edge(CLK) and filter_rst='0' and filter_CLK='0' and rising_CLK_occur='1')then--this ensures, count is updated after used for sram_ADDR
-			CLK25MHz <= not CLK25MHz;
-		end if;
-	end process;
+--	process(CLK,rst,filter_CLK,filter_rst)
+--	begin
+--		if(rst='1' or filter_rst='1' or filter_CLK='1')then
+--			rising_CLK_occur <= '0';
+--		elsif(rising_edge(CLK) and filter_CLK='0')then
+--			rising_CLK_occur <='1';
+--		end if;
+--	end process;
+--	
+--	process(CLK,rst,filter_CLK,filter_rst,rising_CLK_occur)
+--	begin
+--		if(rst='1')then
+--			CLK25MHz <= '0';
+--		elsif(falling_edge(CLK) and filter_rst='0' and filter_CLK='0' and rising_CLK_occur='1')then--this ensures, count is updated after used for sram_ADDR
+--			CLK25MHz <= not CLK25MHz;
+--		end if;
+--	end process;
 	
 	--produces 12MHz (MCLK) from 50MHz input
 	clk_12MHz: pll_12MHz
