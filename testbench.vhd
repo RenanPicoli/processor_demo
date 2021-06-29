@@ -107,14 +107,14 @@ begin
 		AUD_BCLK => AUD_BCLK,--SCK aka BCLK_IN
 		AUD_DACDAT => AUD_DACDAT,--DACDAT aka SD
 		AUD_DACLRCK => AUD_DACLRCK,--DACLRCK aka WS
-		--SRAM
-		sram_IO => sram_IO,--sram data; input because we'll only read
-		sram_ADDR => sram_ADDR,--ADDR for SRAM
-		sram_CE_n => open,--chip enable, active LOW
-		sram_OE_n => open,--output enable, active LOW
-		sram_WE_n => sram_WE_n,--write enable, active LOW, HIGH enables reading
-		sram_UB_n => open,--upper IO byte access, active LOW
-		sram_LB_n => open, --lower	IO byte access, active LOW
+--		--SRAM
+--		sram_IO => sram_IO,--sram data; input because we'll only read
+--		sram_ADDR => sram_ADDR,--ADDR for SRAM
+--		sram_CE_n => open,--chip enable, active LOW
+--		sram_OE_n => open,--output enable, active LOW
+--		sram_WE_n => sram_WE_n,--write enable, active LOW, HIGH enables reading
+--		sram_UB_n => open,--upper IO byte access, active LOW
+--		sram_LB_n => open, --lower	IO byte access, active LOW
 		--GREEN LEDS
 		LEDG => open,
 		--RED LEDS
@@ -127,8 +127,8 @@ begin
 	
 	--calculate number of instruction being executed
 	instruction_number <= to_integer(unsigned(GPIO(7 downto 0)));--row number of mini_rom, starting from 0
-	filter_CLK <= GPIO(14);
-	filter_rst <= GPIO(15);
+	filter_CLK <= GPIO(9);
+	filter_rst <= EX_IO(5);
 	
 	--wren: active HIGH
 	--sram_WE_n: active LOW
