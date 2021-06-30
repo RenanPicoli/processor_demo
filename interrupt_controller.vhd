@@ -66,7 +66,8 @@ architecture behv of interrupt_controller is
 	signal all_periphs_rden: std_logic_vector(2 downto 0);
 	signal address_decoder_wren: std_logic_vector(2 downto 0);
 	
-	------------signals for IRQ control-------------------	
+	------------signals for IRQ control-------------------
+	signal IRQ_IN_prev:		std_logic_vector(31 downto 0);--state of IRQ_IN in previous clock cycle
 	signal IRQ_pend_out:		std_logic_vector(31 downto 0);-- status of all IRQs
 	signal IACK_pend_out:	std_logic_vector(31 downto 0);-- where the IACK must be sent when IACK_IN is asserted by processor
 	signal IACK_finished:	std_logic_vector(31 downto 0);	-- '1' when IACK_OUT is deasserted
@@ -78,14 +79,18 @@ begin
 ---------------------------------- IRQ pending register ------------------------------------
 		irq_pend_wren <= address_decoder_wren(0);
 		irq_pending_i: for i in 0 to L-1 generate
-			irq_pending: process(RST,irq_pend_wren,D,IRQ_pend_out,IRQ_IN)
+			irq_pending: process(RST,irq_pend_wren,D,IRQ_pend_out,IRQ_IN,CLK)
 			begin
 				if(RST='1') then
 					IRQ_pend_out(i) <= '0';
-				elsif (irq_pend_wren='1') then --software writes '0' to clear pending bits, '1' is dont't care
-					IRQ_pend_out(i) <= IRQ_pend_out(i) and D(i);
-				elsif (rising_edge(IRQ_IN(i))) then -- IRQ assertion
-					IRQ_pend_out(i) <= '1';
+					IRQ_IN_prev(i)  <= '0';
+				elsif(rising_edge(CLK)) then
+					IRQ_IN_prev(i) <= IRQ_IN(i);
+					if (IRQ_IN(i)='1' and IRQ_IN_prev(i)='0') then -- IRQ assertion, capture IRQ_IN rising_edge
+						IRQ_pend_out(i) <= '1';
+					elsif (irq_pend_wren='1') then --software writes '0' to clear pending bits, '1' is dont't care
+						IRQ_pend_out(i) <= IRQ_pend_out(i) and D(i);
+					end if;
 				end if;
 			end process;
 		end generate irq_pending_i;		
@@ -113,7 +118,7 @@ begin
 ---------------------------------- IACK finished register ------------------------------------
 		iack_finished_wren <= address_decoder_wren(2);
 		iack_finished_i: for i in 0 to L-1 generate
-			process (RST,IACK_OUT,IRQ_pend_out,CLK)
+			process (RST,IACK_OUT,IRQ_pend_out)
 			begin
 				if(RST='1') then
 					IACK_finished(i) <= '0';
