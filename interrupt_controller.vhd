@@ -67,25 +67,32 @@ architecture behv of interrupt_controller is
 	signal address_decoder_wren: std_logic_vector(2 downto 0);
 	
 	------------signals for IRQ control-------------------
-	signal IRQ_IN_prev:		std_logic_vector(31 downto 0);--state of IRQ_IN in previous clock cycle
-	signal IRQ_pend_out:		std_logic_vector(31 downto 0);-- status of all IRQs
-	signal IACK_pend_out:	std_logic_vector(31 downto 0);-- where the IACK must be sent when IACK_IN is asserted by processor
-	signal IACK_finished:	std_logic_vector(31 downto 0);	-- '1' when IACK_OUT is deasserted
-	signal irq:					std_logic;
-	signal tmp:					std_logic_vector(31 downto 0);
+	signal IRQ_IN_prev:			std_logic_vector(31 downto 0);--state of IRQ_IN in previous clock cycle
+	signal IRQ_pend_out:			std_logic_vector(31 downto 0);-- status of all IRQs
+	signal IRQ_pend_out_prev:	std_logic_vector(31 downto 0);-- status of all IRQs in previous clock cycle
+	signal IACK_pend_out:		std_logic_vector(31 downto 0);-- where the IACK must be sent when IACK_IN is asserted by processor
+	signal IACK_OUT_prev:		std_logic_vector(31 downto 0);-- status of all IACKs in previous clock cycle
+	signal IACK_finished:		std_logic_vector(31 downto 0);-- '1' when IACK_OUT is deasserted
+	signal irq:						std_logic;
+	signal tmp:						std_logic_vector(31 downto 0);
 
 begin
 	
 ---------------------------------- IRQ pending register ------------------------------------
 		irq_pend_wren <= address_decoder_wren(0);
 		irq_pending_i: for i in 0 to L-1 generate
-			irq_pending: process(RST,irq_pend_wren,D,IRQ_pend_out,IRQ_IN,CLK)
+			irq_pending: process(RST,irq_pend_wren,D,IRQ_pend_out,IRQ_IN,IACK_OUT,CLK)
 			begin
 				if(RST='1') then
 					IRQ_pend_out(i) <= '0';
+					IRQ_pend_out_prev(i) <= '0';
 					IRQ_IN_prev(i)  <= '0';
+					IACK_OUT_prev(i) <= '0';
 				elsif(rising_edge(CLK)) then
 					IRQ_IN_prev(i) <= IRQ_IN(i);
+					IRQ_pend_out_prev(i) <= IRQ_pend_out(i);
+					IACK_OUT_prev(i) <= IACK_OUT(i);
+					
 					if (IRQ_IN(i)='1' and IRQ_IN_prev(i)='0') then -- IRQ assertion, capture IRQ_IN rising_edge
 						IRQ_pend_out(i) <= '1';
 					elsif (irq_pend_wren='1') then --software writes '0' to clear pending bits, '1' is dont't care
@@ -101,13 +108,13 @@ begin
 		iack_pend_wren <= address_decoder_wren(1);
 		--detects where the IACK must be sent when IACK_IN is asserted by processor
 		iack_pending_i: for i in 0 to L-1 generate
-			iack_pending: process(RST,IACK_finished,IRQ_pend_out)
+			iack_pending: process(RST,IACK_finished,IRQ_pend_out,CLK)
 			begin
 				if(RST='1') then
 					IACK_pend_out(i) <= '0';
 				elsif (IACK_finished(i)='1') then --software sends IACK
 					IACK_pend_out(i) <= '0';
-				elsif (falling_edge(IRQ_pend_out(i))) then -- IRQ assertion
+				elsif (rising_edge(CLK) and IRQ_pend_out(i)='0' and IRQ_pend_out_prev(i)='1') then -- assertion after falling_edge of IRQ_pend_out
 					IACK_pend_out(i) <= '1';
 				end if;
 			end process;
@@ -118,13 +125,13 @@ begin
 ---------------------------------- IACK finished register ------------------------------------
 		iack_finished_wren <= address_decoder_wren(2);
 		iack_finished_i: for i in 0 to L-1 generate
-			process (RST,IACK_OUT,IRQ_pend_out)
+			process (RST,IACK_OUT,IRQ_pend_out,CLK)
 			begin
 				if(RST='1') then
 					IACK_finished(i) <= '0';
 				elsif (IRQ_pend_out(i)='1') then
 					IACK_finished(i) <= '0';
-				elsif (falling_edge(IACK_OUT(i))) then-- asserts previous value
+				elsif (rising_edge(CLK) and IACK_OUT(i)='0' and IACK_OUT_prev(i)='1') then-- asserts at falling_edge of IACK_OUT
 					IACK_finished(i) <= '1';
 				end if;
 			end process;
