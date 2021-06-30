@@ -108,7 +108,7 @@ begin
 		iack_pend_wren <= address_decoder_wren(1);
 		--detects where the IACK must be sent when IACK_IN is asserted by processor
 		iack_pending_i: for i in 0 to L-1 generate
-			iack_pending: process(RST,IACK_finished,IRQ_pend_out,CLK)
+			iack_pending: process(RST,IACK_finished,IRQ_pend_out,IRQ_pend_out_prev,CLK)
 			begin
 				if(RST='1') then
 					IACK_pend_out(i) <= '0';
@@ -125,7 +125,7 @@ begin
 ---------------------------------- IACK finished register ------------------------------------
 		iack_finished_wren <= address_decoder_wren(2);
 		iack_finished_i: for i in 0 to L-1 generate
-			process (RST,IACK_OUT,IRQ_pend_out,CLK)
+			process (RST,IACK_OUT,IACK_OUT_prev,IRQ_pend_out,CLK)
 			begin
 				if(RST='1') then
 					IACK_finished(i) <= '0';
