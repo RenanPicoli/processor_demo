@@ -380,6 +380,7 @@ signal CLK: std_logic;--clock for processor and cache (50MHz)
 signal CLK_dbg_200MHz: std_logic;--clock for debug, 200MHz
 signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK_fs: std_logic;-- 11.029kHz clock
+signal CLK11_285714MHz: std_logic;-- 11.285714MHz clock (1024fs, for I2S peripheral)
 signal CLK5_647059MHz: std_logic;-- 5.647059MHz clock (for I2S peripheral)
 signal CLK2_8224MHz: std_logic;--2.8224MHz clock (for I2S peripheral, 128fs)
 signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
@@ -776,7 +777,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				IACK => i2s_iack,
 				Q => i2s_Q,--for register read
 				IRQ => i2s_irq,
-				SCK_IN => CLK2_8224MHz,--128fs=64fWS
+				SCK_IN => CLK11_285714MHz,
 				SCK_IN_PLL_LOCKED => i2s_SCK_IN_PLL_LOCKED,--'1' if PLL that provides SCK_IN is locked
 				SD => i2s_SD, --data line
 				WS => i2s_WS, --left/right clock
@@ -908,13 +909,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	c0 => CLK12MHz
 	);
 
-	--produces 11025Hz (fs) and 2.8224 MHz (256fs for BCLK_IN) from 12MHz input
-	clk_fs_256fs: pll_audio
+	--produces 11025Hz (fs) and 11.285714 MHz (1024fs for BCLK_IN) from 12MHz input
+	clk_fs_1024fs: pll_audio
 	port map (
 	inclk0 => CLK12MHz,
 	areset => rst,
 	c0 => CLK_fs,
-	c1 => CLK2_8224MHz,
+	c1 => CLK11_285714MHz,
 	locked => i2s_SCK_IN_PLL_LOCKED
 	);
 end setup;
