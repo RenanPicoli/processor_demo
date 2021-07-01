@@ -88,14 +88,14 @@ begin
 					IRQ_pend_out_prev(i) <= '0';
 					IRQ_IN_prev(i)  <= '0';
 					IACK_OUT_prev(i) <= '0';
-				elsif(rising_edge(CLK)) then
+				elsif(falling_edge(CLK)) then
 					IRQ_IN_prev(i) <= IRQ_IN(i);
 					IRQ_pend_out_prev(i) <= IRQ_pend_out(i);
 					IACK_OUT_prev(i) <= IACK_OUT(i);
 					
 					if (IRQ_IN(i)='1' and IRQ_IN_prev(i)='0') then -- IRQ assertion, capture IRQ_IN rising_edge
 						IRQ_pend_out(i) <= '1';
-					elsif (irq_pend_wren='1') then --software writes '0' to clear pending bits, '1' is dont't care
+					elsif (irq_pend_wren='1') then --software writes '0' to clear pending bits, '1' has no effect
 						IRQ_pend_out(i) <= IRQ_pend_out(i) and D(i);
 					end if;
 				end if;
