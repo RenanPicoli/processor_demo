@@ -91,7 +91,7 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 #set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
 
 # Intel recomendation for Clock Domain Crossing (CDC)
-#set_clock_groups -asynchronous -group [get_clocks {uproc_clk}] -group [get_clocks {i2s_1536fs i2s_WS clk_fs}]
+set_clock_groups -asynchronous -group [get_clocks {uproc_clk}] -group [get_clocks {i2s_1536fs i2s_WS clk_fs}]
 
 #**************************************************************
 # Set False Path
@@ -115,9 +115,9 @@ set_multicycle_path -setup -end -from [get_pins {i2s|i2s|WS|combout}] -to [get_c
 #**************************************************************
 
 # Intel recomendation for Clock Domain Crossing (CDC)
-set_max_skew -from [get_keepers i2s|CR|Q[*]|*] -to [get_keepers i2s|i2s|* ] -get_skew_value_from_clock_period min_clock_period -skew_value_multiplier 0.8
-set_max_skew -from [get_keepers i2s|i2s|ws_gen|CLK|*] -to [get_keepers {i2s|r_fifo|fifo[*][*]|* i2s|l_fifo|fifo[*][*]|*}] -get_skew_value_from_clock_period min_clock_period -skew_value_multiplier 0.8
-set_max_skew -from [get_keepers processor|PC|Q[*]|*] -to [get_keepers IIR_filter|IRQ|*] -get_skew_value_from_clock_period min_clock_period -skew_value_multiplier 0.8
+#set_max_skew -from [get_pins i2s|CR|Q[*]|q ] -to [get_pins {i2s|sync_chain_CR|Q[0][*]|asdata} ] -get_skew_value_from_clock_period min_clock_period -skew_value_multiplier 0.8
+#set_max_skew -from [get_keepers i2s|i2s|ws_gen|CLK|*] -to [get_keepers {i2s|r_fifo|fifo[*][*]|* i2s|l_fifo|fifo[*][*]|*}] -get_skew_value_from_clock_period min_clock_period -skew_value_multiplier 0.8
+#set_max_skew -from [get_keepers processor|PC|Q[*]|*] -to [get_keepers IIR_filter|IRQ|*] -get_skew_value_from_clock_period min_clock_period -skew_value_multiplier 0.8
 
 #**************************************************************
 # Set Minimum Delay
@@ -136,7 +136,7 @@ set_max_skew -from [get_keepers processor|PC|Q[*]|*] -to [get_keepers IIR_filter
 #**************************************************************
 
 # Intel recomendation for Clock Domain Crossing (CDC)
-##set_net_delay -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|i2s|stop i2s|i2s|IRQ[0] i2s|i2s|sck_en} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
+set_net_delay -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
 #set_net_delay -from [get_pins i2s|i2s|ws_gen|CLK|q] -to [get_registers {i2s|r_fifo|fifo[*][*] i2s|l_fifo|fifo[*][*]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 #set_net_delay -from [get_registers processor\|PC\|Q\[*\]] -to [get_registers IIR_filter\|IRQ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 #set_net_delay -max 8.000 -from [get_registers {i2s_master_transmitter:i2s|d_flip_flop:CR|Q[0] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[1] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[2] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[3] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[4] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[5] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[6] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[7] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[8] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[9] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[10] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[11] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[12] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[13] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[14] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[15] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[16] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[17] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[18] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[19] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[20] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[21] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[22] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[23] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[24] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[25] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[26] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[27] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[28] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[29] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[30] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[31]}] -to [get_registers {i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|stop i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|sck_en i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|IRQ[0]}]
