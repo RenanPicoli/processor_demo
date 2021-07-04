@@ -108,6 +108,14 @@ set_false_path  -from  [get_ports {RST}] -to [all_registers]
 #**************************************************************
 
 set_multicycle_path -setup -end -from [get_pins {i2s|i2s|WS|combout}] -to [get_cells {i2s|l_fifo|OVF i2s|r_fifo|OVF}] 2
+#relaxing time to I2S generic perceive I2S_EN assertion
+set_multicycle_path -setup -end -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] 2
+#relaxing time to I2S generic perceive l_fifo output
+set_multicycle_path -setup -end -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] 2
+#relaxing time to I2S generic perceive r_fifo output
+set_multicycle_path -setup -end -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] 2
+#relaxing time to I2S generic perceive IACK assertion
+set_multicycle_path -setup -end -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] 2
 
 
 #**************************************************************
@@ -135,8 +143,12 @@ set_multicycle_path -setup -end -from [get_pins {i2s|i2s|WS|combout}] -to [get_c
 # Set Net Delay
 #**************************************************************
 
+# set_net_delay requires direct connection between from and to nodes, with logic in between
 # Intel recomendation for Clock Domain Crossing (CDC)
 set_net_delay -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
+set_net_delay -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
+set_net_delay -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
+set_net_delay -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
 #set_net_delay -from [get_pins i2s|i2s|ws_gen|CLK|q] -to [get_registers {i2s|r_fifo|fifo[*][*] i2s|l_fifo|fifo[*][*]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 #set_net_delay -from [get_registers processor\|PC\|Q\[*\]] -to [get_registers IIR_filter\|IRQ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 #set_net_delay -max 8.000 -from [get_registers {i2s_master_transmitter:i2s|d_flip_flop:CR|Q[0] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[1] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[2] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[3] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[4] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[5] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[6] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[7] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[8] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[9] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[10] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[11] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[12] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[13] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[14] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[15] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[16] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[17] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[18] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[19] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[20] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[21] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[22] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[23] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[24] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[25] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[26] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[27] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[28] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[29] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[30] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[31]}] -to [get_registers {i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|stop i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|sck_en i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|IRQ[0]}]
