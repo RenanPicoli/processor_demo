@@ -5,7 +5,8 @@ Setup for testing microprocessor repo (https://github.com/RenanPicoli/microproce
 * For writing, new data should be pushed through a shift register
 * For reading, only a pointer should be updated.
 * All data should be multiplexed on output port, that pointer will be the selection input
-* DON'T PUSH to I2S repo, until it is stable enough to be merged with processor_demo/master
+* DON'T PUSH to I2S/master, until it is stable enough to be merged with processor_demo/master.
+* PUSH to I2S/smart_fifo_refactoring instead.
 
 * Tries to adapt filters of up to 8 weights (direct form I, feed-forward + feddback).
 * Implements all elements, from registers to multipliers, multiply-accumulate, fpu, except PLL. The number of FPGA logical elements might be a restriction.
