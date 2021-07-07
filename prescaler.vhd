@@ -25,9 +25,11 @@ signal CLK: std_logic := '0';
 signal count: std_logic_vector(29 downto 0) := (others=>'0');
 
 begin
-	process(CLK_IN,CLK,count)
+	process(rst,CLK_IN,CLK,count)
 	begin
-		if(falling_edge(CLK_IN)) then
+		if (rst='1') then
+			count <= (others => '0');
+		elsif(falling_edge(CLK_IN)) then
 			if(count = factor-1)then
 				count <= (others => '0');
 			else
