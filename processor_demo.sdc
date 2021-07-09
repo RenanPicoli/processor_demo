@@ -38,7 +38,7 @@ set_time_format -unit ns -decimal_places 3
 # Create Clock
 #**************************************************************
 
-#create_clock -name {altera_reserved_tck} -period 100.000 -waveform { 0.000 50.000 } [get_ports {altera_reserved_tck}]
+create_clock -name {altera_reserved_tck} -period 100.000 -waveform { 0.000 50.000 } [get_ports {altera_reserved_tck}]
 create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports {CLK_IN}]
 
 
@@ -88,7 +88,7 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 # Set Clock Groups
 #**************************************************************
 
-#set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
+set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
 
 # Intel recomendation for Clock Domain Crossing (CDC)
 set_clock_groups -asynchronous -group [get_clocks {uproc_clk}] -group [get_clocks {i2s_1536fs i2s_WS clk_fs}]
@@ -97,7 +97,7 @@ set_clock_groups -asynchronous -group [get_clocks {uproc_clk}] -group [get_clock
 # Set False Path
 #**************************************************************
 
-#set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_dbg}]
+set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_dbg}]
 
 # following intel guidelines, asynchronous reset is excluded from timing analysis:
 set_false_path  -from  [get_ports {RST}] -to [all_registers]
