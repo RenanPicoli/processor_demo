@@ -377,7 +377,7 @@ signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEE
 -------------------clocks---------------------------------
 signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
 signal CLK: std_logic;--clock for processor and cache (50MHz)
-signal CLK_dbg: std_logic;--clock for debug, 200MHz
+signal CLK_dbg: std_logic;--clock for debug, check timing analyzer or the pll_dbg wizard
 signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK_fs: std_logic;-- 11.029kHz clock
 signal CLK16_928571MHz: std_logic;-- 16.928571MHz clock (1536fs, for I2S peripheral)
