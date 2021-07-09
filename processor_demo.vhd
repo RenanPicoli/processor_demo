@@ -214,7 +214,7 @@ end component;
 
 ---------------------------------------------------
 
-component pll_dbg_200MHz
+component pll_dbg_uproc
 	PORT
 	(
 		areset		: IN STD_LOGIC  := '0';
@@ -377,7 +377,7 @@ signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEE
 -------------------clocks---------------------------------
 signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
 signal CLK: std_logic;--clock for processor and cache (50MHz)
-signal CLK_dbg_200MHz: std_logic;--clock for debug, 200MHz
+signal CLK_dbg: std_logic;--clock for debug, check timing analyzer or the pll_dbg wizard
 signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK_fs: std_logic;-- 11.029kHz clock
 signal CLK16_928571MHz: std_logic;-- 16.928571MHz clock (1536fs, for I2S peripheral)
@@ -871,12 +871,12 @@ fp_in <= data_in;
 			output => irq_ctrl_Q -- output of register reading
 	);
 	
-	clk_dbg:	pll_dbg_200MHz
+	clk_dbg_uproc:	pll_dbg_uproc
 	port map
 	(
 		areset=> '0',
 		inclk0=> CLK_IN,
-		c0		=> CLK_dbg_200MHz,
+		c0		=> CLK_dbg,
 		c1		=> CLK,--produces CLK=4MHz for processor
 		locked=> open
 	);
