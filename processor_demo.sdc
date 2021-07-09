@@ -38,7 +38,7 @@ set_time_format -unit ns -decimal_places 3
 # Create Clock
 #**************************************************************
 
-#create_clock -name {altera_reserved_tck} -period 100.000 -waveform { 0.000 50.000 } [get_ports {altera_reserved_tck}]
+create_clock -name {altera_reserved_tck} -period 100.000 -waveform { 0.000 50.000 } [get_ports {altera_reserved_tck}]
 create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports {CLK_IN}]
 
 
@@ -47,11 +47,11 @@ create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports
 #**************************************************************
 
 create_generated_clock -name {clk_12M} -source [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 12 -divide_by 50 -master_clock {clk_in} [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|clk[0]}] 
-create_generated_clock -name {uproc_clk} -source [get_pins {clk_dbg|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 25 -master_clock {clk_in} [get_pins {clk_dbg|altpll_component|auto_generated|pll1|clk[1]}] 
+create_generated_clock -name {uproc_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 25 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[1]}] 
 create_generated_clock -name {clk_fs} -source [get_pins {clk_fs_1536fs|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 22 -divide_by 23937 -master_clock {clk_12M} [get_pins { clk_fs_1536fs|altpll_component|auto_generated|pll1|clk[0] }] 
 
 # clk_dbg: 16MHz
-#create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 16 -divide_by 50 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg|altpll_component|auto_generated|pll1|clk[0]}] 
+create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 1 -divide_by 125 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
 
 create_generated_clock -name {i2s_WS} -source [get_pins {i2s|i2s|ws_gen|count[0]|clk}] -divide_by 64 -master_clock {i2s_1536fs} [get_pins {i2s|i2s|ws_gen|CLK|q}] 
 create_generated_clock -name {i2s_1536fs} -source [get_pins {clk_fs_1536fs|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 79 -divide_by 56 -master_clock {clk_12M} [get_pins { clk_fs_1536fs|altpll_component|auto_generated|pll1|clk[1] }] 
@@ -88,7 +88,7 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 # Set Clock Groups
 #**************************************************************
 
-#set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
+set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
 
 # Intel recomendation for Clock Domain Crossing (CDC)
 set_clock_groups -asynchronous -group [get_clocks {uproc_clk}] -group [get_clocks {i2s_1536fs i2s_WS clk_fs}]
@@ -97,7 +97,7 @@ set_clock_groups -asynchronous -group [get_clocks {uproc_clk}] -group [get_clock
 # Set False Path
 #**************************************************************
 
-#set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_dbg}]
+set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_dbg}]
 
 # following intel guidelines, asynchronous reset is excluded from timing analysis:
 set_false_path  -from  [get_ports {RST}] -to [all_registers]
@@ -111,9 +111,9 @@ set_multicycle_path -setup -end -from [get_pins {i2s|i2s|WS|combout}] -to [get_c
 #relaxing time to I2S generic perceive I2S_EN assertion
 set_multicycle_path -setup -end -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] 2
 #relaxing time to I2S generic perceive l_fifo output
-set_multicycle_path -setup -end -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] 2
+#set_multicycle_path -setup -end -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] 2
 #relaxing time to I2S generic perceive r_fifo output
-set_multicycle_path -setup -end -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] 2
+#set_multicycle_path -setup -end -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] 2
 #relaxing time to I2S generic perceive IACK assertion
 set_multicycle_path -setup -end -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] 2
 
@@ -146,8 +146,8 @@ set_multicycle_path -setup -end -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout
 # set_net_delay requires direct connection between from and to nodes, with logic in between
 # Intel recomendation for Clock Domain Crossing (CDC)
 set_net_delay -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
-set_net_delay -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
-set_net_delay -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
+#set_net_delay -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
+#set_net_delay -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
 set_net_delay -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
 #set_net_delay -from [get_pins i2s|i2s|ws_gen|CLK|q] -to [get_registers {i2s|r_fifo|fifo[*][*] i2s|l_fifo|fifo[*][*]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 #set_net_delay -from [get_registers processor\|PC\|Q\[*\]] -to [get_registers IIR_filter\|IRQ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
