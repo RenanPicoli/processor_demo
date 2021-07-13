@@ -612,18 +612,18 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			end if;
 		end if;
 	end process;
-----------------------------------------------------------
---	
---	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
---									port map(D => ram_write_data,
---												ADDR	=> ram_addr(2 downto 0),
---												RST => rst,
---												RDEN	=> coeffs_mem_rden,
---												WREN	=> coeffs_mem_wren,
---												CLK	=> ram_clk,
---												Q_coeffs => coeffs_mem_Q,
---												all_coeffs => coefficients
---												);
+--------------------------------------------------------
+	
+	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
+									port map(D => ram_write_data,
+												ADDR	=> ram_addr(2 downto 0),
+												RST => rst,
+												RDEN	=> coeffs_mem_rden,
+												WREN	=> coeffs_mem_wren,
+												CLK	=> ram_clk,
+												Q_coeffs => coeffs_mem_Q,
+												all_coeffs => coefficients
+												);
 												
 	filter_CLK <= CLK_fs;
 	IIR_filter: filter 	generic map (P => P, Q => Q)
@@ -639,19 +639,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_input <= data_in;
 --	data_out <= filter_output;
 	
---	filter_out: d_flip_flop
---	 port map(	D => filter_output,
---					RST=> RST,--resets all previous history of filter output
---					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
---					Q=> filter_out_Q
---					);
---					
---	d_ff_desired: d_flip_flop
---	 port map(	D => desired,
---					RST=> RST,--resets all previous history of filter output
---					CLK=>filter_CLK,--must be the same as filter_CLK
---					Q=> d_ff_desired_Q
---					);
+	filter_out: d_flip_flop
+	 port map(	D => filter_output,
+					RST=> RST,--resets all previous history of filter output
+					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
+					Q=> filter_out_Q
+					);
+					
+	d_ff_desired: d_flip_flop
+	 port map(	D => desired,
+					RST=> RST,--resets all previous history of filter output
+					CLK=>filter_CLK,--must be the same as filter_CLK
+					Q=> d_ff_desired_Q
+					);
 					
 	filter_ctrl_status: d_flip_flop
 	 port map(	D => ram_write_data,--written by software
@@ -682,38 +682,38 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		end if;
 	end process;
 	
---	-- must be the clock of filter output updating
---	filter_xN_CLK <= not filter_CLK;
---	xN: filter_xN
---	-- 0..P: índices dos x
---	-- P+1..P+Q: índices dos y
---	generic map (N => 3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
---	port map (	D => ram_write_data,-- not used (peripheral supports only read)
---			DX => filter_input,--current filter input
---			DY => filter_output,--current filter output
---			ADDR => ram_addr(2 downto 0),-- input
---			CLK_x => filter_CLK,
---			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
---			RST => RST,-- input
---			WREN => filter_xN_wren,--not used (peripheral supports only read)
---			RDEN => filter_xN_rden,-- input
---			output => filter_xN_Q-- output
---			);
---												
---	inner_product: inner_product_calculation_unit
---	generic map (N => 5)
---	port map(D => ram_write_data,--supposed to be normalized
---				ADDR => ram_addr(4 downto 0),
---				CLK => ram_clk,
---				RST => rst,
---				WREN => inner_product_wren,
---				RDEN => inner_product_rden,
---				-------NEED ADD FLAGS (overflow, underflow, etc)
---				--overflow:		out std_logic,
---				--underflow:		out std_logic,
---				output => inner_product_result
---				);
---				
+	-- must be the clock of filter output updating
+	filter_xN_CLK <= not filter_CLK;
+	xN: filter_xN
+	-- 0..P: índices dos x
+	-- P+1..P+Q: índices dos y
+	generic map (N => 3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
+	port map (	D => ram_write_data,-- not used (peripheral supports only read)
+			DX => filter_input,--current filter input
+			DY => filter_output,--current filter output
+			ADDR => ram_addr(2 downto 0),-- input
+			CLK_x => filter_CLK,
+			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
+			RST => RST,-- input
+			WREN => filter_xN_wren,--not used (peripheral supports only read)
+			RDEN => filter_xN_rden,-- input
+			output => filter_xN_Q-- output
+			);
+												
+	inner_product: inner_product_calculation_unit
+	generic map (N => 5)
+	port map(D => ram_write_data,--supposed to be normalized
+				ADDR => ram_addr(4 downto 0),
+				CLK => ram_clk,
+				RST => rst,
+				WREN => inner_product_wren,
+				RDEN => inner_product_rden,
+				-------NEED ADD FLAGS (overflow, underflow, etc)
+				--overflow:		out std_logic,
+				--underflow:		out std_logic,
+				output => inner_product_result
+				);
+				
 --	vmac: vectorial_multiply_accumulator_unit
 --	generic map (N => 5)
 --	port map(D => ram_write_data,
@@ -728,10 +728,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --				--underflow:		out std_logic,
 --				output => vmac_Q
 --	);
---	
---	
---	fp_in <= filter_output;
-fp_in <= data_in;
+	
+	
+	fp_in <= filter_output;
+--fp_in <= data_in;
 	fp32_to_int: fp32_to_integer
 	generic map (N=> audio_resolution)
 	port map (fp_in => fp_in,
