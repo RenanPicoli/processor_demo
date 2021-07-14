@@ -614,16 +614,25 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	end process;
 --------------------------------------------------------
 	
-	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
-									port map(D => ram_write_data,
-												ADDR	=> ram_addr(2 downto 0),
-												RST => rst,
-												RDEN	=> coeffs_mem_rden,
-												WREN	=> coeffs_mem_wren,
-												CLK	=> ram_clk,
-												Q_coeffs => coeffs_mem_Q,
-												all_coeffs => coefficients
-												);
+--	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
+--									port map(D => ram_write_data,
+--												ADDR	=> ram_addr(2 downto 0),
+--												RST => rst,
+--												RDEN	=> coeffs_mem_rden,
+--												WREN	=> coeffs_mem_wren,
+--												CLK	=> ram_clk,
+--												Q_coeffs => coeffs_mem_Q,
+--												all_coeffs => open--coefficients
+--												);
+	--forces y=x0, for debugging
+	coefficients(0)<=x"3F800000";-- +1.0
+	coefficients(1)<=x"00000000";-- +0.0
+	coefficients(2)<=x"00000000";-- +0.0
+	coefficients(3)<=x"00000000";-- +0.0
+	coefficients(4)<=x"00000000";-- +0.0
+	coefficients(5)<=x"00000000";-- +0.0
+	coefficients(6)<=x"00000000";-- +0.0
+	coefficients(7)<=x"00000000";-- +0.0
 												
 	filter_CLK <= CLK_fs;
 	IIR_filter: filter 	generic map (P => P, Q => Q)
