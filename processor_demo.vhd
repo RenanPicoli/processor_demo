@@ -294,6 +294,18 @@ port(	D: in std_logic_vector(31 downto 0);-- input
 end component;
 
 ---------------------------------------------------
+	
+component sync_chain
+	generic (N: natural;--bus width in bits
+				L: natural);--number of registers in the chain
+	port (
+			data_in: in std_logic_vector(N-1 downto 0);--data generated at another clock domain
+			CLK: in std_logic;--clock of new clock domain
+			data_out: out std_logic_vector(N-1 downto 0)--data synchronized in CLK domain
+	);
+end component;
+
+---------------------------------------------------
 
 component interrupt_controller
 generic	(L: natural);--L: number of IRQ lines
@@ -498,6 +510,9 @@ signal i2s_SD: std_logic;--data line
 signal i2s_WS: std_logic;--left/right clock
 signal i2s_SCK: std_logic;--continuous clock (bit clock)
 signal i2s_SCK_IN_PLL_LOCKED: std_logic;--'1' if PLL that provides SCK_IN is locked
+
+-----------signals for synchronizer chain -------------------
+signal filter_irq_sync: std_logic_vector(0 downto 0);--filter_irq synchronized to ram_clk posedge
 
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
@@ -860,9 +875,24 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		vmac_en => vmac_en,
 		send_cache_request => send_cache_request,
 		Q_ram => ram_Q_buffer_out
-	);
-	
-	all_irq	<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq);
+	);	
+
+	-- synchronizes IRQ to rising_edge of CLK, because:
+	--1: filter_irq is generated at filter_CLK domain
+	--2: this signal is sampled in irq_ctrl at falling_edge of CLK
+	sync_chain_filter_IRQ: sync_chain
+		generic map (N => 1,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in => (others=> filter_irq),--data generated at another clock domain
+				CLK => ram_clk,--clock of new clock domain
+				data_out => filter_irq_sync --data synchronized in CLK domain
+		);
+		
+	--filter_irq_sync is synchronized to ram_clk rising_edge by a sync chain in this level
+	--i2s_irq is synchronized to ram_clk rising_edge inside I2S peripheral
+	--aparently, i2c_irq is synchronized to ram_clk rising_edge because I2C clocks are created dividing ram_clk
+	all_irq	<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq_sync(0));
 	i2s_iack	<= all_iack(2);										 
 	i2c_iack	<= all_iack(1);
 	filter_iack	<= all_iack(0);
