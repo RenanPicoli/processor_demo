@@ -18,7 +18,7 @@ entity filter is
 -- 1..Q: índices dos coeficientes de y (a)
 generic	(P: natural; Q: natural);
 port(	input:	in std_logic_vector(31 downto 0);-- input
-		RST:	in std_logic;--synchronous reset
+		RST:	in std_logic;--asynchronous reset
 		WREN:	in std_logic;--enables writing on coefficients
 		CLK:	in std_logic;--sampling clock
 		coeffs:	in array32((P+Q) downto 0);-- todos os coeficientes são lidos de uma vez
@@ -174,8 +174,10 @@ begin
 	-- updating coefficients
    coeff_update: process(CLK)
    begin
-
-	if (CLK'event and CLK = '1') then
+	if (RST='1') then--asynchronous reset
+		b<= (others=>(others=>'0'));
+		a<= (others=>(others=>'0'));
+	elsif (rising_edge(CLK)) then
 		if (WREN ='1') then--if the filter is allowed to update its coefficients
 			coeffs_b: for i in 0 to P loop--coeficientes de x (b)
 				b(i) <= coeffs(i);
