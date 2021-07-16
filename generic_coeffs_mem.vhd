@@ -18,7 +18,7 @@ entity generic_coeffs_mem is
 generic	(N: natural; P: natural; Q: natural);--N address width in bits
 port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é atualizado por vez
 		ADDR: in std_logic_vector(N-1 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
-		RST:	in std_logic;--synchronous reset
+		RST:	in std_logic;--asynchronous reset
 		RDEN:	in std_logic;--read enable
 		WREN:	in std_logic;--write enable
 		CLK:	in std_logic;
@@ -34,21 +34,20 @@ architecture behv of generic_coeffs_mem is
 
 	type memory is array (0 to 2**N-1) of std_logic_vector(31 downto 0);
 	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
-	signal possible_outputs: memory := (others => x"0000_0000");
+	signal possible_outputs: memory;
 	
 begin					   
-
-   process(CLK)
-   begin
-	--processo de escrita (um coeficiente de cada vez)
-	if (CLK'event and CLK = '1') then
-		if (RST='1') then
---			possible_outputs <= (others=>(others=>'0'));
-		elsif (WREN ='1') then
-			possible_outputs(to_integer(unsigned(ADDR))) <= D;
-		end if;
-	end if;
-   end process;
+	mem: for i in 0 to 2**N-1 generate
+		process(CLK,RST,WREN)
+		begin
+			--processo de escrita (um coeficiente de cada vez)
+			if (RST='1') then
+				possible_outputs(i) <= (others=>'0');
+			elsif (rising_edge(CLK) and WREN ='1' and to_integer(unsigned(ADDR))=i) then
+					possible_outputs(i) <= D;
+			end if;
+		end process;
+	end generate;
 
 	Q_coeffs <= possible_outputs(to_integer(unsigned(ADDR)));	
 
