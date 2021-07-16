@@ -689,12 +689,16 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					
 	filter_reset_process: process (filter_CLK,filter_CLK_state,filter_enable,i2s_SCK_IN_PLL_LOCKED)
 	begin
---		filter_rst <= '1';
-		if (rising_edge(filter_CLK) and i2s_SCK_IN_PLL_LOCKED='1') then--pll_audio must be locked
-			filter_CLK_state <= '1';
-		end if;
-		if (falling_edge(filter_CLK) and filter_CLK_state = '1' and filter_enable='1' and i2s_SCK_IN_PLL_LOCKED='1') then
-				filter_rst <= '0';
+		if(RST='1')then
+			filter_rst <='1';
+			filter_CLK_state <= '0';
+		else
+			if (rising_edge(filter_CLK) and i2s_SCK_IN_PLL_LOCKED='1') then--pll_audio must be locked
+				filter_CLK_state <= '1';
+			end if;
+			if (falling_edge(filter_CLK) and filter_CLK_state = '1' and filter_enable='1' and i2s_SCK_IN_PLL_LOCKED='1') then
+					filter_rst <= '0';
+			end if;
 		end if;
 	end process filter_reset_process;
 
