@@ -46,7 +46,8 @@ begin
             x"3FC0_0000" after 13 us,-- 1.5
             x"BFC0_0000" after 14 us,-- -1.5
             x"3F47_AE14" after 15 us,-- 0.78
-            x"BF47_AE14" after 16 us;-- -0.78
+            x"6D05_EBDF" after 16 us,-- 2.6e+27
+            x"DF0F_A764" after 17 us;-- -1.03e+19
 				
 	reconstructed_float <= real(to_integer(signed(output)))/real(2**(N-1));
 
