@@ -68,6 +68,9 @@ signal int_absolute: std_logic_vector(N-1 downto 0);
 signal int_output: std_logic_vector(N-1 downto 0);
 signal overflow: std_logic;
 
+--signal specific to var_shift
+signal shift_overflow: std_logic;
+
 begin
 	sign <= fp_in(31);
 	exponent <= fp_in(30 downto 23);
@@ -81,26 +84,30 @@ begin
 	generic map (N => 24, O=> N, S => 8)
 	port map (input => extended_mantissa,
 				 shift => unbiased_exponent,
-				 overflow => overflow,
+				 overflow => shift_overflow,
 				 output => shifted_ext_mantissa);
 	
 	--output write
 	int_absolute <= shifted_ext_mantissa(N-1 downto 0);
-	process(int_absolute,sign,overflow)
+	process(int_absolute,sign,shift_overflow)
 	begin
-		if(overflow='0') then
+		if(shift_overflow='0') then
 			if(int_absolute>=min_int(N) and sign='0')then-- this means output would be >= +1.0, which is not allowed
 				int_output <= max_int(N);
-			elsif(int_absolute>=min_int(N) and sign='1')then-- this means output would be <= -1.0, which is not allowed
+				overflow <= '1';
+			elsif(int_absolute>min_int(N) and sign='1')then-- this means output would be < -1.0, which is not allowed
 				int_output <= min_int(N);
+				overflow <= '1';
 			else-- int_absolute with it's sign form a representable integer
+				overflow <= '0';
 				if (sign='1') then
 					int_output <= ((not int_absolute)+'1');
 				else-- sign='0'
 					int_output <= int_absolute;
 				end if;
 			end if;
-		else-- overflow='1'
+		else-- shift_overflow='1'
+			overflow <= '1';
 			if(sign='1')then--DAC will saturate at (-1)*Vref
 				int_output <= min_int(N);
 			else--DAC will saturate at (+1)*Vref
