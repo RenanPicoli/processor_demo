@@ -49,17 +49,12 @@ begin
 	output <= possible_outputs(to_integer(signed(shift)))(O-1 downto 0);
 	output_dropped_bits <= possible_outputs(to_integer(signed(shift)))((O+2**(S-1)-2) downto O);--for debugging ease
 
---	process(output_dropped_bits)
---	begin
---		overflow <= '0';
-		--all output_dropped_bits bits ORed together
-		tmp(O) <= output_dropped_bits(O);
-		ovf: for i in (O+2**(S-1)-2) downto O+1 generate
-			tmp(i) <= tmp(i-1) or output_dropped_bits(i);
-		end generate;
-		overflow <= tmp(O+2**(S-1)-2);
---	end process;
---	overflow <= '1' when output_dropped_bits /= (others=>'0') else '0';
+	--all output_dropped_bits bits ORed together
+	tmp(O) <= output_dropped_bits(O);
+	ovf: for i in (O+2**(S-1)-2) downto O+1 generate
+		tmp(i) <= tmp(i-1) or output_dropped_bits(i);
+	end generate;
+	overflow <= tmp(O+2**(S-1)-2);
 
 end behv;
 
