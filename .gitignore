@@ -17,6 +17,8 @@ atom_netlists/
 rise_original
 simulation/
 *.xlsx
+*.docx
+*.doc
 *.xml
 *.dwf3work
 *.json
