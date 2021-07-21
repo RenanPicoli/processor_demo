@@ -116,7 +116,10 @@ set_multicycle_path -setup -end -from [get_registers i2s|CR|Q[*]] -to [get_regis
 #set_multicycle_path -setup -end -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] 2
 #relaxing time to I2S generic perceive IACK assertion
 set_multicycle_path -setup -end -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] 2
-
+#set_multicycle_path -setup -end -from [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:\A_i:*:d_ff_A|Q[*]}] -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
+#set_multicycle_path -setup -end -from [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:\B_i:*:d_ff_B|Q[*]}] -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
+set_multicycle_path -setup -end -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
+set_multicycle_path -hold -end -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 1
 
 #**************************************************************
 # Set Maximum Delay
