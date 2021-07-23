@@ -184,7 +184,8 @@ begin
 			end loop;
 			
 			coeffs_a: for j in 1 to Q loop--coeficientes de y (a)
-				a(j) <= coeffs(j+P);
+--				a(j) <= coeffs(j+P);
+				a(j) <= (others=>'0');--FIR
 			end loop;
 		end if;
 	end if;
