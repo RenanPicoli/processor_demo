@@ -47,7 +47,10 @@ begin
             x"BFC0_0000" after 14 us,-- -1.5
             x"3F47_AE14" after 15 us,-- 0.78
             x"6D05_EBDF" after 16 us,-- 2.6e+27
-            x"DF0F_A764" after 17 us;-- -1.03e+19
+            x"DF0F_A764" after 17 us,-- -1.03e+19
+            x"FFFF_FFFF" after 18 us,-- NaN
+            x"7F80_0000" after 19 us,-- +Inf
+            x"FF80_0000" after 20 us;-- -Inf
 				
 	reconstructed_float <= real(to_integer(signed(output)))/real(2**(N-1));
 
