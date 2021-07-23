@@ -34,7 +34,7 @@ architecture behv of generic_coeffs_mem is
 
 	type memory is array (0 to 2**N-1) of std_logic_vector(31 downto 0);
 	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
-	signal possible_outputs: memory;
+	signal possible_outputs: memory:=(others=>(others=>'0'));--ensuring filter_coeffs initialize zeroed
 	
 begin					   
 	mem: for i in 0 to 2**N-1 generate
