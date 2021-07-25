@@ -431,7 +431,8 @@ signal fifo_output: array32 (0 to (2**(5))-1);--because cache has 32 addresses
 signal fifo_invalidate_output: std_logic;
 
 --signals for coefficients memory----------------------------
-constant P: natural := 3;
+constant P: natural := 2;
+--constant P: natural := 3;
 constant Q: natural := 2;
 --constant Q: natural := 0;--forces  FIR filter
 --constant Q: natural := 4;
@@ -515,6 +516,7 @@ signal i2s_SCK_IN_PLL_LOCKED: std_logic;--'1' if PLL that provides SCK_IN is loc
 
 -----------signals for synchronizer chain -------------------
 signal filter_irq_sync: std_logic_vector(0 downto 0);--filter_irq synchronized to ram_clk posedge
+signal filter_output_sync: std_logic_vector(31 downto 0);--filter output synchronized to ram_CLK negedge
 
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
@@ -665,9 +667,21 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 											);
 	filter_input <= data_in;
 --	data_out <= filter_output;
+
+	-- synchronizes filter output to rising_edge of CLK, because:
+	--1: filter output is generated at filter_CLK domain
+	--2: this signal is sampled in filter_out at rising_edge of ram_CLK
+	sync_chain_filter_output: sync_chain
+		generic map (N => 32,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in => filter_output,--data generated at another clock domain
+				CLK => CLK,--clock of new clock domain
+				data_out => filter_output_sync --data synchronized in CLK domain
+		);
 	
 	filter_out: d_flip_flop
-	 port map(	D => filter_output,
+	 port map(	D => filter_output_sync,
 					RST=> RST,--resets all previous history of filter output
 					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
 					Q=> filter_out_Q
@@ -760,7 +774,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				output => vmac_Q
 	);
 	
-	fp_in <= filter_output;
+	fp_in <= filter_output_sync;
 --fp_in <= data_in;
 	fp32_to_int: fp32_to_integer
 	generic map (N=> audio_resolution)
