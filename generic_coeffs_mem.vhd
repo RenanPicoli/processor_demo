@@ -38,7 +38,7 @@ architecture behv of generic_coeffs_mem is
 	
 begin					   
 	mem: for i in 0 to 2**N-1 generate
-		process(CLK,RST,WREN)
+		process(CLK,RST,WREN,ADDR)
 		begin
 			--processo de escrita (um coeficiente de cada vez)
 			if (RST='1') then

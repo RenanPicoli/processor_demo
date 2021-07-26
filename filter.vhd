@@ -172,7 +172,7 @@ begin
 ---------------------------------------------------------------------------------------------
 
 	-- updating coefficients
-   coeff_update: process(CLK)
+   coeff_update: process(CLK,RST)
    begin
 	if (RST='1') then--asynchronous reset
 		b<= (others=>(others=>'0'));
