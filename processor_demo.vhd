@@ -387,10 +387,10 @@ signal data_in: std_logic_vector(31 downto 0);--data to be filtered (encoded in 
 signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
 
 -------------------clocks---------------------------------
-signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
+--signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
 signal CLK: std_logic;--clock for processor and cache (50MHz)
 signal CLK_dbg: std_logic;--clock for debug, check timing analyzer or the pll_dbg wizard
-signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
+--signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK_fs: std_logic;-- 11.029kHz clock
 signal CLK16_928571MHz: std_logic;-- 16.928571MHz clock (1536fs, for I2S peripheral)
 signal CLK11_285714MHz: std_logic;-- 11.285714MHz clock (1024fs, for I2S peripheral)
@@ -941,23 +941,23 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		locked=> open
 	);
 
-	process(CLK,rst,filter_CLK,filter_rst)
-	begin
-		if(rst='1' or filter_rst='1' or filter_CLK='1')then
-			rising_CLK_occur <= '0';
-		elsif(rising_edge(CLK) and filter_CLK='0')then
-			rising_CLK_occur <='1';
-		end if;
-	end process;
-	
-	process(CLK,rst,filter_CLK,filter_rst,rising_CLK_occur)
-	begin
-		if(rst='1')then
-			CLK25MHz <= '0';
-		elsif(falling_edge(CLK) and filter_rst='0' and filter_CLK='0' and rising_CLK_occur='1')then--this ensures, count is updated after used for sram_ADDR
-			CLK25MHz <= not CLK25MHz;
-		end if;
-	end process;
+--	process(CLK,rst,filter_CLK,filter_rst)
+--	begin
+--		if(rst='1' or filter_rst='1' or filter_CLK='1')then
+--			rising_CLK_occur <= '0';
+--		elsif(rising_edge(CLK) and filter_CLK='0')then
+--			rising_CLK_occur <='1';
+--		end if;
+--	end process;
+--	
+--	process(CLK,rst,filter_CLK,filter_rst,rising_CLK_occur)
+--	begin
+--		if(rst='1')then
+--			CLK25MHz <= '0';
+--		elsif(falling_edge(CLK) and filter_rst='0' and filter_CLK='0' and rising_CLK_occur='1')then--this ensures, count is updated after used for sram_ADDR
+--			CLK25MHz <= not CLK25MHz;
+--		end if;
+--	end process;
 
 	--produces 12MHz (MCLK) from 50MHz input
 	clk_12MHz: pll_12MHz
