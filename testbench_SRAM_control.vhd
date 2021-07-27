@@ -123,8 +123,8 @@ begin
 			sram_ADDR <= (others=>'0');
 		elsif(filter_CLK='1')then
 			sram_reading_state <= "000";
-		elsif(rising_edge(CLK) and filter_rst='0' and sram_reading_state/="100" and filter_CLK='0')then
-			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);
+		elsif(rising_edge(CLK) and filter_rst='0' and sram_reading_state/="100")then
+			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);--data is launched
 			sram_reading_state <= sram_reading_state + 1;
 		end if;
 	end process;
@@ -147,7 +147,7 @@ begin
 			data_in <= (others=>'0');
 			desired <= (others=>'0');
 		--sram_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
-		elsif (falling_edge(CLK) and filter_rst='0' and filter_CLK='0') then
+		elsif (falling_edge(CLK) and filter_rst='0' and filter_CLK='0') then--data is latched
 			if(sram_ADDR(19)='0')then--reading input vectors
 				if(sram_ADDR(0)='0')then--reading lower half
 					data_in(15 downto 0) <= sram_IO;
@@ -197,10 +197,9 @@ begin
 		wren		=> ram_wren,--active HIGH
 		q			=> ram_Q
 	);
-	--this delay should permit our ram to update its response correctly (valid data when CLK_IN goes low)
-	ram_CLK <= transport CLK_IN after 1 ns;
-	--sram_IO <= transport ram_Q after 9 ns;--emulates delay in sram response (less than 10 ns)
-	sram_IO <= ram_Q;
+	ram_CLK <= transport CLK after 1 ns;-- this delay ensures that sram_ADDR is read after its update
+	sram_IO <= transport ram_Q after 8 ns;--emulates delay in sram response (less than 10 ns)
+--	sram_IO <= ram_Q;
 	
 	clock: process--50MHz input clock
 	begin
