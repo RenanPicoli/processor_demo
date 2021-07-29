@@ -588,19 +588,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 		if(rst='1')then
 			sram_reading_state <= "101";
---			sram_ADDR <= (others=>'0');
 		elsif(filter_CLK='1')then
 			sram_reading_state <= "101";
 		elsif(rising_edge(CLK) and filter_rst='0') then
 			if (sram_reading_state(2)/='1')then--"100" or "101"
---				sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);--data is launched
 				sram_reading_state <= sram_reading_state + 1;
 			elsif (sram_reading_state="101") then
-				--sram_ADDR will update next rising_edge of CLK
 				sram_reading_state <= "000";
 			end if;
 		end if;
 		
+		--sram_ADDR will update immediately when sram_reading_state changes
 		if (rst='1')then
 			sram_ADDR <= (others=>'0');
 		elsif (sram_reading_state(2)/='1')then--"100" or "101"
@@ -698,12 +696,12 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					Q=> filter_out_Q
 					);
 					
-	d_ff_desired: d_flip_flop
-	 port map(	D => desired,
-					RST=> RST,--resets all previous history of filter output
-					CLK=>filter_CLK,--must be the same as filter_CLK
-					Q=> d_ff_desired_Q
-					);
+--	d_ff_desired: d_flip_flop
+--	 port map(	D => desired,
+--					RST=> RST,--resets all previous history of filter output
+--					CLK=>filter_CLK,--must be the same as filter_CLK
+--					Q=> d_ff_desired_Q
+--					);
 					
 	filter_ctrl_status: d_flip_flop
 	 port map(	D => ram_write_data,--written by software
@@ -839,7 +837,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_ctrl_status_Q, 8 => d_ff_desired_Q, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_ctrl_status_Q, 8 => desired, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
