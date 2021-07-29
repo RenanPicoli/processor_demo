@@ -583,24 +583,35 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_WE_n <= '1';--reading always enabled
 	sram_UB_n <= '0';--upper byte always enabled
 	sram_LB_n <= '0';--lower byte always enabled
-	
+
 	sram_reading: process(CLK,filter_rst,sram_reading_state,filter_CLK,count,rst)
 	begin
 		if(rst='1')then
-			sram_reading_state <= "000";
-			sram_ADDR <= (others=>'0');
+			sram_reading_state <= "101";
+--			sram_ADDR <= (others=>'0');
 		elsif(filter_CLK='1')then
-			sram_reading_state <= "000";
-		elsif(rising_edge(CLK) and filter_rst='0' and sram_reading_state/="100" and filter_CLK='0')then
-			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);
-			sram_reading_state <= sram_reading_state + 1;
+			sram_reading_state <= "101";
+		elsif(rising_edge(CLK) and filter_rst='0') then
+			if (sram_reading_state(2)/='1')then--"100" or "101"
+--				sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);--data is launched
+				sram_reading_state <= sram_reading_state + 1;
+			elsif (sram_reading_state="101") then
+				--sram_ADDR will update next rising_edge of CLK
+				sram_reading_state <= "000";
+			end if;
+		end if;
+		
+		if (rst='1')then
+			sram_ADDR <= (others=>'0');
+		elsif (sram_reading_state(2)/='1')then--"100" or "101"
+			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);--data is launched
 		end if;
 	end process;
 	
 	--index of sample being fetched
 	--generates address for reading SRAM
 	--counts from 0 to 256K
-	counter: process(rst,filter_rst,sram_reading_state,filter_CLK)
+	counter: process(rst,filter_rst,filter_CLK)
 	begin
 		if(rst='1' or filter_rst='1')then
 			count <= (others=>'0');
@@ -609,13 +620,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		end if;
 	end process;
 	
-	process(CLK,rst,sram_ADDR,filter_rst,filter_CLK)
+	process(CLK,rst,sram_ADDR,filter_rst,sram_reading_state)
 	begin
 		if(rst='1')then
 			data_in <= (others=>'0');
 			desired <= (others=>'0');
 		--sram_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
-		elsif (falling_edge(CLK) and filter_rst='0' and filter_CLK='0') then
+		elsif (falling_edge(CLK) and filter_rst='0' and sram_reading_state(2)='0') then--data is latched
 			if(sram_ADDR(19)='0')then--reading input vectors
 				if(sram_ADDR(0)='0')then--reading lower half
 					data_in(15 downto 0) <= sram_IO;
