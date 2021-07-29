@@ -89,7 +89,8 @@ signal	ram_Q: std_logic_vector(15 downto 0);--needed for conversion between sram
 --001: will read* lower 16bits of desired vectors
 --010: will read* upper 16bits of input vectors
 --011: will read* upper 16bits of desired vectors
---100: will wait until filter_CLK falling edge (since sampling edge is the rising) to read again
+--100: stop: will wait until filter_CLK rising edge (since sampling edge is the rising)
+--101: reset: after stop, remain in this state while filter_CLK ='1' waiting for the filter_CLK falling_edge
 -- * : on next rising edge of CLK, sram_ADDR will be updated, at next CLK falling edge IO will be latched
 signal 	sram_reading_state: std_logic_vector(2 downto 0);
 signal 	count: std_logic_vector(17 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
@@ -119,20 +120,31 @@ begin
 	sram_reading: process(CLK,filter_rst,sram_reading_state,filter_CLK,count,rst)
 	begin
 		if(rst='1')then
-			sram_reading_state <= "000";
-			sram_ADDR <= (others=>'0');
+			sram_reading_state <= "101";
+--			sram_ADDR <= (others=>'0');
 		elsif(filter_CLK='1')then
-			sram_reading_state <= "000";
-		elsif(rising_edge(CLK) and filter_rst='0' and sram_reading_state/="100")then
+			sram_reading_state <= "101";
+		elsif(rising_edge(CLK) and filter_rst='0') then
+			if (sram_reading_state(2)/='1')then--"100" or "101"
+--				sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);--data is launched
+				sram_reading_state <= sram_reading_state + 1;
+			elsif (sram_reading_state="101") then
+				--sram_ADDR will update next rising_edge of CLK
+				sram_reading_state <= "000";
+			end if;
+		end if;
+		
+		if (rst='1')then
+			sram_ADDR <= (others=>'0');
+		elsif (sram_reading_state(2)/='1')then--"100" or "101"
 			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);--data is launched
-			sram_reading_state <= sram_reading_state + 1;
 		end if;
 	end process;
 	
 	--index of sample being fetched
 	--generates address for reading SRAM
 	--counts from 0 to 256K
-	counter: process(rst,filter_rst,sram_reading_state,filter_CLK)
+	counter: process(rst,filter_rst,filter_CLK)
 	begin
 		if(rst='1' or filter_rst='1')then
 			count <= (others=>'0');
@@ -141,13 +153,13 @@ begin
 		end if;
 	end process;
 	
-	process(CLK,rst,sram_ADDR,filter_rst,filter_CLK)
+	process(CLK,rst,sram_ADDR,filter_rst,sram_reading_state)
 	begin
 		if(rst='1')then
 			data_in <= (others=>'0');
 			desired <= (others=>'0');
 		--sram_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
-		elsif (falling_edge(CLK) and filter_rst='0' and filter_CLK='0') then--data is latched
+		elsif (falling_edge(CLK) and filter_rst='0' and sram_reading_state(2)='0') then--data is latched
 			if(sram_ADDR(19)='0')then--reading input vectors
 				if(sram_ADDR(0)='0')then--reading lower half
 					data_in(15 downto 0) <= sram_IO;
@@ -192,7 +204,7 @@ begin
 	(
 		--trick: in real SRAM, bit 19 divides upper and lower halfs, in tb_sram this is done by bit 15
 		address	=> sram_ADDR_shortened,
-		clock		=> ram_CLK,--because address is updated at rising_edge of CLK_IN in my system
+		clock		=> ram_CLK,--because address is updated at rising_edge of CLK in my system
 		data		=> (others=>'0'),--data for write, but I will only read
 		wren		=> ram_wren,--active HIGH
 		q			=> ram_Q
