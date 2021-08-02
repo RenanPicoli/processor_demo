@@ -374,6 +374,24 @@ component i2s_master_transmitter
 	);
 end component;
 
+component data_in_rom_ip
+	port
+	(
+		address		: in std_logic_vector (7 DOWNTO 0);
+		clock		: in std_logic  := '1';
+		q		: out std_logic_vector (31 DOWNTO 0)
+	);
+end component;
+
+component desired_rom_ip
+	port
+	(
+		address		: in std_logic_vector (7 DOWNTO 0);
+		clock		: in std_logic  := '1';
+		q		: out std_logic_vector (31 DOWNTO 0)
+	);
+end component;
+
 --000: will read* lower 16bits of input vectors
 --001: will read* lower 16bits of desired vectors
 --010: will read* upper 16bits of input vectors
@@ -382,6 +400,8 @@ end component;
 -- * : on next rising edge of CLK, sram_ADDR will be updated, at next CLK falling edge IO will be latched
 signal sram_reading_state: std_logic_vector(2 downto 0);
 signal count: std_logic_vector(17 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
+
+signal sample_number: std_logic_vector(7 downto 0);--used to generate address for data_in_rom_ip and desired_rom_ip
 
 ----------adaptive filter algorithm inputs----------------
 signal data_in: std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
@@ -540,6 +560,7 @@ signal all_periphs_rden: std_logic_vector(11 downto 0);
 signal all_periphs_wren: std_logic_vector(11 downto 0);
 
 signal filter_CLK: std_logic;
+signal filter_CLK_n: std_logic;--filter_CLK inverted
 signal proc_filter_wren: std_logic;
 signal filter_wren: std_logic;
 signal filter_rst: std_logic := '1';
@@ -579,70 +600,98 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 										wren	=> cache_wren,
 										Q		=> cache_Q);
 	
------------------SRAM interfacing---------------------
-	sram_CE_n <= '0';--chip always enabled
-	sram_OE_n <= '0';--output always enabled
-	sram_WE_n <= '1';--reading always enabled
-	sram_UB_n <= '0';--upper byte always enabled
-	sram_LB_n <= '0';--lower byte always enabled
-
-	sram_reading: process(CLK,filter_rst,sram_reading_state,filter_CLK,count,rst)
-	begin
-		if(rst='1')then
-			sram_reading_state <= "101";
-		elsif(filter_CLK='1')then
-			sram_reading_state <= "101";
-		elsif(rising_edge(CLK) and filter_rst='0') then
-			if (sram_reading_state(2)/='1')then--"100" or "101"
-				sram_reading_state <= sram_reading_state + 1;
-			elsif (sram_reading_state="101") then
-				sram_reading_state <= "000";
-			end if;
-		end if;
-		
-		--sram_ADDR will update immediately when sram_reading_state changes
-		if (rst='1')then
-			sram_ADDR <= (others=>'0');
-		elsif (sram_reading_state(2)/='1')then--"100" or "101"
-			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);--data is launched
-		end if;
-	end process;
-	
+-------------------SRAM interfacing---------------------
+--	sram_CE_n <= '0';--chip always enabled
+--	sram_OE_n <= '0';--output always enabled
+--	sram_WE_n <= '1';--reading always enabled
+--	sram_UB_n <= '0';--upper byte always enabled
+--	sram_LB_n <= '0';--lower byte always enabled
+--
+--	sram_reading: process(CLK,filter_rst,sram_reading_state,filter_CLK,count,rst)
+--	begin
+--		if(rst='1')then
+--			sram_reading_state <= "101";
+--		elsif(filter_CLK='1')then
+--			sram_reading_state <= "101";
+--		elsif(rising_edge(CLK) and filter_rst='0') then
+--			if (sram_reading_state(2)/='1')then--"100" or "101"
+--				sram_reading_state <= sram_reading_state + 1;
+--			elsif (sram_reading_state="101") then
+--				sram_reading_state <= "000";
+--			end if;
+--		end if;
+--		
+--		--sram_ADDR will update immediately when sram_reading_state changes
+--		if (rst='1')then
+--			sram_ADDR <= (others=>'0');
+--		elsif (sram_reading_state(2)/='1')then--"100" or "101"
+--			sram_ADDR <= sram_reading_state(0) & count & sram_reading_state(1);--data is launched
+--		end if;
+--	end process;
+--	
+--	--index of sample being fetched
+--	--generates address for reading SRAM
+--	--counts from 0 to 256K
+--	counter: process(rst,filter_rst,filter_CLK)
+--	begin
+--		if(rst='1' or filter_rst='1')then
+--			count <= (others=>'0');
+--		elsif(rising_edge(filter_CLK) and filter_rst='0')then--this ensures, count is updated after used for sram_ADDR
+--			count <= count + 1;
+--		end if;
+--	end process;
+--	
+--	process(CLK,rst,sram_ADDR,filter_rst,sram_reading_state)
+--	begin
+--		if(rst='1')then
+--			data_in <= (others=>'0');
+--			desired <= (others=>'0');
+--		--sram_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
+--		elsif (falling_edge(CLK) and filter_rst='0' and sram_reading_state(2)='0') then--data is latched
+--			if(sram_ADDR(19)='0')then--reading input vectors
+--				if(sram_ADDR(0)='0')then--reading lower half
+--					data_in(15 downto 0) <= sram_IO;
+--				else--reading upper half
+--					data_in(31 downto 16) <= sram_IO;
+--				end if;
+--			else--reading desired vectors
+--				if(sram_ADDR(0)='0')then--reading lower half
+--					desired(15 downto 0) <= sram_IO;
+--				else--reading upper half
+--					desired(31 downto 16) <= sram_IO;
+--				end if;
+--			end if;
+--		end if;
+--	end process;
+----------------------------------------------------------
+	filter_CLK_n <= not filter_CLK;
 	--index of sample being fetched
-	--generates address for reading SRAM
-	--counts from 0 to 256K
+	--generates address for reading ROM IP's
+	--counts from 0 to 255 and then restarts
 	counter: process(rst,filter_rst,filter_CLK)
 	begin
 		if(rst='1' or filter_rst='1')then
-			count <= (others=>'0');
+			sample_number <= (others=>'0');
 		elsif(rising_edge(filter_CLK) and filter_rst='0')then--this ensures, count is updated after used for sram_ADDR
-			count <= count + 1;
+			sample_number <= sample_number + 1;
 		end if;
 	end process;
 	
-	process(CLK,rst,sram_ADDR,filter_rst,sram_reading_state)
-	begin
-		if(rst='1')then
-			data_in <= (others=>'0');
-			desired <= (others=>'0');
-		--sram_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
-		elsif (falling_edge(CLK) and filter_rst='0' and sram_reading_state(2)='0') then--data is latched
-			if(sram_ADDR(19)='0')then--reading input vectors
-				if(sram_ADDR(0)='0')then--reading lower half
-					data_in(15 downto 0) <= sram_IO;
-				else--reading upper half
-					data_in(31 downto 16) <= sram_IO;
-				end if;
-			else--reading desired vectors
-				if(sram_ADDR(0)='0')then--reading lower half
-					desired(15 downto 0) <= sram_IO;
-				else--reading upper half
-					desired(31 downto 16) <= sram_IO;
-				end if;
-			end if;
-		end if;
-	end process;
---------------------------------------------------------
+	data_in_rom: data_in_rom_ip
+		port map
+		(
+			address	=> sample_number,
+			clock		=> filter_CLK_n,
+			q			=> data_in
+		);
+
+	desired_rom: desired_rom_ip
+		port map
+		(
+			address	=> sample_number,
+			clock		=> filter_CLK_n,
+			q			=> desired
+		);
 	
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
 									port map(D => ram_write_data,
