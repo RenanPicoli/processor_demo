@@ -208,6 +208,7 @@ component pll_audio
 		inclk0		: in std_logic  := '0';
 		c0				: out std_logic;
 		c1				: out std_logic;
+		c2				: out std_logic;
 		locked		: out std_logic
 	);
 end component;
@@ -392,6 +393,7 @@ signal CLK: std_logic;--clock for processor and cache (50MHz)
 signal CLK_dbg: std_logic;--clock for debug, check timing analyzer or the pll_dbg wizard
 --signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK_fs: std_logic;-- 11.029kHz clock
+signal CLK_fs_dbg: std_logic;-- 110.29kHz clock (10fs)
 signal CLK16_928571MHz: std_logic;-- 16.928571MHz clock (1536fs, for I2S peripheral)
 signal CLK11_285714MHz: std_logic;-- 11.285714MHz clock (1024fs, for I2S peripheral)
 signal CLK5_647059MHz: std_logic;-- 5.647059MHz clock (for I2S peripheral)
@@ -983,6 +985,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	areset => rst,
 	c0 => CLK_fs,
 	c1 => CLK16_928571MHz,
+	c2 => CLK_fs_dbg,--10x fs
 	locked => i2s_SCK_IN_PLL_LOCKED
 	);
 end setup;
