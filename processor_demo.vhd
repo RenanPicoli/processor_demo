@@ -402,6 +402,7 @@ signal sram_reading_state: std_logic_vector(2 downto 0);
 signal count: std_logic_vector(17 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
 
 signal sample_number: std_logic_vector(7 downto 0);--used to generate address for data_in_rom_ip and desired_rom_ip
+signal desired_sync: std_logic_vector(31 downto 0);--desired response  SYNCCHRONIZED TO ram_CLK
 
 ----------adaptive filter algorithm inputs----------------
 signal data_in: std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
@@ -692,6 +693,18 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			clock		=> filter_CLK_n,
 			q			=> desired
 		);
+
+	-- synchronizes desired to rising_edge of ram_CLK, because:
+	--1: desired is generated at filter_CLK domain
+	--2: this signal is sampled by processor at rising_edge of CLK
+	sync_chain_desired: sync_chain
+		generic map (N => 32,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in => desired,--data generated at another clock domain
+				CLK => ram_CLK,--clock of new clock domain
+				data_out => desired_sync --data synchronized in CLK domain
+		);
 	
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
 									port map(D => ram_write_data,
@@ -888,7 +901,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_ctrl_status_Q, 8 => desired, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
