@@ -392,6 +392,15 @@ component desired_rom_ip
 	);
 end component;
 
+component output_rom_ip
+	port
+	(
+		address		: in std_logic_vector (7 DOWNTO 0);
+		clock		: in std_logic  := '1';
+		q		: out std_logic_vector (31 DOWNTO 0)
+	);
+end component;
+
 --000: will read* lower 16bits of input vectors
 --001: will read* lower 16bits of desired vectors
 --010: will read* upper 16bits of input vectors
@@ -407,6 +416,8 @@ signal desired_sync: std_logic_vector(31 downto 0);--desired response  SYNCCHRON
 ----------adaptive filter algorithm inputs----------------
 signal data_in: std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
 signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
+signal expected_output: std_logic_vector(31 downto 0);--expected filter output (encoded in IEEE 754 single precision, generated at modelsim)
+signal error_flag: std_logic;-- '1' if expected_output is different from actual filter output
 
 -------------------clocks---------------------------------
 --signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
@@ -693,6 +704,23 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			clock		=> filter_CLK_n,
 			q			=> desired
 		);
+
+	output_rom: output_rom_ip
+		port map
+		(
+			address	=> sample_number,
+			clock		=> filter_CLK_n,
+			q			=> expected_output
+		);
+		
+		test: process(expected_output,filter_output,filter_rst,filter_CLK)
+		begin
+			if(filter_rst='1')then
+				error_flag <= '0';
+			elsif(rising_edge(filter_CLK)) then
+				error_flag <= '1' when (expected_output /= filter_output) else '0';
+			end if;
+		end process;
 
 	-- synchronizes desired to rising_edge of ram_CLK, because:
 	--1: desired is generated at filter_CLK domain
