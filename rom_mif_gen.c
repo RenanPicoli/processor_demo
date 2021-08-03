@@ -114,6 +114,52 @@ int main(void){
 	//close output file
 	fclose(of);
 	printf("Arquivo \"desired_rom_ip.mif\" gerado com sucesso!\n");
+
+	of=fopen("./simulation/modelsim/output_rom_ip.mif","w");//"w" mode: opens a text file for write
+	if(of==NULL){
+		printf("Erro ao criar o arquivo de saída!\n");
+		return 1;
+	}
+	
+	//prints the header
+	fprintf_retval=fprintf(of,"%s",header);//writes the header to output file
+	if(fprintf_retval<0){
+		printf("Erro de fprintf!\n");
+		return 8;
+	}
+	printf("Parsing output_vectors.txt\n");
+	//generates upper half with desired
+	fp=fopen("./simulation/modelsim/output_vectors.txt","r");//desired_vectors will only be read
+	if(fp==NULL){
+		printf("Erro ao ler o arquivo output_vectors.txt\n");
+		return 3;
+	}
+	for (int i=0;i<=N_SAMPLES-1;i++){
+		//printf("i:%d tmp_str:%s ",i,tmp_str);
+		sprintf(tmp_str,"%.6d:",i);
+		fscanf_retval=fscanf(fp,"%s",tmp_str+7);//reads a single line of fp, with no spaces, terminated with '\n', expects 8 hexadecimal digits (32bit data)
+		if(fscanf_retval!=1){
+			printf("Erro ao usar fscanf na linha i=%d",i);
+			return 7;
+		}
+		fgetc(fp);//reads and discards the newline
+		tmp_str[15]=';';
+		tmp_str[16]='\n';
+		fprintf_retval=fprintf(of,"%s",tmp_str);//writes the line to output file
+		if(fprintf_retval!=17){
+			printf("Erro de fprintf!\n");
+			return 8;
+		}
+	}
+	fclose(fp);//closes output_vectors.txt
+	fprintf_retval=fprintf(of,"%s",ending);//writes the ending to output file
+	if(fprintf_retval<0){
+		printf("Erro de fprintf!\n");
+		return 8;
+	}
+	//close output file
+	fclose(of);
+	printf("Arquivo \"output_rom_ip.mif\" gerado com sucesso!\n");
 	
 	return 0;
 }
