@@ -718,7 +718,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			if(filter_rst='1')then
 				error_flag <= '0';
 			elsif(rising_edge(filter_CLK)) then
-				error_flag <= '1' when (expected_output /= filter_output) else '0';
+				if (expected_output /= filter_output) then
+					error_flag <= '1';
+				else
+					error_flag <= '0';
+				end if;
 			end if;
 		end process;
 
