@@ -16,6 +16,7 @@ entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
 		rst: in std_logic;
 --		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
+		error: out std_logic;--filter output mismatches value obtained in modelsim
 		--I2C
 		I2C_SDAT: inout std_logic;--I2C SDA
 		I2C_SCLK: inout std_logic;--I2C SCL
@@ -725,6 +726,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				end if;
 			end if;
 		end process;
+		error <= error_flag;
 
 	-- synchronizes desired to rising_edge of ram_CLK, because:
 	--1: desired is generated at filter_CLK domain
