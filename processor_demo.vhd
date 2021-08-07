@@ -418,6 +418,7 @@ signal desired_sync: std_logic_vector(31 downto 0);--desired response  SYNCCHRON
 signal data_in: std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
 signal desired: std_logic_vector(31 downto 0);--desired response (encoded in IEEE 754 single precision)
 signal expected_output: std_logic_vector(31 downto 0);--expected filter output (encoded in IEEE 754 single precision, generated at modelsim)
+signal expected_output_delayed: std_logic_vector(31 downto 0);--expected filter output delayed one filter_CLK clock cycle
 signal error_flag: std_logic;-- '1' if expected_output is different from actual filter output
 
 -------------------clocks---------------------------------
@@ -714,12 +715,21 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			q			=> expected_output
 		);
 		
-		test: process(expected_output,filter_output,filter_rst,filter_CLK)
+		process(rst,filter_CLK_n,expected_output)
+		begin
+			if(rst='1')then
+				expected_output_delayed <= (others=>'0');
+			elsif(rising_edge(filter_CLK_n))then
+				expected_output_delayed <= expected_output;
+			end if;
+		end process; 
+		
+		test: process(expected_output_delayed,filter_output,filter_rst,filter_CLK)
 		begin
 			if(filter_rst='1')then
 				error_flag <= '0';
 			elsif(rising_edge(filter_CLK)) then
-				if (expected_output /= filter_output) then
+				if (expected_output_delayed /= filter_output) then
 					error_flag <= '1';
 				else
 					error_flag <= '0';
