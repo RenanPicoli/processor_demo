@@ -856,7 +856,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			ADDR => ram_addr(2 downto 0),-- input
 			CLK_x => filter_CLK,
 			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
-			RST => RST,-- input
+			RST => filter_rst,
 			WREN => filter_xN_wren,--not used (peripheral supports only read)
 			RDEN => filter_xN_rden,-- input
 			output => filter_xN_Q-- output
