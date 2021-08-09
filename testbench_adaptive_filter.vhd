@@ -115,33 +115,6 @@ port(	D: in std_logic_vector(31 downto 0);-- input
 
 end component;
 
-component data_in_rom_ip
-	port
-	(
-		address		: in std_logic_vector (7 DOWNTO 0);
-		clock		: in std_logic  := '1';
-		q		: out std_logic_vector (31 DOWNTO 0)
-	);
-end component;
-
-component desired_rom_ip
-	port
-	(
-		address		: in std_logic_vector (7 DOWNTO 0);
-		clock		: in std_logic  := '1';
-		q		: out std_logic_vector (31 DOWNTO 0)
-	);
-end component;
-
-component output_rom_ip
-	port
-	(
-		address		: in std_logic_vector (7 DOWNTO 0);
-		clock		: in std_logic  := '1';
-		q		: out std_logic_vector (31 DOWNTO 0)
-	);
-end component;
-
 --reset duration must be long enough to be perceived by the slowest clock (filter clock, both polarities)
 constant TIME_RST : time := 50 us;
 -- internal clock period.
@@ -214,7 +187,69 @@ signal vmac_rden: std_logic;
 signal vmac_wren: std_logic;--enables write on individual registers
 signal vmac_en:	std_logic;--enables accumulation
 
-begin
+constant c_WIDTH : natural := 4;
+file 		input_file: text;-- open read_mode;--estrutura representando arquivo de entrada de dados
+file 		desired_file: text;-- open read_mode;--estrutura representando arquivo de entrada de dados
+file 		output_file: text;-- open write_mode;--estrutura representando arquivo de saída de dados
+
+begin	-----------------------------------------------------------
+	--	this process reads a file vector, loads its vectors,
+	--	passes them to the DUT and checks the result.
+	-----------------------------------------------------------
+	reading_process: process--parses input text file
+		variable v_space: character;--stores the white space used to separate 2 arguments
+		variable v_A: std_logic_vector(31 downto 0);--input of filter
+		variable v_B: std_logic_vector(31 downto 0);--desired response
+		variable v_C: std_logic_vector(31 downto 0);--desired response
+		variable v_iline_A: line;
+		variable v_iline_B: line;
+		variable v_iline_C: line;
+		
+		variable count: integer := 0;-- para sincronização da apresentação de amostras
+		
+	begin
+		file_open(input_file,"data_in_rom_ip.mif",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
+		file_open(desired_file,"desired_rom_ip.mif",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
+		file_open(output_file,"output_rom_ip.mif",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
+		
+		wait for TIME_RST;--wait until reset finishes
+--		wait until filter_CLK ='1';-- waits until the first rising edge after reset
+--		wait for (TIME_DELTA/2);-- additional delay (rising edge of sampling will be in the middle of sample)
+		wait until filter_CLK ='0';-- waits for first falling EDGE after reset
+		
+		while not endfile(input_file) loop
+			readline(input_file,v_iline_A);--lê uma linha do arquivo de entradas
+			hread(v_iline_A,v_A);
+--			read(v_iline,v_space);
+--			hread(v_iline,v_B);
+			
+			data_in <= v_A;-- assigns input to filter
+			
+			readline(desired_file,v_iline_B);--lê uma linha do arquivo de resposta desejada
+			hread(v_iline_B,v_B);
+			desired <= v_B;-- assigns desired response to the algorithm
+			
+			-- IMPORTANTE: CONVERSÃO DE TEMPO PARA REAL
+			-- se TIME_DELTA em ms, use 1000 e 1 ms
+			-- se TIME_DELTA em us, use 1000000 e 1 us
+			-- se TIME_DELTA em ns, use 1000000000 e 1 ns
+			-- se TIME_DELTA em ps, use 1000000000000 e 1 ps
+			if (count = COUNT_MAX) then
+				wait until filter_CLK ='1';-- waits until the first rising edge occurs
+				wait for (TIME_DELTA/2);-- reestabelece o devido delay entre amostras e clock de amostragem
+			else
+				if (count = COUNT_MAX + 1) then
+					count := 0;--variable assignment takes place immediately
+				end if;
+				wait for TIME_DELTA;-- usual delay between 2 samples
+			end if;
+			count := count + 1;--variable assignment takes place immediately
+		end loop;
+		
+		file_close(input_file);
+
+		wait; --?
+	end process;
 
 ----------------------------------------------------------
 	filter_CLK_n <= not filter_CLK;
@@ -229,30 +264,6 @@ begin
 			sample_number <= sample_number + 1;
 		end if;
 	end process;
-	
-	data_in_rom: data_in_rom_ip
-		port map
-		(
-			address	=> sample_number,
-			clock		=> filter_CLK_n,
-			q			=> data_in
-		);
-
-	desired_rom: desired_rom_ip
-		port map
-		(
-			address	=> sample_number,
-			clock		=> filter_CLK_n,
-			q			=> desired
-		);
-
-	output_rom: output_rom_ip
-		port map
-		(
-			address	=> sample_number,
-			clock		=> filter_CLK_n,
-			q			=> expected_output
-		);
 		
 		process(rst,filter_CLK_n,expected_output)
 		begin
