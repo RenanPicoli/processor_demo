@@ -62,6 +62,20 @@ component d_flip_flop
 	end component;
 
 ---------------------------------------------------
+
+component pll_dbg_uproc
+	PORT
+	(
+		areset		: IN STD_LOGIC  := '0';
+		inclk0		: IN STD_LOGIC  := '0';
+		c0		: OUT STD_LOGIC ;
+		c1 	: OUT STD_LOGIC ;
+		locked		: OUT STD_LOGIC 
+	);
+END component;
+
+---------------------------------------------------
+
 --produces 12MHz from 50MHz
 component pll_12MHz
 	port
@@ -209,6 +223,7 @@ signal	rst: std_logic;
 -------------------clocks---------------------------------
 --signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
 signal CLK: std_logic;--clock for processor and cache (50MHz)
+signal CLK_dbg: std_logic;--clock for debug, check timing analyzer or the pll_dbg wizard
 signal CLK_fs: std_logic;-- 11.029kHz clock
 signal CLK_fs_dbg: std_logic;-- 110.29kHz clock
 signal CLK16_928571MHz: std_logic;-- 16.928571MHz clock (1536fs, for I2S peripheral)
@@ -217,7 +232,6 @@ signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 signal i2s_SCK_IN_PLL_LOCKED: std_logic;--'1' if PLL that provides SCK_IN is locked
 
 signal sample_number: std_logic_vector(7 downto 0);--used to generate address for data_in_rom_ip and desired_rom_ip
-signal desired_sync: std_logic_vector(31 downto 0);--desired response  SYNCCHRONIZED TO ram_CLK
 
 ----------adaptive filter algorithm inputs----------------
 signal data_in: std_logic_vector(31 downto 0);--data to be filtered (encoded in IEEE 754 single precision)
@@ -271,11 +285,6 @@ signal vmac_Q: std_logic_vector(31 downto 0);
 signal vmac_rden: std_logic;
 signal vmac_wren: std_logic;--enables write on individual registers
 signal vmac_en:	std_logic;--enables accumulation
-
-constant c_WIDTH : natural := 4;
---file 		input_file: text;-- open read_mode;--estrutura representando arquivo de entrada de dados
---file 		desired_file: text;-- open read_mode;--estrutura representando arquivo de entrada de dados
---file 		output_file: text;-- open write_mode;--estrutura representando arquivo de saída de dados
 
 begin	-----------------------------------------------------------
 	-- reads the vector files, loads their data,
@@ -348,7 +357,8 @@ begin	-----------------------------------------------------------
 											output => filter_output											
 											);
 	filter_input <= data_in;
-												
+	
+	ram_clk <= not CLK;
 	inner_product: inner_product_calculation_unit
 	generic map (N => 5)
 	port map(D => ram_write_data,--supposed to be normalized
@@ -387,6 +397,16 @@ begin	-----------------------------------------------------------
 	end process clock;
 	
 	rst <= '1', '0' after TIME_RST;--reset must be long enough to be perceived by the slowest clock (fifo)
+	
+	clk_dbg_uproc:	pll_dbg_uproc
+	port map
+	(
+		areset=> '0',
+		inclk0=> CLK_IN,
+		c0		=> CLK_dbg,
+		c1		=> CLK,--produces CLK=4MHz for processor
+		locked=> open
+	);
 
 	--produces 12MHz (MCLK) from 50MHz input
 	clk_12MHz: pll_12MHz
