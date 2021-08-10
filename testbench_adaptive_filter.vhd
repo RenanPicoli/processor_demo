@@ -171,6 +171,8 @@ begin
 
 	while (S(1 to 13) /= "CONTENT BEGIN" and not endfile(input_file)) loop
 		readline(input_file,L);--lê uma linha do arquivo de entradas
+		line_size := L'length;
+		report "line size = " & natural'image(line_size);
 		next when L'length = 0; -- skips empty line
 		next when L(1) = '#'; 
 		next when L(1) = '[';
