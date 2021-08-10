@@ -217,6 +217,9 @@ constant TIME_RST : time := 50 us;
 -- internal clock period.
 constant TIME_DELTA : time := 20 ns;
 
+--simulates software writing '1' to bit 0 of filter_ctrl_status register
+constant TIME_SW_FILTER_ENABLE : time := 160135 ns;
+
 signal  	CLK_IN:std_logic;--50MHz
 signal	rst: std_logic;
 
@@ -253,6 +256,7 @@ signal filter_output: std_logic_vector(31 downto 0);
 signal filter_irq: std_logic;
 signal filter_iack: std_logic;
 
+signal filter_enable: std_logic;--bit 0, enables filter_CLK
 signal filter_CLK_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 
 --signals for coefficients memory----------------------------
@@ -333,6 +337,24 @@ begin	-----------------------------------------------------------
 				end if;
 			end if;
 		end process;
+		
+		--simulates software writing '1' to bit 0 of filter_ctrl_status register
+		filter_enable <= '0', '1' after TIME_SW_FILTER_ENABLE;-- bit 0 filter_ctrl_status_Q enables filter_CLK
+						
+		filter_reset_process: process (filter_CLK,RST,filter_CLK_state,filter_enable,i2s_SCK_IN_PLL_LOCKED)
+		begin
+			if(RST='1')then
+				filter_rst <='1';
+				filter_CLK_state <= '0';
+			else
+				if (rising_edge(filter_CLK) and i2s_SCK_IN_PLL_LOCKED='1') then--pll_audio must be locked
+					filter_CLK_state <= '1';
+				end if;
+				if (falling_edge(filter_CLK) and filter_CLK_state = '1' and filter_enable='1' and i2s_SCK_IN_PLL_LOCKED='1') then
+						filter_rst <= '0';
+				end if;
+			end if;
+		end process filter_reset_process;
 	
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
 									port map(D => ram_write_data,
