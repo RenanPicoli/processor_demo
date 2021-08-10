@@ -126,6 +126,7 @@ impure function read_mif(constant file_name: in string) return array_of_std_logi
 	variable word_size: natural;--word size in bits
 	variable word_count: natural;--number of words stored
 	variable index: natural;-- index of word being stored
+	variable line_size: natural;-- size of line being parsed
 	variable S: string(1 to 20);
 	variable open_status :FILE_OPEN_STATUS;
 begin
@@ -135,52 +136,58 @@ begin
 	
 	--parses header
 	readline(input_file,L);--lê uma linha do arquivo de entradas
-	report "Tamanho da 1a linha lida = " & natural'image(L'length);
-	
+	line_size := L'length;
+	report "Tamanho da 1a linha lida = " & natural'image(line_size);	
 	S := (others => ' ');--clears the string
-	read(L, S(1 to L'length));
+	read(L, S(1 to line_size));
 	report "S = " & S;
 	
 	if(S(1 to 6) = "WIDTH=")then
-		report "S(L'length) = " & S(L'length);
-		if(S(L'length)=';')then
-			word_size := natural'value(S(7 to L'length-1));
+		report "S(L'length) = " & S(line_size);
+		if(S(line_size)=';')then
+			word_size := natural'value(S(7 to line_size-1));
 		end if;
 	end if;	
 	report "word_size = " & natural'image(word_size);
 	
 	readline(input_file,L);--lê uma linha do arquivo de entradas
+	line_size := L'length;
 	S := (others => ' ');--clears the string
-	read(L, S(1 to L'length));
+	read(L, S(1 to line_size));
+	report "S = " & S;
 	if(S(1 to 6) = "DEPTH=")then
-		if(S(L'length)=';')then
-			word_count := natural'value(S(7 to L'length-1));
+		if(S(line_size)=';')then
+			word_count := natural'value(S(7 to line_size-1));
 		end if;
 	end if;
 	report "word_count = " & natural'image(word_count);
 	
 	--look for "CONTENT BEGIN"
 	readline(input_file,L);--lê uma linha do arquivo de entradas
+	line_size := L'length;
 	S := (others => ' ');--clears the string
-	read(L, S(1 to L'length));
-	while (S(1 to 13) /= "CONTENT BEGIN") loop
+	read(L, S(1 to line_size));
+	report "S = " & S;
+
+	while (S(1 to 13) /= "CONTENT BEGIN" and not endfile(input_file)) loop
 		readline(input_file,L);--lê uma linha do arquivo de entradas
+		next when L'length = 0; -- skips empty line
+		next when L(1) = '#'; 
+		next when L(1) = '[';
 		S := (others => ' ');--clears the string
-		read(L, S(1 to L'length));
+		read(L, S(1 to line_size));
+		report "S = " & S;
 	end loop;
 	
 	while not endfile(input_file) loop
 		readline(input_file,L);--lê uma linha do arquivo de entradas
+		line_size := L'length;
 		S := (others => ' ');--clears the string
-		read(L, S(1 to L'length));-- S receives entire line
+		read(L, S(1 to line_size));-- S receives entire line
 		if(S(1 to 4) /= "END;")then
-			write(v_data_line,string'(S(8 to L'length-1)));
+			write(v_data_line,string'(S(8 to line_size-1)));
 			index := natural'value(S(1 to 6));
 			hread(v_data_line,v_A);
-
-	--		hread(v_iline_A,v_A);
-	--		read(v_iline,v_space);
-	--		hread(v_iline,v_B);
 			
 			result(index) := v_A;-- assigns input to a memory position
 		end if;
@@ -269,71 +276,12 @@ constant c_WIDTH : natural := 4;
 --file 		output_file: text;-- open write_mode;--estrutura representando arquivo de saída de dados
 
 begin	-----------------------------------------------------------
-	--	this process reads a file vector, loads its vectors,
-	--	passes them to the DUT and checks the result.
+	-- reads the vector files, loads their data,
+	--	and passes them to the DUT.
 	-----------------------------------------------------------
-	reading_process: process--parses input text file
-		variable v_space: character;--stores the white space used to separate 2 arguments
-		variable v_A: std_logic_vector(31 downto 0);--input of filter
-		variable v_B: std_logic_vector(31 downto 0);--desired response
-		variable v_C: std_logic_vector(31 downto 0);--desired response
-		variable v_iline_A: line;
-		variable v_iline_B: line;
-		variable v_iline_C: line;
-		
-		variable count: integer := 0;-- para sincronização da apresentação de amostras
-		
-	begin
---		file_open(input_file,"data_in_rom_ip.mif",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
---		file_open(desired_file,"desired_rom_ip.mif",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
---		file_open(output_file,"output_rom_ip.mif",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
-		
-		wait for TIME_RST;--wait until reset finishes
---		wait until filter_CLK ='1';-- waits until the first rising edge after reset
---		wait for (TIME_DELTA/2);-- additional delay (rising edge of sampling will be in the middle of sample)
-		wait until filter_CLK ='0';-- waits for first falling EDGE after reset
-		
---		data_in_array <= read_mif(input_file);
---		desired_array <= read_mif(desired_array);
---		expected_output_array <= read_mif(output_file);
-		
-		data_in_array <= read_mif("data_in_rom_ip.mif");--PRECISA FICAR NA PASTA simulation/modelsim
-		desired_array <= read_mif("desired_rom_ip.mif");--PRECISA FICAR NA PASTA simulation/modelsim
-		expected_output_array <= read_mif("output_rom_ip.mif");--PRECISA FICAR NA PASTA simulation/modelsim
-		
---		while not endfile(input_file) loop
---			readline(input_file,v_iline_A);--lê uma linha do arquivo de entradas
---			hread(v_iline_A,v_A);
-----			read(v_iline,v_space);
-----			hread(v_iline,v_B);
---			
---			data_in <= v_A;-- assigns input to filter
---			
---			readline(desired_file,v_iline_B);--lê uma linha do arquivo de resposta desejada
---			hread(v_iline_B,v_B);
---			desired <= v_B;-- assigns desired response to the algorithm
---			
---			-- IMPORTANTE: CONVERSÃO DE TEMPO PARA REAL
---			-- se TIME_DELTA em ms, use 1000 e 1 ms
---			-- se TIME_DELTA em us, use 1000000 e 1 us
---			-- se TIME_DELTA em ns, use 1000000000 e 1 ns
---			-- se TIME_DELTA em ps, use 1000000000000 e 1 ps
---			if (count = COUNT_MAX) then
---				wait until filter_CLK ='1';-- waits until the first rising edge occurs
---				wait for (TIME_DELTA/2);-- reestabelece o devido delay entre amostras e clock de amostragem
---			else
---				if (count = COUNT_MAX + 1) then
---					count := 0;--variable assignment takes place immediately
---				end if;
---				wait for TIME_DELTA;-- usual delay between 2 samples
---			end if;
---			count := count + 1;--variable assignment takes place immediately
---		end loop;
-		
---		file_close(input_file);
-
-		wait; --?
-	end process;
+	data_in_array <= read_mif("data_in_rom_ip.mif");--PRECISA FICAR NA PASTA simulation/modelsim
+	desired_array <= read_mif("desired_rom_ip.mif");--PRECISA FICAR NA PASTA simulation/modelsim
+	expected_output_array <= read_mif("output_rom_ip.mif");--PRECISA FICAR NA PASTA simulation/modelsim
 	
 	data_in <= data_in_array(to_integer(unsigned(sample_number)));
 	desired <= desired_array(to_integer(unsigned(sample_number)));
