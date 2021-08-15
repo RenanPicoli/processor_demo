@@ -220,6 +220,9 @@ constant TIME_DELTA : time := 20 ns;
 --simulates software writing '1' to bit 0 of filter_ctrl_status register
 constant TIME_SW_FILTER_ENABLE : time := 160135 ns;
 
+--simulates software writing '1' to bit 0 of proc_filter_wren register
+constant TIME_SW_FILTER_WREN : time := 200 us;
+
 signal  	CLK_IN:std_logic;--50MHz
 signal	rst: std_logic;
 
@@ -356,17 +359,33 @@ begin	-----------------------------------------------------------
 			end if;
 		end process filter_reset_process;
 	
-	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
-									port map(D => ram_write_data,
-												ADDR	=> ram_addr(2 downto 0),
-												RST => rst,
-												RDEN	=> coeffs_mem_rden,
-												WREN	=> coeffs_mem_wren,
-												CLK	=> ram_clk,
-												Q_coeffs => coeffs_mem_Q,
-												all_coeffs => coefficients
-												);
-		
+--	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
+--									port map(D => ram_write_data,
+--												ADDR	=> ram_addr(2 downto 0),
+--												RST => rst,
+--												RDEN	=> coeffs_mem_rden,
+--												WREN	=> coeffs_mem_wren,
+--												CLK	=> ram_clk,
+--												Q_coeffs => coeffs_mem_Q,
+--												all_coeffs => coefficients
+--												);
+	coefficients(0) <= x"34B8F08D";-- b0
+	coefficients(1) <= x"B34275B3";-- b1
+	coefficients(2) <= x"80000000";-- b2
+	coefficients(3) <= x"80000000";-- a1
+	coefficients(4) <= x"80000000";-- a2
+	
+	injection: process(all)
+	begin
+		--VHDL 2008 specific featured: injecting values on filter internal fifos to reproduce error
+		<<signal IIR_filter.x : array32 >>(0) <= force x"38123B73";
+		<<signal IIR_filter.x : array32 >>(1) <= force x"3605C7DD";
+		<<signal IIR_filter.x : array32 >>(2) <= force x"368F75BF";
+		<<signal IIR_filter.y : array32 >>(1) <= force x"2B4D232E";
+		<<signal IIR_filter.y : array32 >>(2) <= force x"00000000";
+	end process;
+
+	filter_wren <= '0', '1' after TIME_SW_FILTER_WREN;
 	filter_CLK <= CLK_fs;
 	IIR_filter: filter 	generic map (P => P, Q => Q)
 								port map(input => filter_input,-- input
