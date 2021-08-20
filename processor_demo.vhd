@@ -467,11 +467,11 @@ signal fifo_output: array32 (0 to (2**(5))-1);--because cache has 32 addresses
 signal fifo_invalidate_output: std_logic;
 
 --signals for coefficients memory----------------------------
-constant P: natural := 2;
---constant P: natural := 3;
-constant Q: natural := 2;
+--constant P: natural := 2;
+constant P: natural := 3;
+--constant Q: natural := 2;
 --constant Q: natural := 0;--forces  FIR filter
---constant Q: natural := 4;
+constant Q: natural := 4;
 signal coeffs_mem_Q: std_logic_vector(31 downto 0);--signal for single coefficient reading
 signal coefficients: array32 (P+Q downto 0);
 signal coeffs_mem_wren: std_logic;
