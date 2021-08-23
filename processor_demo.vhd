@@ -1014,17 +1014,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		Q_ram => ram_Q_buffer_out
 	);	
 
-	-- synchronizes IRQ to rising_edge of CLK, because:
-	--1: filter_irq is generated at filter_CLK domain
-	--2: this signal is sampled in irq_ctrl at falling_edge of CLK
-	sync_chain_filter_IRQ: sync_chain
-		generic map (N => 1,--bus width in bits
-					L => 2)--number of registers in the chain
-		port map (
-				data_in => (others=> filter_irq),--data generated at another clock domain
-				CLK => ram_clk,--clock of new clock domain
-				data_out => filter_irq_sync --data synchronized in CLK domain
-		);
+--	-- synchronizes IRQ to rising_edge of CLK, because:
+--	-- 1: filter_irq is generated at filter_CLK domain
+--	-- 2: this signal is sampled in irq_ctrl at falling_edge of CLK
+--	sync_chain_filter_IRQ: sync_chain
+--		generic map (N => 1,--bus width in bits
+--					L => 2)--number of registers in the chain
+--		port map (
+--				data_in => (others=> filter_irq),--data generated at another clock domain
+--				CLK => ram_clk,--clock of new clock domain
+--				data_out => filter_irq_sync --data synchronized in CLK domain
+--		);
 		
 	--filter_irq_sync is synchronized to ram_clk rising_edge by a sync chain in this level
 	--i2s_irq is synchronized to ram_clk rising_edge inside I2S peripheral
