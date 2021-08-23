@@ -1014,6 +1014,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		Q_ram => ram_Q_buffer_out
 	);	
 
+	--patch replacing deffective sync chain
+	filter_irq_sync(0) <= filter_irq;
 --	-- synchronizes IRQ to rising_edge of CLK, because:
 --	-- 1: filter_irq is generated at filter_CLK domain
 --	-- 2: this signal is sampled in irq_ctrl at falling_edge of CLK
