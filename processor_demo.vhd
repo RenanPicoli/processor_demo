@@ -1085,7 +1085,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	clk_12MHz: pll_12MHz
 	port map (
 	inclk0 => CLK_IN,
-	areset => rst,
+	areset => '0',
 	c0 => CLK12MHz
 	);
 
@@ -1093,7 +1093,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	clk_fs_1536fs: pll_audio
 	port map (
 	inclk0 => CLK12MHz,
-	areset => rst,
+	areset => '0',
 	c0 => CLK_fs,
 	c1 => CLK16_928571MHz,
 	c2 => CLK_fs_dbg,--10x fs
