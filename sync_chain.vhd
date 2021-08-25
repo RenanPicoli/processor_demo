@@ -15,6 +15,7 @@ entity sync_chain is
 	port (
 			data_in: in std_logic_vector(N-1 downto 0);--data generated at another clock domain
 			CLK: in std_logic;--clock of new clock domain
+			RST: in std_logic;--asynchronous reset
 			data_out: out std_logic_vector(N-1 downto 0)--data synchronized in CLK domain
 	);
 end sync_chain;
@@ -30,7 +31,9 @@ signal Q: array2d;
 	chain: for i in 0 to L-1 generate
 		process(D,Q,CLK)
 		begin
-			if (rising_edge(CLK)) then
+			if (RST='1') then
+				Q(i) <= (others => '0');
+			elsif (rising_edge(CLK)) then
 				Q(i) <= D(i);
 			end if;
 			D(i+1) <= Q(i);

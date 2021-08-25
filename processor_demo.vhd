@@ -303,6 +303,7 @@ component sync_chain
 	port (
 			data_in: in std_logic_vector(N-1 downto 0);--data generated at another clock domain
 			CLK: in std_logic;--clock of new clock domain
+			RST: in std_logic;--asynchronous reset
 			data_out: out std_logic_vector(N-1 downto 0)--data synchronized in CLK domain
 	);
 end component;
@@ -746,7 +747,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					L => 2)--number of registers in the chain
 		port map (
 				data_in => desired,--data generated at another clock domain
-				CLK => ram_CLK,--clock of new clock domain
+				CLK => ram_CLK,--clock of new clock domain				
+				RST => rst,--asynchronous reset
 				data_out => desired_sync --data synchronized in CLK domain
 		);
 	
@@ -794,6 +796,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		port map (
 				data_in => filter_output,--data generated at another clock domain
 				CLK => CLK,--clock of new clock domain
+				RST => filter_rst,--asynchronous reset
 				data_out => filter_output_sync --data synchronized in CLK domain
 		);
 	
