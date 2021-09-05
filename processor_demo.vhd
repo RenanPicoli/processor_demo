@@ -60,11 +60,12 @@ port (CLK_IN: in std_logic;
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
-		rden_ram: out std_logic;--habilita leitura na ram (cache e periféricos mapeados na ram)
-		wren_ram: out std_logic;--habilita escrita na ram (cache e periféricos mapeados na ram)
-		wren_filter: out std_logic;--habilita escrita nos coeficientes do filtro
+		rden_ram: out std_logic;--enables read on ram
+		wren_ram: out std_logic;--enables write on ram
+		wren_lvec: out std_logic;--enables load vector: loads vector of 8 std_logic_vector in parallel
+		lvec_src: out std_logic_vector(2 downto 0);--a single source address for lvec
+		lvec_dst_mask: out std_logic_vector(6 downto 0);--mask for destination(s) address(es) for lvec
 		vmac_en: out std_logic;--multiply-accumulate enable
-		send_cache_request: out std_logic;
 		Q_ram:in std_logic_vector(31 downto 0)
 );
 end component;
