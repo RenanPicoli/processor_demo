@@ -26,6 +26,10 @@ port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral is read-only)
 		RST: in std_logic;-- input
 		WREN: in std_logic;--not used (peripheral supports only read)
 		RDEN: in std_logic;-- input
+		parallel_write_data: in array32 (0 to 2**N-1);--not used
+		parallel_wren: in std_logic;--not used
+		parallel_rden: in std_logic;--enables parallel read (to shared data bus)
+		parallel_read_data: out array32 (0 to 2**N-1);
 		output: out std_logic_vector(31 downto 0)-- output
 );
 
@@ -48,7 +52,7 @@ architecture behv of filter_xN is
 	);
 	end component;
 	
-	signal all_registers_output: array32(0 to P+Q);--P+1 reg x, Q reg y, others will be zeroed in decoder
+	signal all_registers_output: array32(0 to 2**N-1);--P+1 reg x, Q reg y, others will be zeroed in decoder
 	signal x_fifo_output: array32(0 to P);--outputs of register holding previous samples
 	signal y_fifo_output: array32(0 to Q-1);--outputs of register holding previous filter outputs
 	
@@ -76,7 +80,21 @@ begin
 		end if;
 	end process;
 
-	all_registers_output <= x_fifo_output & y_fifo_output;
+	all_P_x_regs: for i in 0 to P generate-- P+1 values (sic)
+		all_registers_output(i) <= x_fifo_output(i);
+	end generate;
+	
+	all_Q_y_regs: for i in 0 to Q-1 generate
+		all_registers_output(i+P+1) <= y_fifo_output(i);
+	end generate;
+	
+	all_other_regs: for i in P+Q+1 to 2**N-1 generate
+		all_registers_output(i) <= (others=>'0');
+	end generate;
+	
+	--parallel_read_data connects to a shared data bus
+	parallel_read_data <= 	all_registers_output when parallel_rden='1' else
+									(others=>(others=>'Z'));
 
 -------------------------- address decoder ---------------------------------------------------
 	decoder: address_decoder_register_map
