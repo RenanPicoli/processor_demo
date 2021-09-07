@@ -425,7 +425,7 @@ set_global_assignment -name VHDL_FILE microprocessor/demux.vhd
 set_global_assignment -name VHDL_FILE microprocessor/d_flip_flop.vhd
 set_global_assignment -name VHDL_FILE microprocessor/control_unit.vhd
 set_global_assignment -name VHDL_FILE microprocessor/ALU.vhd
-set_global_assignment -name VHDL_FILE processor_demo.vhd
+set_global_assignment -name VHDL_FILE processor_demo.vhd -hdl_version VHDL_2008
 set_global_assignment -name VHDL_FILE decimal_converter.vhd
 set_global_assignment -name VHDL_FILE 7seg_controller.vhd
 set_global_assignment -name VHDL_FILE prescaler.vhd
