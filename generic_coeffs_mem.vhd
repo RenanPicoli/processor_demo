@@ -22,6 +22,9 @@ port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é atualizado por ve
 		RDEN:	in std_logic;--read enable
 		WREN:	in std_logic;--write enable
 		CLK:	in std_logic;
+		parallel_write_data: in array32 (0 to 2**N-1);
+		parallel_wren: in std_logic;
+		parallel_rden: in std_logic;
 		Q_coeffs: out std_logic_vector(31 downto 0);--single coefficient reading
 		all_coeffs:	out array32((P+Q) downto 0)-- todos os coeficientes VÁLIDOS são lidos de uma vez
 );
@@ -32,24 +35,40 @@ end generic_coeffs_mem;
 
 architecture behv of generic_coeffs_mem is
 
-	type memory is array (0 to 2**N-1) of std_logic_vector(31 downto 0);
+component parallel_load_cache
+	generic (N: integer);--size in bits of address 
+	port (CLK: in std_logic;--borda de subida para escrita, memória pode ser lida a qq momento desde que rden=1
+			ADDR: in std_logic_vector(N-1 downto 0);--addr is a word (32 bits) address
+			RST:	in std_logic;--asynchronous reset
+			write_data: in std_logic_vector(31 downto 0);
+			parallel_write_data: in array32 (0 to 2**N-1);
+			parallel_wren: in std_logic;
+			rden: in std_logic;--habilita leitura
+			wren: in std_logic;--habilita escrita
+			parallel_rden: in std_logic;--enables parallel read (to shared data bus)
+			parallel_read_data: out array32 (0 to 2**N-1);
+			Q:	out std_logic_vector(31 downto 0)
+			);
+end component;
+
 	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
-	signal possible_outputs: memory:=(others=>(others=>'0'));--ensuring filter_coeffs initialize zeroed
+	signal possible_outputs: array32 (0 to 2**N-1);
 	
 begin					   
-	mem: for i in 0 to 2**N-1 generate
-		process(CLK,RST,WREN,ADDR)
-		begin
-			--processo de escrita (um coeficiente de cada vez)
-			if (RST='1') then
-				possible_outputs(i) <= (others=>'0');
-			elsif (rising_edge(CLK) and WREN ='1' and to_integer(unsigned(ADDR))=i) then
-					possible_outputs(i) <= D;
-			end if;
-		end process;
-	end generate;
-
-	Q_coeffs <= possible_outputs(to_integer(unsigned(ADDR)));	
+	mem: parallel_load_cache
+		generic map (N => N)
+		port map(CLK => CLK,
+					ADDR=> ADDR,
+					RST => RST,
+					write_data => D,
+					parallel_write_data => parallel_write_data,
+					parallel_wren => parallel_wren,
+					rden => rden,
+					wren => wren,
+					parallel_rden => parallel_rden,
+					parallel_read_data => possible_outputs,
+					Q => Q_coeffs
+		);
 
 	--filtro tem acesso simultâneo a todos os coeficientes pela porta all_coeffs
 	coeffs_b: for i in 0 to P generate--coeficientes de x (b)
