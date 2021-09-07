@@ -869,12 +869,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		end if;
 	end process filter_reset_process;
 
-	--intentional latch
 	process(proc_filter_parallel_wren,filter_CLK)
 	begin
 		if(proc_filter_parallel_wren=	'1')then
 			filter_parallel_wren <= '1';
-		elsif(filter_CLK='1')then--next rising_edge of filter means next sample, so filter_parallel_wren must be reset
+		elsif(rising_edge(filter_CLK))then--next rising_edge of filter means next sample, so filter_parallel_wren must be reset
 			filter_parallel_wren <= '0';
 		end if;
 	end process;
