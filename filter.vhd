@@ -75,10 +75,6 @@ architecture behv of filter is
 	signal d_ff_y_CLK: std_logic;-- necessary delay between sampling x and y (since changing x will change y)
 										  -- it's necessary necessary defining a signal instead of using not CLK because of modelsim (VHDL wouldn't complain)
 	signal output_signal: std_logic_vector(31 downto 0);
-	
-	--for filter irq-iack
-	signal irq_set_Q: std_logic;
-	signal irq_reset_Q: std_logic;
 begin					   
 ---------- x signal flip flops --------------------------------------------------------------
 	--samples input
