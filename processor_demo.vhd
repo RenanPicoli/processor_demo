@@ -87,19 +87,6 @@ end component;
 --			Q: out array32 (0 to OS-1));
 --end component;
 
---component parallel_load_cache
---	generic (N: integer);--size in bits of address 
---	port (CLK: in std_logic;--borda de subida para escrita, memória pode ser lida a qq momento desde que rden=1
---			ADDR: in std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
---			write_data: in std_logic_vector(31 downto 0);
---			parallel_write_data: in array32 (0 to 2**N-1);
---			fill_cache: in std_logic;
---			rden: in std_logic;--habilita leitura
---			wren: in std_logic;--habilita escrita
---			Q:	out std_logic_vector(31 downto 0)
---			);
---end component;
-
 component mini_ram
 	generic (N: integer);--size in bits of address 
 	port (CLK: in std_logic;--borda de subida para escrita, memória pode ser lida a qq momento desde que rden=1
@@ -139,13 +126,16 @@ end component;
 component generic_coeffs_mem
 	-- 0..P: índices dos coeficientes de x (b)
 	-- 1..Q: índices dos coeficientes de y (a)
-	generic	(N: natural; P: natural; Q: natural);
-	port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é carregado por vez
+	generic	(N: natural; P: natural; Q: natural);--N address width in bits
+	port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é atualizado por vez
 			ADDR: in std_logic_vector(N-1 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
 			RST:	in std_logic;--asynchronous reset
 			RDEN:	in std_logic;--read enable
 			WREN:	in std_logic;--write enable
 			CLK:	in std_logic;
+			parallel_write_data: in array32 (0 to 2**N-1);
+			parallel_wren: in std_logic;
+			parallel_rden: in std_logic;
 			Q_coeffs: out std_logic_vector(31 downto 0);--single coefficient reading
 			all_coeffs:	out array32((P+Q) downto 0)-- todos os coeficientes VÁLIDOS são lidos de uma vez
 	);
@@ -232,12 +222,18 @@ END component;
 
 component inner_product_calculation_unit
 generic	(N: natural);--N: address width in bits
-port(	D: in std_logic_vector(31 downto 0);-- input
-		ADDR: in std_logic_vector(N-1 downto 0);-- input
-		CLK: in std_logic;-- input
-		RST: in std_logic;-- input
-		WREN: in std_logic;-- input
-		RDEN: in std_logic;-- input
+port(	D: in std_logic_vector(31 downto 0);
+		ADDR: in std_logic_vector(N-1 downto 0);
+		CLK: in std_logic;
+		RST: in std_logic;
+		WREN: in std_logic;
+		RDEN: in std_logic;
+		parallel_write_data: in array32 (0 to 2**(N-2)-1);
+		parallel_wren_A: in std_logic;
+		parallel_wren_B: in std_logic;
+		parallel_rden_A: in std_logic;--enables parallel read (to shared data bus)
+		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
+		parallel_read_data: out array32 (0 to 2**(N-2)-1);
 		output: out std_logic_vector(31 downto 0)-- output
 );
 end component;
@@ -267,7 +263,7 @@ component filter_xN
 -- 0..P: índices dos x
 -- P+1..P+Q: índices dos y
 generic	(N: natural; P: natural; Q: natural);--N: address width in bits (must be >= log2(P+1+Q))
-port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral supports only read)
+port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral is read-only)
 		DX: in std_logic_vector(31 downto 0);--current filter input
 		DY: in std_logic_vector(31 downto 0);--current filter output
 		ADDR: in std_logic_vector(N-1 downto 0);-- input
@@ -276,6 +272,10 @@ port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral supports only 
 		RST: in std_logic;-- input
 		WREN: in std_logic;--not used (peripheral supports only read)
 		RDEN: in std_logic;-- input
+		parallel_write_data: in array32 (0 to 2**N-1);--not used
+		parallel_wren: in std_logic;--not used
+		parallel_rden: in std_logic;--enables parallel read (to shared data bus)
+		parallel_read_data: out array32 (0 to 2**N-1);
 		output: out std_logic_vector(31 downto 0)-- output
 );
 end component;
@@ -291,6 +291,12 @@ port(	D: in std_logic_vector(31 downto 0);-- input
 		WREN: in std_logic;-- input
 		RDEN: in std_logic;-- input
 		VMAC_EN: in std_logic;-- input: enables accumulation
+		parallel_write_data: in array32 (0 to 2**(N-2)-1);
+		parallel_wren_A: in std_logic;
+		parallel_wren_B: in std_logic;
+		parallel_rden_A: in std_logic;--enables parallel read (to shared data bus)
+		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
+		parallel_read_data: out array32 (0 to 2**(N-2)-1);
 		output: out std_logic_vector(31 downto 0)-- output
 );
 
@@ -478,23 +484,35 @@ signal coeffs_mem_Q: std_logic_vector(31 downto 0);--signal for single coefficie
 signal coefficients: array32 (P+Q downto 0);
 signal coeffs_mem_wren: std_logic;
 signal coeffs_mem_rden: std_logic;
+signal coeffs_mem_parallel_rden: std_logic;
+signal coeffs_mem_parallel_wren: std_logic;
 
 --signals for inner_product----------------------------------
 signal inner_product_result: std_logic_vector(31 downto 0);
 signal inner_product_rden: std_logic;
 signal inner_product_wren: std_logic;
+signal inner_product_parallel_rden_A: std_logic;
+signal inner_product_parallel_wren_A: std_logic;
+signal inner_product_parallel_rden_B: std_logic;
+signal inner_product_parallel_wren_B: std_logic;
 
 --signals for vmac-------------------------------------------
 signal vmac_Q: std_logic_vector(31 downto 0);
 signal vmac_rden: std_logic;
 signal vmac_wren: std_logic;--enables write on individual registers
 signal vmac_en:	std_logic;--enables accumulation
+signal vmac_parallel_rden_A: std_logic;
+signal vmac_parallel_rden_B: std_logic;
+signal vmac_parallel_wren_A: std_logic;
+signal vmac_parallel_wren_B: std_logic;
 
 --signals for filter_xN--------------------------------------
 signal filter_xN_CLK: std_logic;-- must be the same frequency as filter clock, but can't be the same polarity
 signal filter_xN_Q: std_logic_vector(31 downto 0) := (others=>'0');
 signal filter_xN_rden: std_logic;
 signal filter_xN_wren: std_logic;
+signal filter_xN_parallel_rden: std_logic;
+signal filter_xN_parallel_wren: std_logic;
 
 --signals for filter_out-------------------------------------
 signal filter_out_Q: std_logic_vector(31 downto 0);-- register containing current filter output
@@ -577,13 +595,19 @@ signal all_periphs_wren: std_logic_vector(11 downto 0);
 
 signal filter_CLK: std_logic;
 signal filter_CLK_n: std_logic;--filter_CLK inverted
-signal proc_filter_wren: std_logic;
-signal filter_wren: std_logic;
+signal filter_parallel_wren: std_logic;
 signal filter_rst: std_logic := '1';
 signal filter_input: std_logic_vector(31 downto 0);
 signal filter_output: std_logic_vector(31 downto 0);
 signal filter_irq: std_logic;
 signal filter_iack: std_logic;
+signal proc_filter_parallel_wren: std_logic;
+
+--signals for vector transfers
+signal lvec: std_logic;
+signal lvec_src: std_logic_vector(2 downto 0);
+signal lvec_dst_mask: std_logic_vector(6 downto 0);
+signal vector_bus: array32 (0 to 7);--shared data bus for parallel write of 8 fp32
 
 signal filter_CLK_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
@@ -599,8 +623,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & sram_reading_state;
-	GPIO <= (35 downto 16 => '0') & filter_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq & filter_CLK & CLK &
-											instruction_memory_address;	
+	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq &
+											filter_CLK & CLK & instruction_memory_address;	
 	rom: mini_rom port map(	--CLK => CLK,
 									ADDR=> instruction_memory_address,
 									Q	 => instruction_memory_output
@@ -753,6 +777,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				data_out => desired_sync --data synchronized in CLK domain
 		);
 	
+	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
+	coeffs_mem_parallel_wren <= lvec and lvec_dst_mask(0);
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
 									port map(D => ram_write_data,
 												ADDR	=> ram_addr(2 downto 0),
@@ -760,6 +786,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 												RDEN	=> coeffs_mem_rden,
 												WREN	=> coeffs_mem_wren,
 												CLK	=> ram_clk,
+												parallel_write_data => vector_bus,
+												parallel_rden => coeffs_mem_parallel_rden,
+												parallel_wren => coeffs_mem_parallel_wren,
 												Q_coeffs => coeffs_mem_Q,
 												all_coeffs => coefficients
 												);
@@ -775,10 +804,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	coefficients(7)<=x"00000000";-- +0.0
 												
 	filter_CLK <= CLK_fs;
+	proc_filter_parallel_wren <= lvec and lvec_dst_mask(1);
 	IIR_filter: filter 	generic map (P => P, Q => Q)
 								port map(input => filter_input,-- input
 											RST => filter_rst,--synchronous reset
-											WREN => filter_wren,--enables writing on coefficients
+											WREN => filter_parallel_wren,--enables updating all coefficients at once
 											CLK => filter_CLK,--sampling clock
 											coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
 											iack => filter_iack,
@@ -840,17 +870,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	end process filter_reset_process;
 
 	--intentional latch
-	process(proc_filter_wren,filter_CLK)
+	process(proc_filter_parallel_wren,filter_CLK)
 	begin
-		if(proc_filter_wren=	'1')then
-			filter_wren <= '1';
-		elsif(filter_CLK='1')then--next rising_edge of filter means next sample, so filter_wren must be reset
-			filter_wren <= '0';
+		if(proc_filter_parallel_wren=	'1')then
+			filter_parallel_wren <= '1';
+		elsif(filter_CLK='1')then--next rising_edge of filter means next sample, so filter_parallel_wren must be reset
+			filter_parallel_wren <= '0';
 		end if;
 	end process;
 	
 	-- must be the clock of filter output updating
 	filter_xN_CLK <= not filter_CLK;
+	filter_xN_parallel_rden <= '1' when (lvec='1' and lvec_src="010") else '0';
+	filter_xN_parallel_wren <= lvec and lvec_dst_mask(2);
 	xN: filter_xN
 	-- 0..P: índices dos x
 	-- P+1..P+Q: índices dos y
@@ -864,9 +896,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RST => filter_rst,
 			WREN => filter_xN_wren,--not used (peripheral supports only read)
 			RDEN => filter_xN_rden,-- input
+			parallel_write_data => vector_bus,
+			parallel_rden => filter_xN_parallel_rden,
+			parallel_wren => filter_xN_parallel_wren,
+			parallel_read_data => vector_bus,
 			output => filter_xN_Q-- output
 			);
-												
+
+	inner_product_parallel_rden_A <= '1' when (lvec='1' and lvec_src="011") else '0';
+	inner_product_parallel_rden_B <= '1' when (lvec='1' and lvec_src="100") else '0';
+	inner_product_parallel_wren_A <= lvec and lvec_dst_mask(3);
+	inner_product_parallel_wren_B <= lvec and lvec_dst_mask(4);
 	inner_product: inner_product_calculation_unit
 	generic map (N => 5)
 	port map(D => ram_write_data,--supposed to be normalized
@@ -875,12 +915,22 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				RST => rst,
 				WREN => inner_product_wren,
 				RDEN => inner_product_rden,
+				parallel_write_data => vector_bus,
+				parallel_rden_A => inner_product_parallel_rden_A,
+				parallel_wren_A => inner_product_parallel_wren_A,
+				parallel_rden_B => inner_product_parallel_rden_B,
+				parallel_wren_B => inner_product_parallel_wren_B,
+				parallel_read_data => vector_bus,
 				-------NEED ADD FLAGS (overflow, underflow, etc)
 				--overflow:		out std_logic,
 				--underflow:		out std_logic,
 				output => inner_product_result
 				);
 				
+	vmac_parallel_rden_A <= '1' when (lvec='1' and lvec_src="101") else '0';
+	vmac_parallel_rden_B <= '1' when (lvec='1' and lvec_src="110") else '0';
+	vmac_parallel_wren_A <= lvec and lvec_dst_mask(5);
+	vmac_parallel_wren_B <= lvec and lvec_dst_mask(6);
 	vmac: vectorial_multiply_accumulator_unit
 	generic map (N => 5)
 	port map(D => ram_write_data,
@@ -890,6 +940,12 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				WREN => vmac_wren,
 				RDEN => vmac_rden,
 				VMAC_EN => vmac_en,
+				parallel_write_data => vector_bus,
+				parallel_rden_A => vmac_parallel_rden_A,
+				parallel_wren_A => vmac_parallel_wren_A,
+				parallel_rden_B => vmac_parallel_rden_B,
+				parallel_wren_B => vmac_parallel_wren_B,
+				parallel_read_data => vector_bus,
 				-------NEED ADD FLAGS (overflow, underflow, etc)
 				--overflow:		out std_logic,
 				--underflow:		out std_logic,
@@ -1013,9 +1069,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		write_data_ram => ram_write_data,
 		rden_ram => ram_rden,
 		wren_ram => ram_wren,
-		wren_filter => proc_filter_wren,
 		vmac_en => vmac_en,
-		send_cache_request => send_cache_request,
+		wren_lvec => lvec,
+		lvec_src => lvec_src,
+		lvec_dst_mask => lvec_dst_mask,
 		Q_ram => ram_Q_buffer_out
 	);	
 
