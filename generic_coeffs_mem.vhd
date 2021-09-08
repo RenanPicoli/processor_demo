@@ -22,6 +22,7 @@ port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é atualizado por ve
 		RDEN:	in std_logic;--read enable
 		WREN:	in std_logic;--write enable
 		CLK:	in std_logic;
+		filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
 		parallel_write_data: in array32 (0 to 2**N-1);
 		parallel_wren: in std_logic;
 		parallel_rden: in std_logic;
@@ -53,6 +54,7 @@ end component;
 
 	--lembrar de desabilitar auto RAM replacement em compiler settings>advanced settings (synthesis)
 	signal possible_outputs: array32 (0 to 2**N-1);
+	signal parallel_rden_stretched: std_logic;--asserted when parallel_rden='1', deasserted next filter_CLK rising edge
 	
 begin					   
 	mem: parallel_load_cache
@@ -65,10 +67,21 @@ begin
 					parallel_wren => parallel_wren,
 					rden => rden,
 					wren => wren,
-					parallel_rden => parallel_rden,
+					parallel_rden => parallel_rden_stretched,
 					parallel_read_data => possible_outputs,
 					Q => Q_coeffs
 		);
+		
+	process(RST,filter_CLK,parallel_rden)
+	begin
+		if(RST='1')then
+			parallel_rden_stretched <= '0';
+		elsif(parallel_rden='1')then
+			parallel_rden_stretched <= '1';
+		elsif(rising_edge(filter_CLK))then
+			parallel_rden_stretched <= '0';
+		end if;
+	end process;
 
 	--filtro tem acesso simultâneo a todos os coeficientes pela porta all_coeffs
 	coeffs_b: for i in 0 to P generate--coeficientes de x (b)
