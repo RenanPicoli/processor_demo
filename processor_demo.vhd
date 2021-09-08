@@ -133,6 +133,7 @@ component generic_coeffs_mem
 			RDEN:	in std_logic;--read enable
 			WREN:	in std_logic;--write enable
 			CLK:	in std_logic;
+			filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
 			parallel_write_data: in array32 (0 to 2**N-1);
 			parallel_wren: in std_logic;
 			parallel_rden: in std_logic;
@@ -778,7 +779,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);
 	
 	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
-	coeffs_mem_parallel_wren <= lvec and lvec_dst_mask(0);
+	coeffs_mem_parallel_wren <= lvec_dst_mask(0);
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
 									port map(D => ram_write_data,
 												ADDR	=> ram_addr(2 downto 0),
@@ -786,6 +787,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 												RDEN	=> coeffs_mem_rden,
 												WREN	=> coeffs_mem_wren,
 												CLK	=> ram_clk,
+												filter_CLK => filter_CLK,
 												parallel_write_data => vector_bus,
 												parallel_rden => coeffs_mem_parallel_rden,
 												parallel_wren => coeffs_mem_parallel_wren,
@@ -804,7 +806,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	coefficients(7)<=x"00000000";-- +0.0
 												
 	filter_CLK <= CLK_fs;
-	proc_filter_parallel_wren <= lvec and lvec_dst_mask(1);
+	proc_filter_parallel_wren <= lvec_dst_mask(1);
 	IIR_filter: filter 	generic map (P => P, Q => Q)
 								port map(input => filter_input,-- input
 											RST => filter_rst,--synchronous reset
@@ -869,9 +871,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		end if;
 	end process filter_reset_process;
 
-	process(proc_filter_parallel_wren,filter_CLK)
+	process(RST,proc_filter_parallel_wren,filter_CLK)
 	begin
-		if(proc_filter_parallel_wren=	'1')then
+		if(RST='1')then
+			filter_parallel_wren <= '0';
+		elsif(proc_filter_parallel_wren=	'1')then
 			filter_parallel_wren <= '1';
 		elsif(rising_edge(filter_CLK))then--next rising_edge of filter means next sample, so filter_parallel_wren must be reset
 			filter_parallel_wren <= '0';
@@ -881,7 +885,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	-- must be the clock of filter output updating
 	filter_xN_CLK <= not filter_CLK;
 	filter_xN_parallel_rden <= '1' when (lvec='1' and lvec_src="010") else '0';
-	filter_xN_parallel_wren <= lvec and lvec_dst_mask(2);
+	filter_xN_parallel_wren <= lvec_dst_mask(2);
 	xN: filter_xN
 	-- 0..P: índices dos x
 	-- P+1..P+Q: índices dos y
@@ -904,8 +908,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	inner_product_parallel_rden_A <= '1' when (lvec='1' and lvec_src="011") else '0';
 	inner_product_parallel_rden_B <= '1' when (lvec='1' and lvec_src="100") else '0';
-	inner_product_parallel_wren_A <= lvec and lvec_dst_mask(3);
-	inner_product_parallel_wren_B <= lvec and lvec_dst_mask(4);
+	inner_product_parallel_wren_A <= lvec_dst_mask(3);
+	inner_product_parallel_wren_B <= lvec_dst_mask(4);
 	inner_product: inner_product_calculation_unit
 	generic map (N => 5)
 	port map(D => ram_write_data,--supposed to be normalized
@@ -928,8 +932,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				
 	vmac_parallel_rden_A <= '1' when (lvec='1' and lvec_src="101") else '0';
 	vmac_parallel_rden_B <= '1' when (lvec='1' and lvec_src="110") else '0';
-	vmac_parallel_wren_A <= lvec and lvec_dst_mask(5);
-	vmac_parallel_wren_B <= lvec and lvec_dst_mask(6);
+	vmac_parallel_wren_A <= lvec_dst_mask(5);
+	vmac_parallel_wren_B <= lvec_dst_mask(6);
 	vmac: vectorial_multiply_accumulator_unit
 	generic map (N => 5)
 	port map(D => ram_write_data,
