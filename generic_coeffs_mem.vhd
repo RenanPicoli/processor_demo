@@ -89,13 +89,13 @@ begin
 	begin
 		if(filter_WREN='1')then
 			--filtro tem acesso simultâneo a todos os coeficientes pela porta all_coeffs
-			coeffs_b: for i in 0 to P generate--coeficientes de x (b)
+			coeffs_b: for i in 0 to P loop--coeficientes de x (b)
 				all_coeffs(i) <= possible_outputs(i);
-			end generate;
+			end loop;
 			
-			coeffs_a: for j in 1 to Q generate--coeficientes de y (a)
+			coeffs_a: for j in 1 to Q loop--coeficientes de y (a)
 				all_coeffs(j+P) <= possible_outputs(j+P);
-			end generate;
+			end loop;
 		else
 			all_coeffs <= (others=>(others=>'Z'));
 		end if;
