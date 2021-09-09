@@ -23,11 +23,13 @@ port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é atualizado por ve
 		WREN:	in std_logic;--write enable
 		CLK:	in std_logic;
 		filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
+		filter_WREN: in std_logic;--filter write enable, used to check if all_coeffs must be used
 		parallel_write_data: in array32 (0 to 2**N-1);
 		parallel_wren: in std_logic;
 		parallel_rden: in std_logic;
+		parallel_read_data: out array32 (0 to 2**N-1);--used when peripherals other than filter
 		Q_coeffs: out std_logic_vector(31 downto 0);--single coefficient reading
-		all_coeffs:	out array32((P+Q) downto 0)-- todos os coeficientes VÁLIDOS são lidos de uma vez
+		all_coeffs:	out array32((P+Q) downto 0)-- all VALID coefficients are read at once by filter through this port
 );
 
 end generic_coeffs_mem;
@@ -83,14 +85,24 @@ begin
 		end if;
 	end process;
 
-	--filtro tem acesso simultâneo a todos os coeficientes pela porta all_coeffs
-	coeffs_b: for i in 0 to P generate--coeficientes de x (b)
-		all_coeffs(i) <= possible_outputs(i);
-	end generate;
+	process(filter_WREN)
+	begin
+		if(filter_WREN='1')then
+			--filtro tem acesso simultâneo a todos os coeficientes pela porta all_coeffs
+			coeffs_b: for i in 0 to P generate--coeficientes de x (b)
+				all_coeffs(i) <= possible_outputs(i);
+			end generate;
+			
+			coeffs_a: for j in 1 to Q generate--coeficientes de y (a)
+				all_coeffs(j+P) <= possible_outputs(j+P);
+			end generate;
+		else
+			all_coeffs <= (others=>(others=>'Z'));
+		end if;
+	end process;
 	
-	coeffs_a: for j in 1 to Q generate--coeficientes de y (a)
-		all_coeffs(j+P) <= possible_outputs(j+P);
-	end generate;
+	parallel_read_data <= 	possible_outputs when (parallel_rden ='1') else
+									(others=>(others=>'Z'));--prevents latch
 
 end behv;
 
