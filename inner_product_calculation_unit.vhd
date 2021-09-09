@@ -106,9 +106,9 @@ architecture behv of inner_product_calculation_unit is
 	
 	-----------signals for memory map interfacing----------------
 	constant ranges: boundaries := 	(--notation: base#value#
-												(16#00#,16#0F#),--A regs
-												(16#10#,16#1F#),--B regs
-												(16#20#,16#20#)--result
+												(16#00#,16#07#),--A regs
+												(16#08#,16#0F#),--B regs
+												(16#10#,16#10#)--result
 												);
 	signal all_periphs_output: array32 (2 downto 0);
 	signal all_periphs_rden: std_logic_vector(2 downto 0);
