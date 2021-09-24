@@ -85,7 +85,7 @@ begin
 		end if;
 	end process;
 
-	process(filter_WREN)
+	process(filter_WREN,possible_outputs)
 	begin
 		if(filter_WREN='1')then
 			--filtro tem acesso simultâneo a todos os coeficientes pela porta all_coeffs

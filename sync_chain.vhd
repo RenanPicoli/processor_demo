@@ -29,7 +29,7 @@ signal Q: array2d;
 	begin
 	
 	chain: for i in 0 to L-1 generate
-		process(D,Q,CLK)
+		process(D,Q,CLK,RST)
 		begin
 			if (RST='1') then
 				Q(i) <= (others => '0');
