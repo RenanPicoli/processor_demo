@@ -50,7 +50,7 @@ constant TIME_RST : time := 50 us;
 constant TIME_DELTA : time := 20 ns;
 
 signal  	CLK_IN:std_logic;--50MHz
-signal	rst: std_logic;
+signal	rst_n: std_logic;--negated reset
 signal	data_out:std_logic_vector(31 downto 0);
 
 --sram interface
@@ -97,7 +97,7 @@ begin
 	DUT: entity work.processor_demo
 	port map(
 		CLK_IN => CLK_IN,--50MHz input
-		rst => rst,
+		rst_n => rst_n,
 --		data_out => data_out,--filter output (encoded in IEEE 754 single precision)
 		--I2C
 		I2C_SDAT => I2C_SDAT,--I2C SDA
@@ -157,7 +157,8 @@ begin
 		wait for 10 ns;
 	end process clock;
 	
-	rst <= '1', '0' after TIME_RST;--reset must be long enough to be perceived by the slowest clock (fifo)
+	rst_n <= '0', '1' after TIME_RST;--reset must be long enough to be perceived by the slowest clock (fifo)
+	rst <= rst_n;
 	
 	slave: i2c_slave
 	port map(D 		=> D_slv,

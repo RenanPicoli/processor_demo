@@ -14,13 +14,10 @@ use work.my_types.all;
 
 entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
-		rst: in std_logic;
---		data_out: out std_logic_vector(31 downto 0);--filter output (encoded in IEEE 754 single precision)
-		error: out std_logic;--filter output mismatches value obtained in modelsim
+		rst_n: in std_logic;--active low reset, connected to KEY3
 		--I2C
 		I2C_SDAT: inout std_logic;--I2C SDA
 		I2C_SCLK: inout std_logic;--I2C SCL
-		sda_dbg_p: out natural;--for debug, which statement is driving SDA
 		--I2S/codec
 		MCLK: out std_logic;-- master clock output for audio codec (12MHz)
 		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
@@ -77,16 +74,6 @@ component mini_rom
 			);
 end component;
 
--- * implements a FIFO for reading sensor data; and
--- * permits parallel reading of these data.
---component shift_register
---	generic (N: integer; OS: integer);--number of stages and number of stages in the output, respectively.
---	port (CLK: in std_logic;
---			rst: in std_logic;
---			D: in std_logic_vector (31 downto 0);
---			Q: out array32 (0 to OS-1));
---end component;
-
 component mini_ram
 	generic (N: integer);--size in bits of address 
 	port (CLK: in std_logic;--borda de subida para escrita, memória pode ser lida a qq momento desde que rden=1
@@ -97,23 +84,6 @@ component mini_ram
 			Q:	out std_logic_vector(31 downto 0)
 			);
 end component;
-
---component mmu
---	generic (N: integer; F: integer);--total number of fifo stages and fifo output stage depth, respectively
---	port (
---	out_fifo_full: 	out std_logic_vector(1 downto 0):= "00";
---	out_cache_request: out	std_logic:= '0';
---	out_fifo_out_isempty: out std_logic:= '1';--'1' means fifo output stage is empty
---			CLK: in std_logic;--same clock of processor
---			CLK_fifo: in std_logic;--fifo clock
---			rst: in std_logic;
---			receive_cache_request: in std_logic;
---			iack: in std_logic;
---			irq: out std_logic;--data sent
---			invalidate_output: buffer std_logic;--invalidate memmory positions after parallel transfer
---			fill_cache:  out std_logic
---	);
---end component;
 
 component prescaler
 	generic(factor: integer);
@@ -386,32 +356,7 @@ component i2s_master_transmitter
 	);
 end component;
 
-component data_in_rom_ip
-	port
-	(
-		address		: in std_logic_vector (7 DOWNTO 0);
-		clock		: in std_logic  := '1';
-		q		: out std_logic_vector (31 DOWNTO 0)
-	);
-end component;
-
-component desired_rom_ip
-	port
-	(
-		address		: in std_logic_vector (7 DOWNTO 0);
-		clock		: in std_logic  := '1';
-		q		: out std_logic_vector (31 DOWNTO 0)
-	);
-end component;
-
-component output_rom_ip
-	port
-	(
-		address		: in std_logic_vector (7 DOWNTO 0);
-		clock		: in std_logic  := '1';
-		q		: out std_logic_vector (31 DOWNTO 0)
-	);
-end component;
+signal rst: std_logic;--active high
 
 --000: will read* lower 16bits of input vectors
 --001: will read* lower 16bits of desired vectors
@@ -436,13 +381,9 @@ signal error_flag: std_logic;-- '1' if expected_output is different from actual 
 --signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
 signal CLK: std_logic;--clock for processor and cache (50MHz)
 signal CLK_dbg: std_logic;--clock for debug, check timing analyzer or the pll_dbg wizard
---signal CLK25MHz: std_logic;--for sram_ADDR counter (25MHz)
 signal CLK_fs: std_logic;-- 11.029kHz clock
 signal CLK_fs_dbg: std_logic;-- 110.29kHz clock (10fs)
 signal CLK20MHz: std_logic;-- 20MHz clock (for I2S peripheral)
-signal CLK11_285714MHz: std_logic;-- 11.285714MHz clock (1024fs, for I2S peripheral)
-signal CLK5_647059MHz: std_logic;-- 5.647059MHz clock (for I2S peripheral)
-signal CLK2_8224MHz: std_logic;--2.8224MHz clock (for I2S peripheral, 128fs)
 signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 
 -----------signals for ROM interfacing---------------------
@@ -620,7 +561,7 @@ signal mmu_iack: std_logic;
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
-	sda_dbg_p <= sda_dbg_s;
+	rst <= not rst_n;
 	
 	--debug outputs
 	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
@@ -708,64 +649,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	end process;
 --------------------------------------------------------
 	filter_CLK_n <= not filter_CLK;
---	--index of sample being fetched
---	--generates address for reading ROM IP's
---	--counts from 0 to 255 and then restarts
---	counter: process(rst,filter_rst,filter_CLK)
---	begin
---		if(rst='1' or filter_rst='1')then
---			sample_number <= (others=>'0');
---		elsif(rising_edge(filter_CLK) and filter_rst='0')then--this ensures, count is updated after used for sram_ADDR
---			sample_number <= sample_number + 1;
---		end if;
---	end process;
---	
---	data_in_rom: data_in_rom_ip
---		port map
---		(
---			address	=> sample_number,
---			clock		=> filter_CLK_n,
---			q			=> data_in
---		);
---
---	desired_rom: desired_rom_ip
---		port map
---		(
---			address	=> sample_number,
---			clock		=> filter_CLK_n,
---			q			=> desired
---		);
---
---	output_rom: output_rom_ip
---		port map
---		(
---			address	=> sample_number,
---			clock		=> filter_CLK_n,
---			q			=> expected_output
---		);
---		
---		process(rst,filter_CLK_n,expected_output)
---		begin
---			if(rst='1')then
---				expected_output_delayed <= (others=>'0');
---			elsif(rising_edge(filter_CLK_n))then
---				expected_output_delayed <= expected_output;
---			end if;
---		end process; 
---		
---		test: process(expected_output_delayed,filter_output,filter_rst,filter_CLK)
---		begin
---			if(filter_rst='1')then
---				error_flag <= '0';
---			elsif(rising_edge(filter_CLK)) then
---				if (expected_output_delayed /= filter_output) then
---					error_flag <= '1';
---				else
---					error_flag <= '0';
---				end if;
---			end if;
---		end process;
---		error <= error_flag;
 
 	-- synchronizes desired to rising_edge of ram_CLK, because:
 	--1: desired is generated at filter_CLK domain
@@ -812,7 +695,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 											output => filter_output											
 											);
 	filter_input <= data_in;
---	data_out <= filter_output;
 
 	-- synchronizes filter output to rising_edge of CLK, because:
 	--1: filter output is generated at filter_CLK domain
@@ -833,13 +715,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
 					Q=> filter_out_Q
 					);
-					
---	d_ff_desired: d_flip_flop
---	 port map(	D => desired,
---					RST=> RST,--resets all previous history of filter output
---					CLK=>filter_CLK,--must be the same as filter_CLK
---					Q=> d_ff_desired_Q
---					);
 					
 	filter_ctrl_status: d_flip_flop
 	 port map(	D => ram_write_data,--written by software
@@ -950,7 +825,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);
 	
 	fp_in <= filter_output_sync;
---fp_in <= data_in;
 	fp32_to_int: fp32_to_integer
 	generic map (N=> audio_resolution)
 	port map (fp_in => fp_in,
@@ -1118,24 +992,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c1		=> CLK,--produces CLK=4MHz for processor
 		locked=> open
 	);
-
---	process(CLK,rst,filter_CLK,filter_rst)
---	begin
---		if(rst='1' or filter_rst='1' or filter_CLK='1')then
---			rising_CLK_occur <= '0';
---		elsif(rising_edge(CLK) and filter_CLK='0')then
---			rising_CLK_occur <='1';
---		end if;
---	end process;
---	
---	process(CLK,rst,filter_CLK,filter_rst,rising_CLK_occur)
---	begin
---		if(rst='1')then
---			CLK25MHz <= '0';
---		elsif(falling_edge(CLK) and filter_rst='0' and filter_CLK='0' and rising_CLK_occur='1')then--this ensures, count is updated after used for sram_ADDR
---			CLK25MHz <= not CLK25MHz;
---		end if;
---	end process;
 
 	--produces 12MHz (MCLK) from 50MHz input
 	clk_12MHz: pll_12MHz
