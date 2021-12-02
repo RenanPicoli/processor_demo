@@ -45,6 +45,14 @@ tol=1e-13;
 toc;
 disp('filtro concluído');
 
+figure;
+for i=1:8
+  subplot(2,4,i);
+  plot(filters(1,i,1:n));
+  title(cstrcat('coeficiente ',num2str(i)));
+  grid on;
+end
+
 %ESCRITA DE ARQUIVO
 disp('Gerando string.');
 
