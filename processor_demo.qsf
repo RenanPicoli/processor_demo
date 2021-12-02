@@ -308,7 +308,6 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to GPIO[32]
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to GPIO[33]
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to GPIO[34]
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to GPIO[35]
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to rst
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to MCLK
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to I2C_SDAT
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to I2C_SCLK
@@ -514,7 +513,6 @@ set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_RAM_BLOCK_TYPE=AU
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_NODE_INFO=805334528" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_POWER_UP_TRIGGER=0" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STORAGE_QUALIFIER_INVERSION_MASK_LENGTH=0" -section_id auto_signaltap_0
-set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_SEGMENT_SIZE=2048" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ATTRIBUTE_MEM_MODE=OFF" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STATE_FLOW_USE_GENERATED=0" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STATE_BITS=11" -section_id auto_signaltap_0
@@ -525,13 +523,10 @@ set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[2] -t
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[3] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[6] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[15] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
-set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[24] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
-set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[25] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[19] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[26] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[27] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
-set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[31] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_LEVEL=1" -section_id auto_signaltap_0
-set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_SAMPLE_DEPTH=2048" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_IN_ENABLED=0" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_PIPELINE=0" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_RAM_PIPELINE=4" -section_id auto_signaltap_0
@@ -1553,11 +1548,10 @@ set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[674] -
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[675] -to sram_reading_state[2] -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[5] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[9] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[16] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[18] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[21] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[22] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
-set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[23] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
-set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[28] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_clk -to "pll_audio:clk_fs_sckin|altpll:altpll_component|pll_audio_altpll1:auto_generated|clk[2]" -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[1] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[8] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
@@ -1576,19 +1570,98 @@ set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigg
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_DATA_BITS=676" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_BITS=377" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STORAGE_QUALIFIER_BITS=1330" -section_id auto_signaltap_0
-set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK=0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" -section_id auto_signaltap_0
-set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK_LENGTH=1156" -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[0] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[4] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[7] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[10] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[12] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[13] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
-set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[16] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[17] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
-set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[19] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[20] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[29] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[30] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
-set_global_assignment -name SLD_FILE db/signal_tap_auto_stripped.stp
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK=00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK_LENGTH=1157" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_SEGMENT_SIZE=4096" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[23] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[24] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[25] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[28] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[31] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_SAMPLE_DEPTH=4096" -section_id auto_signaltap_0
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_WP_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[22]
+set_location_assignment PIN_AG12 -to flash_ADDR[0]
+set_location_assignment PIN_AH7 -to flash_ADDR[1]
+set_location_assignment PIN_Y13 -to flash_ADDR[2]
+set_location_assignment PIN_Y14 -to flash_ADDR[3]
+set_location_assignment PIN_Y12 -to flash_ADDR[4]
+set_location_assignment PIN_AA13 -to flash_ADDR[5]
+set_location_assignment PIN_AA12 -to flash_ADDR[6]
+set_location_assignment PIN_AB13 -to flash_ADDR[7]
+set_location_assignment PIN_AB12 -to flash_ADDR[8]
+set_location_assignment PIN_AB10 -to flash_ADDR[9]
+set_location_assignment PIN_AE9 -to flash_ADDR[10]
+set_location_assignment PIN_AF9 -to flash_ADDR[11]
+set_location_assignment PIN_AA10 -to flash_ADDR[12]
+set_location_assignment PIN_AD8 -to flash_ADDR[13]
+set_location_assignment PIN_AC8 -to flash_ADDR[14]
+set_location_assignment PIN_Y10 -to flash_ADDR[15]
+set_location_assignment PIN_AA8 -to flash_ADDR[16]
+set_location_assignment PIN_AH12 -to flash_ADDR[17]
+set_location_assignment PIN_AC12 -to flash_ADDR[18]
+set_location_assignment PIN_AD12 -to flash_ADDR[19]
+set_location_assignment PIN_AE10 -to flash_ADDR[20]
+set_location_assignment PIN_AD10 -to flash_ADDR[21]
+set_location_assignment PIN_AD11 -to flash_ADDR[22]
+set_location_assignment PIN_AH8 -to flash_IO[0]
+set_location_assignment PIN_AF10 -to flash_IO[1]
+set_location_assignment PIN_AG10 -to flash_IO[2]
+set_location_assignment PIN_AH10 -to flash_IO[3]
+set_location_assignment PIN_AF11 -to flash_IO[4]
+set_location_assignment PIN_AG11 -to flash_IO[5]
+set_location_assignment PIN_AH11 -to flash_IO[6]
+set_location_assignment PIN_AF12 -to flash_IO[7]
+set_location_assignment PIN_AG7 -to flash_CE_n
+set_location_assignment PIN_AG8 -to flash_OE_n
+set_location_assignment PIN_AE11 -to flash_RST_n
+set_location_assignment PIN_Y1 -to flash_RY
+set_location_assignment PIN_AC10 -to flash_WE_n
+set_location_assignment PIN_AE12 -to flash_WP_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[21]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[20]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[19]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[18]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[17]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[16]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[15]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[14]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[13]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_ADDR[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_CE_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_IO[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_IO[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_IO[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_IO[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_IO[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_IO[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_IO[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_IO[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_OE_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_RST_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_RY
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_WE_n
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name SLD_FILE db/signal_tap_auto_stripped.stp

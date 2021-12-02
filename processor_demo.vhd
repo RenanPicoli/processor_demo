@@ -23,6 +23,15 @@ port (CLK_IN: in std_logic;--50MHz input
 		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
 		AUD_DACDAT: out std_logic;--DACDAT aka SD
 		AUD_DACLRCK: out std_logic;--DACLRCK aka WS
+		--FLASH
+		flash_IO: in std_logic_vector(7 downto 0);--flash data; input because we'll only read
+		flash_ADDR: out std_logic_vector(22 downto 0);--ADDR for flash
+		flash_CE_n: out std_logic;--chip enable, active LOW
+		flash_OE_n: out std_logic;--output enable, active LOW
+		flash_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
+		flash_RST_n: out std_logic;--reset, active LOW
+		flash_WP_n: out std_logic; --write protection, active LOW
+		flash_RY: in std_logic; --readiness flag, active HIGH, HIGH means busy (writing or erasing)
 		--SRAM
 		sram_IO: in std_logic_vector(15 downto 0);--sram data; input because we'll only read
 		sram_ADDR: out std_logic_vector(19 downto 0);--ADDR for SRAM
@@ -358,6 +367,15 @@ end component;
 
 signal rst: std_logic;--active high
 
+--0Y1: will read* byte Y (counting from 0 - LSB) of input vectors
+--0Y0: will read* byte Y (counting from 0 - LSB) of desired vectors
+--1000: waiting filter_CLK rising edge (since sampling edge is the rising) to read again
+--1001: will wait until filter_CLK='0' and the next rising_edge of CLK to read again
+-- * : on next rising edge of CLK, flash_ADDR will be updated, at next CLK falling edge IO will be latched
+signal flash_reading_state: std_logic_vector(3 downto 0);
+signal flash_count: std_logic_vector(19 downto 0);--counter: generates the address for FLASH, 1 bit must be added to obtain address
+
+
 --000: will read* lower 16bits of input vectors
 --001: will read* lower 16bits of desired vectors
 --010: will read* upper 16bits of input vectors
@@ -584,6 +602,79 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 										wren	=> cache_wren,
 										Q		=> cache_Q);
 	
+-----------------FLASH interfacing---------------------
+	flash_CE_n <= '0';--chip always enabled
+	flash_OE_n <= '0';--output always enabled
+	flash_WE_n <= '1';--reading always enabled
+	flash_WP_n <= '1';--write protection always disabled
+	flash_RST_n <= rst_n;--system reset resets flash to read mode
+
+	flash_reading: process(CLK,filter_rst,flash_reading_state,filter_CLK,rst)
+	begin
+		if(rst='1')then
+			flash_reading_state <= "1001";
+		elsif(filter_CLK='1')then
+			flash_reading_state <= "1001";
+		elsif(rising_edge(CLK) and filter_rst='0') then
+			if (flash_reading_state(3)/='1')then--"1000" or "1001"
+				flash_reading_state <= flash_reading_state + 1;
+			elsif (flash_reading_state="1001") then
+				flash_reading_state <= "0000";
+			end if;
+		end if;
+		
+		--flash_ADDR will update immediately when flash_reading_state changes
+		if (rst='1')then
+			flash_ADDR <= (others=>'0');
+		elsif (flash_reading_state(3)/='1')then--"1000" or "1001"
+			flash_ADDR <= flash_reading_state(0) & flash_count & flash_reading_state(2 downto 1);--data is launched
+		end if;
+	end process;
+	
+	--index of sample being fetched
+	--generates address for reading FLASH
+	--counts from 0 to 1M-1
+	fl_counter: process(rst,filter_rst,filter_CLK)
+	begin
+		if(rst='1' or filter_rst='1')then
+			flash_count <= (others=>'0');
+		elsif(rising_edge(filter_CLK) and filter_rst='0')then--this ensures, flash_count is updated after used for flash_ADDR
+			flash_count <= flash_count + 1;
+		end if;
+	end process;
+	
+	process(CLK,rst,flash_ADDR,filter_rst,flash_reading_state)
+	begin
+		if(rst='1')then
+			data_in <= (others=>'0');
+			desired <= (others=>'0');
+		--flash_ADDR is updated at rising_edge, must wait at least 10 ns to latch valid data
+		elsif (falling_edge(CLK) and filter_rst='0' and flash_reading_state(3)='0') then--data is latched
+			if(flash_ADDR(22)='0')then--reading input vectors
+				if(flash_ADDR(1 downto 0)="00")then--reading byte 0
+					data_in(7 downto 0) <= flash_IO;
+				elsif(flash_ADDR(1 downto 0)="01")then--reading byte 1
+					data_in(15 downto 8) <= flash_IO;
+				elsif(flash_ADDR(1 downto 0)="10")then--reading byte 2
+					data_in(23 downto 16) <= flash_IO;
+				else--reading byte 3
+					data_in(31 downto 24) <= flash_IO;
+				end if;
+			else--reading desired vectors
+				if(flash_ADDR(1 downto 0)="00")then--reading byte 0
+					desired(7 downto 0) <= flash_IO;
+				elsif(flash_ADDR(1 downto 0)="01")then--reading byte 1
+					desired(15 downto 8) <= flash_IO;
+				elsif(flash_ADDR(1 downto 0)="10")then--reading byte 2
+					desired(23 downto 16) <= flash_IO;
+				else--reading byte 3
+					desired(31 downto 24) <= flash_IO;
+				end if;
+			end if;
+		end if;
+	end process;
+--------------------------------------------------------
+/*	
 -----------------SRAM interfacing---------------------
 	sram_CE_n <= '0';--chip always enabled
 	sram_OE_n <= '0';--output always enabled
@@ -648,6 +739,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		end if;
 	end process;
 --------------------------------------------------------
+*/
 	filter_CLK_n <= not filter_CLK;
 
 	-- synchronizes desired to rising_edge of ram_CLK, because:
