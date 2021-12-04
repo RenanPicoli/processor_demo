@@ -1663,5 +1663,5 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_OE_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_RST_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_RY
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to flash_WE_n
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
 set_global_assignment -name SLD_FILE db/signal_tap_auto_stripped.stp
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
