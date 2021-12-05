@@ -166,8 +166,8 @@ BEGIN
 		clk1_phase_shift => "0",
 		clk2_divide_by => 25,
 		clk2_duty_cycle => 50,
-		clk2_multiply_by => 12,
-		clk2_phase_shift => "20830",
+		clk2_multiply_by => 8,
+		clk2_phase_shift => "5204",
 		compensate_clock => "CLK1",
 		inclk0_input_frequency => 20000,
 		intended_device_family => "Cyclone IV E",
@@ -257,7 +257,7 @@ END SYN;
 -- Retrieval info: PRIVATE: DUTY_CYCLE2 STRING "50.00000000"
 -- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE0 STRING "12.000000"
 -- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE1 STRING "4.000000"
--- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE2 STRING "24.000000"
+-- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE2 STRING "16.000000"
 -- Retrieval info: PRIVATE: EXPLICIT_SWITCHOVER_COUNTER STRING "0"
 -- Retrieval info: PRIVATE: EXT_FEEDBACK_RADIO STRING "0"
 -- Retrieval info: PRIVATE: GLOCKED_COUNTER_EDIT_CHANGED STRING "1"
@@ -290,7 +290,7 @@ END SYN;
 -- Retrieval info: PRIVATE: NORMAL_MODE_RADIO STRING "1"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ0 STRING "12.00000000"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ1 STRING "4.00000000"
--- Retrieval info: PRIVATE: OUTPUT_FREQ2 STRING "24.00000000"
+-- Retrieval info: PRIVATE: OUTPUT_FREQ2 STRING "16.00000000"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_MODE0 STRING "1"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_MODE1 STRING "1"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_MODE2 STRING "1"
@@ -301,7 +301,7 @@ END SYN;
 -- Retrieval info: PRIVATE: PHASE_RECONFIG_INPUTS_CHECK STRING "0"
 -- Retrieval info: PRIVATE: PHASE_SHIFT0 STRING "0.00000000"
 -- Retrieval info: PRIVATE: PHASE_SHIFT1 STRING "0.00000000"
--- Retrieval info: PRIVATE: PHASE_SHIFT2 STRING "20.83000000"
+-- Retrieval info: PRIVATE: PHASE_SHIFT2 STRING "5.20408200"
 -- Retrieval info: PRIVATE: PHASE_SHIFT_STEP_ENABLED_CHECK STRING "0"
 -- Retrieval info: PRIVATE: PHASE_SHIFT_UNIT0 STRING "deg"
 -- Retrieval info: PRIVATE: PHASE_SHIFT_UNIT1 STRING "ps"
@@ -353,8 +353,8 @@ END SYN;
 -- Retrieval info: CONSTANT: CLK1_PHASE_SHIFT STRING "0"
 -- Retrieval info: CONSTANT: CLK2_DIVIDE_BY NUMERIC "25"
 -- Retrieval info: CONSTANT: CLK2_DUTY_CYCLE NUMERIC "50"
--- Retrieval info: CONSTANT: CLK2_MULTIPLY_BY NUMERIC "12"
--- Retrieval info: CONSTANT: CLK2_PHASE_SHIFT STRING "20830"
+-- Retrieval info: CONSTANT: CLK2_MULTIPLY_BY NUMERIC "8"
+-- Retrieval info: CONSTANT: CLK2_PHASE_SHIFT STRING "5204"
 -- Retrieval info: CONSTANT: COMPENSATE_CLOCK STRING "CLK1"
 -- Retrieval info: CONSTANT: INCLK0_INPUT_FREQUENCY NUMERIC "20000"
 -- Retrieval info: CONSTANT: INTENDED_DEVICE_FAMILY STRING "Cyclone IV E"
