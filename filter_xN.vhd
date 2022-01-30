@@ -28,7 +28,7 @@ port(	D: in std_logic_vector(31 downto 0);-- not used (peripheral is read-only)
 		RDEN: in std_logic;-- input
 		parallel_write_data: in array32 (0 to 2**N-1);--not used
 		parallel_wren: in std_logic;--not used
-		parallel_rden: in std_logic;--enables parallel read (to shared data bus)
+--		parallel_rden: in std_logic;--enables parallel read (to shared data bus)
 		parallel_read_data: out array32 (0 to 2**N-1);
 		output: out std_logic_vector(31 downto 0)-- output
 );
@@ -93,8 +93,8 @@ begin
 	end generate;
 	
 	--parallel_read_data connects to a shared data bus
-	parallel_read_data <= 	all_registers_output when parallel_rden='1' else
-									(others=>(others=>'Z'));
+	parallel_read_data <= 	all_registers_output;-- when parallel_rden='1' else
+--									(others=>(others=>'Z'));
 
 -------------------------- address decoder ---------------------------------------------------
 	decoder: address_decoder_register_map

@@ -28,9 +28,10 @@ port(	D: in std_logic_vector(31 downto 0);-- input
 		parallel_write_data: in array32 (0 to 2**(N-2)-1);
 		parallel_wren_A: in std_logic;
 		parallel_wren_B: in std_logic;
-		parallel_rden_A: in std_logic;--enables parallel read (to shared data bus)
-		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
-		parallel_read_data: out array32 (0 to 2**(N-2)-1);
+--		parallel_rden_A: in std_logic;--enables parallel read (to shared data bus)
+--		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
+		parallel_read_data_A: out array32 (0 to 2**(N-2)-1);
+		parallel_read_data_B: out array32 (0 to 2**(N-2)-1);
 		output: out std_logic_vector(31 downto 0)-- output
 );
 
@@ -89,7 +90,7 @@ architecture behv of vectorial_multiply_accumulator_unit is
 			parallel_wren: in std_logic;
 			rden: in std_logic;--habilita leitura
 			wren: in std_logic;--habilita escrita
-			parallel_rden: in std_logic;--enables parallel read (to shared data bus)
+--			parallel_rden: in std_logic;--enables parallel read (to shared data bus)
 			parallel_read_data: out array32 (0 to 2**N-1);
 			Q:	out std_logic_vector(31 downto 0)
 			);
@@ -181,7 +182,7 @@ begin
 					parallel_wren => parallel_wren_A_or_vmacen,
 					rden => A_rden,
 					wren => A_wren,
-					parallel_rden => '1',--fpu_adder always reads parallel output
+--					parallel_rden => '1',--fpu_adder always reads parallel output
 					parallel_read_data => A_fpu_adder_input,
 					Q => A_out
 		);
@@ -197,7 +198,7 @@ begin
 					parallel_wren => parallel_wren_B,
 					rden => B_rden,
 					wren => B_wren,
-					parallel_rden => '1',--fpu_mult always reads parallel output
+--					parallel_rden => '1',--fpu_mult always reads parallel output
 					parallel_read_data => B_fpu_mult_input,
 					Q => B_out
 		);
@@ -236,9 +237,11 @@ begin
 	--parallel_read_data connects to a shared data bus
 	--note that if you mistakenly assert both parallel_rden_A AND parallel_rden_B,
 	--parallel_rden_A takes precedence
-	parallel_read_data <= 	A_fpu_adder_input when (parallel_rden_A='1') else
-									B_fpu_mult_input when (parallel_rden_B='1') else
-									(others=>(others=>'Z'));--prevents latch
+--	parallel_read_data <= 	A_fpu_adder_input when (parallel_rden_A='1') else
+--									B_fpu_mult_input when (parallel_rden_B='1') else
+--									(others=>(others=>'Z'));--prevents latch
+	parallel_read_data_A <=	A_fpu_adder_input;
+	parallel_read_data_B <=	B_fpu_mult_input;
 									
 end behv;
 
