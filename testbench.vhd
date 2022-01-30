@@ -59,10 +59,13 @@ signal	ram_CLK: std_logic;--needed for conversion between sram and altsyncram (s
 signal	ram_wren: std_logic;--needed for conversion between sram and altsyncram write enable pins
 signal	ram_Q: std_logic_vector(15 downto 0);--needed for conversion between sram and altsyncram data output pins
 
-signal 	sram_WE_n: std_logic;--write enable ACTIVE LOW
-signal	sram_IO: std_logic_vector(15 downto 0);--sram data; input because we'll only read
-signal	sram_ADDR: std_logic_vector(19 downto 0);--ADDR for SRAM
-signal	sram_ADDR_shortened: std_logic_vector(15 downto 0);--ADDR for emulated SRAM (tb_sram is smaller than actual SRAM)
+signal 	flash_CE_n: std_logic;
+signal 	flash_OE_n: std_logic;
+signal 	flash_WE_n: std_logic;--write enable ACTIVE LOW
+signal 	flash_WP_n: std_logic;
+signal	flash_IO: std_logic_vector(7 downto 0);--sram data; input because we'll only read
+signal	flash_ADDR: std_logic_vector(22 downto 0);--ADDR for FLASH
+signal	flash_ADDR_shortened: std_logic_vector(15 downto 0);--ADDR for emulated FLASH (tb_sram is smaller than actual FLASH)
 
 --i2c interface
 signal	I2C_SDAT: std_logic;--I2C SDA
@@ -109,14 +112,15 @@ begin
 		AUD_DACDAT => AUD_DACDAT,--DACDAT aka SD
 		AUD_DACLRCK => AUD_DACLRCK,--DACLRCK aka WS
 		--SRAM
-		sram_IO => sram_IO,--sram data; input because we'll only read
-		sram_ADDR => sram_ADDR,--ADDR for SRAM
-		sram_CE_n => open,--chip enable, active LOW
-		sram_OE_n => open,--output enable, active LOW
-		sram_WE_n => sram_WE_n,--write enable, active LOW, HIGH enables reading
-		sram_UB_n => open,--upper IO byte access, active LOW
-		sram_LB_n => open, --lower	IO byte access, active LOW
-		--GREEN LEDS
+		flash_IO => flash_IO,--sram data; input because we'll only read
+		flash_ADDR => flash_ADDR,--ADDR for SRAM
+		flash_CE_n => open,--chip enable, active LOW
+		flash_OE_n => open,--output enable, active LOW
+		flash_WE_n => flash_WE_n,--write enable, active LOW, HIGH enables reading
+		flash_WP_n => open,--write protection
+		flash_RST_n => open, --reset
+		flash_RY => '1',
+ 		--GREEN LEDS
 		LEDG => open,
 		--RED LEDS
 		LEDR => open,
@@ -133,13 +137,13 @@ begin
 	
 	--wren: active HIGH
 	--sram_WE_n: active LOW
-	ram_wren <= not sram_WE_n;
-	sram_ADDR_shortened <= sram_ADDR(19) & sram_ADDR(14 downto 0);
+	ram_wren <= not flash_WE_n;
+	flash_ADDR_shortened <= flash_ADDR(22) & flash_ADDR(15 downto 1);
 	ram: tb_sram
 	port map
 	(
 		--trick: in real SRAM, bit 19 divides upper and lower halfs, in tb_sram this is done by bit 15
-		address	=> sram_ADDR_shortened,
+		address	=> flash_ADDR_shortened,
 		clock		=> ram_CLK,--because address is updated at rising_edge of CLK_IN in my system
 		data		=> (others=>'0'),--data for write, but I will only read
 		wren		=> ram_wren,--active HIGH
@@ -148,7 +152,7 @@ begin
 	--this delay should permit our ram to update its response correctly (valid data when CLK_IN goes low)
 	ram_CLK <= transport CLK_IN after 1 ns;
 	--sram_IO <= transport ram_Q after 9 ns;--emulates delay in sram response (less than 10 ns)
-	sram_IO <= ram_Q;
+	flash_IO <= ram_Q(7 downto 0) when flash_ADDR(0)='0' else ram_Q(15 downto 8);
 	
 	clock: process--50MHz input clock
 	begin
