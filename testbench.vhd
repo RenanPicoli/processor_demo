@@ -45,7 +45,7 @@ component i2c_slave
 end component;
 
 --reset duration must be long enough to be perceived by the slowest clock (filter clock, both polarities)
-constant TIME_RST : time := 50 us;
+constant TIME_RST : time := 50020 ns;
 -- internal clock period.
 constant TIME_DELTA : time := 20 ns;
 
