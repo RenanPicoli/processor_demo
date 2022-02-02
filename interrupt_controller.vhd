@@ -88,7 +88,7 @@ begin
 					IRQ_pend_out_prev(i) <= '0';
 					IRQ_IN_prev(i)  <= '0';
 					IACK_OUT_prev(i) <= '0';
-				elsif(falling_edge(CLK)) then
+				elsif(rising_edge(CLK)) then -- MUST be the same active edge of other RAM peripherals
 					IRQ_IN_prev(i) <= IRQ_IN(i);
 					IRQ_pend_out_prev(i) <= IRQ_pend_out(i);
 					IACK_OUT_prev(i) <= IACK_OUT(i);
@@ -114,7 +114,7 @@ begin
 					IACK_pend_out(i) <= '0';
 				elsif (IACK_finished(i)='1') then --software sends IACK
 					IACK_pend_out(i) <= '0';
-				elsif (rising_edge(CLK) and IRQ_pend_out(i)='0' and IRQ_pend_out_prev(i)='1') then -- assertion after falling_edge of IRQ_pend_out
+				elsif (falling_edge(CLK) and IRQ_pend_out(i)='0' and IRQ_pend_out_prev(i)='1') then -- assertion after falling_edge of IRQ_pend_out
 					IACK_pend_out(i) <= '1';
 				end if;
 			end process;
@@ -131,7 +131,7 @@ begin
 					IACK_finished(i) <= '0';
 				elsif (IRQ_pend_out(i)='1') then
 					IACK_finished(i) <= '0';
-				elsif (rising_edge(CLK) and IACK_OUT(i)='0' and IACK_OUT_prev(i)='1') then-- asserts at falling_edge of IACK_OUT
+				elsif (falling_edge(CLK) and IACK_OUT(i)='0' and IACK_OUT_prev(i)='1') then-- asserts at falling_edge of IACK_OUT
 					IACK_finished(i) <= '1';
 				end if;
 			end process;
