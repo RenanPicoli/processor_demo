@@ -48,13 +48,13 @@ for n=1:L % cálculo de filtro em n+1 usando filtro em n
     % atualiza com a saída atual (será o y(n-1) da próxima iteração)
     xN = [xN(1:Pmax+1) yn xN(Pmax+2:N-1)];
     % testa se já convergiu
-    if(norm(delta_filter)/norm(filter_mat(:,:,n)) < tol)
-      if (norm(filter_mat(:,:,n))==0)
-        disp('Divisão por zero na iteração:');
-        n
-       end;
-      break;
-    end
+##    if(norm(delta_filter)/norm(filter_mat(:,:,n)) < tol)
+##      if (norm(filter_mat(:,:,n))==0)
+##        disp('Divisão por zero na iteração:');
+##        n
+##       end;
+##      break;
+##    end
     n=n+1;
 end
 n=n-1;
