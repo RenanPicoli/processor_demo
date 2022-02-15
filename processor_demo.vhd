@@ -104,8 +104,8 @@ component generic_coeffs_mem
 			RDEN:	in std_logic;--read enable
 			WREN:	in std_logic;--write enable
 			CLK:	in std_logic;
-			filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
-			filter_WREN: in std_logic;--filter write enable, used to check if all_coeffs must be used
+--			filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
+--			filter_WREN: in std_logic;--filter write enable, used to check if all_coeffs must be used
 			parallel_write_data: in array32 (0 to 2**N-1);
 			parallel_wren: in std_logic;
 --			parallel_rden: in std_logic;
@@ -700,8 +700,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 												RDEN	=> coeffs_mem_rden,
 												WREN	=> coeffs_mem_wren,
 												CLK	=> ram_clk,
-												filter_CLK => filter_CLK,
-												filter_WREN => filter_parallel_wren,
+--												filter_CLK => filter_CLK,
+--												filter_WREN => filter_parallel_wren,
 												parallel_write_data => vector_bus,
 --												parallel_rden => coeffs_mem_parallel_rden,
 												parallel_wren => coeffs_mem_parallel_wren,

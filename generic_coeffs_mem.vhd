@@ -22,8 +22,8 @@ port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é atualizado por ve
 		RDEN:	in std_logic;--read enable
 		WREN:	in std_logic;--write enable
 		CLK:	in std_logic;
-		filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
-		filter_WREN: in std_logic;--filter write enable, used to check if all_coeffs must be used
+--		filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
+--		filter_WREN: in std_logic;--filter write enable, used to check if all_coeffs must be used
 		parallel_write_data: in array32 (0 to 2**N-1);
 		parallel_wren: in std_logic;
 --		parallel_rden: in std_logic;
@@ -85,7 +85,8 @@ begin
 --		end if;
 --	end process;
 
-	process(filter_WREN,possible_outputs)
+--	process(filter_WREN,possible_outputs)
+	process(possible_outputs)
 	begin
 --		if(filter_WREN='1')then
 			--filtro tem acesso simultâneo a todos os coeficientes pela porta all_coeffs

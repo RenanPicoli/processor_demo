@@ -80,43 +80,43 @@ fid=fopen(fname,"w");
 fprintf(fid,"%s",s);
 fclose(fid);
 
-% leitura de respostas
-disp('Pressione qualquer tecla para ler resultados calculados pelo circuito:');
-kbhit();
-
-fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/output_vectors.txt";
-fid=fopen(fname,"r");
-[val]=textscan(fid,"%s");
-fclose(fid);
-
-val=val{1,1};
-disp('val');
-disp(val);
-
-%ignorar os X até o segundo 0000_0000 inclusive
-##count_invalid_outputs=0;
-##while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)% o circuito inicia a saída com esse valor após reset
-##  count_invalid_outputs++;
-##endwhile
-##count_invalid_outputs++;% o 1º 00000000 também é inválido
-##while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)
-##  count_invalid_outputs++;
-##endwhile
-
-% for some reason, two zeros are written before filter output starts
-count_invalid_outputs=2;
-val = val(count_invalid_outputs+1:end,1);
-
-disp('Resutados lidos do circuito:');
-results=hex2num(val,"single");
-disp(results)
-plot(results)
-hold on
-plot(y(1:length(results)))
-legend('circuito','octave')
+##% leitura de respostas
+##disp('Pressione qualquer tecla para ler resultados calculados pelo circuito:');
+##kbhit();
+##
+##fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/output_vectors.txt";
+##fid=fopen(fname,"r");
+##[val]=textscan(fid,"%s");
+##fclose(fid);
+##
+##val=val{1,1};
+##disp('val');
+##disp(val);
+##
+##%ignorar os X até o segundo 0000_0000 inclusive
+####count_invalid_outputs=0;
+####while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)% o circuito inicia a saída com esse valor após reset
+####  count_invalid_outputs++;
+####endwhile
+####count_invalid_outputs++;% o 1º 00000000 também é inválido
+####while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)
+####  count_invalid_outputs++;
+####endwhile
+##
+##% for some reason, two zeros are written before filter output starts
+##count_invalid_outputs=2;
+##val = val(count_invalid_outputs+1:end,1);
+##
+##disp('Resutados lidos do circuito:');
+##results=hex2num(val,"single");
+##disp(results)
+##plot(results)
+##hold on
+##plot(y(1:length(results)))
+##legend('circuito','octave')
 
 disp('Resultados calculados no octave:');
-octave_result_string = toupper(num2hex(single(y(1:length(results)))));
+octave_result_string = toupper(num2hex(single(y(1:length(x)))));
 disp(octave_result_string)
 
 %como o testbench sempre abre o arquivo de saída no append_mode, preciso deletá-lo após usar
@@ -125,15 +125,23 @@ disp(octave_result_string)
 
 % imprime as divergências entre os resultados do hardware e do octave
 
-s=blanks(18*length(results));
-for i=1:length(results) % i+1: índice do y lido; y(1) sempre é zero
-	if (strcmp(octave_result_string(i,:),char(val(i)))==0)
-		s(18*i-17:18*i)=[octave_result_string(i,:) "," char(val(i)) "\n"]';
-		disp(["Diferença octave - circuito na amostra " num2str(i) " é " num2str(results(i) - y(i)) " (" num2str((results(i) - y(i))*100/y(i)) "%)"])
-	endif
+##s=blanks(8*length(x));
+##for i=1:length(x) % i+1: índice do y lido; y(1) sempre é zero
+##	if (strcmp(octave_result_string(i,:),char(val(i)))==0)
+##		s(18*i-17:18*i)=[octave_result_string(i,:) "," char(val(i)) "\n"]';
+##		disp(["Diferença octave - circuito na amostra " num2str(i) " é " num2str(results(i) - y(i)) " (" num2str((results(i) - y(i))*100/y(i)) "%)"])
+##	endif
+##end
+##
+##fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/relatório.txt";
+##fid=fopen(fname,"w");
+##fprintf(fid,"%s",s);
+##fclose(fid);
+s=blanks(9*L);
+for i=1:L
+  s(9*i-8:9*i)=[octave_result_string(i,:) "\n"];
 end
-
-fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/relatório.txt";
+fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/output_vectors.txt";
 fid=fopen(fname,"w");
 fprintf(fid,"%s",s);
 fclose(fid);
