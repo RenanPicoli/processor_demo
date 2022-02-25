@@ -27,27 +27,27 @@ architecture test of testbench is
 --);
 --end component;
 
---component generic_coeffs_mem
---	-- 0..P: índices dos coeficientes de x (b)
---	-- 1..Q: índices dos coeficientes de y (a)
---	generic	(N: natural; P: natural; Q: natural);--N address width in bits
---	port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é atualizado por vez
---			ADDR: in std_logic_vector(N-1 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
---			RST:	in std_logic;--asynchronous reset
---			RDEN:	in std_logic;--read enable
---			WREN:	in std_logic;--write enable
---			CLK:	in std_logic;
-----			filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
-----			filter_WREN: in std_logic;--filter write enable, used to check if all_coeffs must be used
---			parallel_write_data: in array32 (0 to 2**N-1);
---			parallel_wren: in std_logic;
-----			parallel_rden: in std_logic;
---			parallel_read_data: out array32 (0 to 2**N-1);--used when peripherals other than filter
---			Q_coeffs: out std_logic_vector(31 downto 0);--single coefficient reading
---			all_coeffs:	out array32((P+Q) downto 0)-- all VALID coefficients are read at once by filter through this port
---	);
---
---end component;
+component generic_coeffs_mem
+	-- 0..P: índices dos coeficientes de x (b)
+	-- 1..Q: índices dos coeficientes de y (a)
+	generic	(N: natural; P: natural; Q: natural);--N address width in bits
+	port(	D:	in std_logic_vector(31 downto 0);-- um coeficiente é atualizado por vez
+			ADDR: in std_logic_vector(N-1 downto 0);--se ALTERAR P, Q PRECISA ALTERAR AQUI
+			RST:	in std_logic;--asynchronous reset
+			RDEN:	in std_logic;--read enable
+			WREN:	in std_logic;--write enable
+			CLK:	in std_logic;
+--			filter_CLK:	in std_logic;--to synchronize read with filter (coeffs are updated at rising_edge)
+--			filter_WREN: in std_logic;--filter write enable, used to check if all_coeffs must be used
+			parallel_write_data: in array32 (0 to 2**N-1);
+			parallel_wren: in std_logic;
+--			parallel_rden: in std_logic;
+			parallel_read_data: out array32 (0 to 2**N-1);--used when peripherals other than filter
+			Q_coeffs: out std_logic_vector(31 downto 0);--single coefficient reading
+			all_coeffs:	out array32((P+Q) downto 0)-- all VALID coefficients are read at once by filter through this port
+	);
+
+end component;
 
 ---------------------------------------------------
 
@@ -139,26 +139,26 @@ end component;
 
 ---------------------------------------------------
 
-component vectorial_multiply_accumulator_unit
-generic	(N: natural);--N: address width in bits
-port(	D: in std_logic_vector(31 downto 0);-- input
-		ADDR: in std_logic_vector(N-1 downto 0);-- input
-		CLK: in std_logic;-- input
-		RST: in std_logic;-- input
-		WREN: in std_logic;-- input
-		RDEN: in std_logic;-- input
-		VMAC_EN: in std_logic;-- input: enables accumulation
-		parallel_write_data: in array32 (0 to 2**(N-2)-1);
-		parallel_wren_A: in std_logic;
-		parallel_wren_B: in std_logic;
---		parallel_rden_A: in std_logic;--enables parallel read (to shared data bus)
---		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
-		parallel_read_data_A: out array32 (0 to 2**(N-2)-1);
-		parallel_read_data_B: out array32 (0 to 2**(N-2)-1);
-		output: out std_logic_vector(31 downto 0)-- output
-);
-
-end component;
+--component vectorial_multiply_accumulator_unit
+--generic	(N: natural);--N: address width in bits
+--port(	D: in std_logic_vector(31 downto 0);-- input
+--		ADDR: in std_logic_vector(N-1 downto 0);-- input
+--		CLK: in std_logic;-- input
+--		RST: in std_logic;-- input
+--		WREN: in std_logic;-- input
+--		RDEN: in std_logic;-- input
+--		VMAC_EN: in std_logic;-- input: enables accumulation
+--		parallel_write_data: in array32 (0 to 2**(N-2)-1);
+--		parallel_wren_A: in std_logic;
+--		parallel_wren_B: in std_logic;
+----		parallel_rden_A: in std_logic;--enables parallel read (to shared data bus)
+----		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
+--		parallel_read_data_A: out array32 (0 to 2**(N-2)-1);
+--		parallel_read_data_B: out array32 (0 to 2**(N-2)-1);
+--		output: out std_logic_vector(31 downto 0)-- output
+--);
+--
+--end component;
 
 ---------------------------------------------------
 
@@ -270,7 +270,6 @@ signal coeffs_mem_rden: std_logic;
 --signal coeffs_mem_parallel_rden: std_logic;
 signal coeffs_mem_parallel_wren: std_logic;
 signal coeffs_mem_vector_bus: array32 (0 to 7);--data bus for parallel write of 8 fp32
---signal coeffs_mem_possible_outputs: array32 (0 to 7);
 
 --signals for inner_product----------------------------------
 signal inner_product_result: std_logic_vector(31 downto 0);
@@ -495,39 +494,23 @@ begin
 	
 --	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
 	coeffs_mem_parallel_wren <= lvec_dst_mask(0);
---	coeffs_mem: generic_coeffs_mem -- don't understand why is necessary component declaration
---									generic map (N=> 3, P => P,Q => Q)
---									port map(D => ram_write_data,
---												ADDR	=> ram_addr(2 downto 0),
---												RST => rst,
---												RDEN	=> coeffs_mem_rden,
---												WREN	=> coeffs_mem_wren,
---												CLK	=> ram_clk,
-----												filter_CLK => filter_CLK,
-----												filter_WREN => filter_parallel_wren,
---												parallel_write_data => vector_bus,
-----												parallel_rden => coeffs_mem_parallel_rden,
---												parallel_wren => coeffs_mem_parallel_wren,
---												parallel_read_data => coeffs_mem_vector_bus,
---												Q_coeffs => coeffs_mem_Q,
---												all_coeffs => coefficients
---												);
-	coeffs_mem: process(ram_clk,rst,coeffs_mem_wren,coeffs_mem_parallel_wren)
-	begin
-		if (rising_edge(ram_clk)) then
-			if (coeffs_mem_parallel_wren='1') then
-				coeffs_mem_vector_bus <= vector_bus;
-			end if;
-		end if;
-		
-		coeffs_b: for i in 0 to P loop--coeficientes de x (b)
-			coefficients(i) <= coeffs_mem_vector_bus(i);
-		end loop;
-		
-		coeffs_a: for j in 1 to Q loop--coeficientes de y (a)
-			coefficients(j+P) <= coeffs_mem_vector_bus(j+P);
-		end loop;
-	end process;
+	coeffs_mem: generic_coeffs_mem -- don't understand why is necessary component declaration
+									generic map (N=> 3, P => P,Q => Q)
+									port map(D => ram_write_data,
+												ADDR	=> ram_addr(2 downto 0),
+												RST => rst,
+												RDEN	=> coeffs_mem_rden,
+												WREN	=> coeffs_mem_wren,
+												CLK	=> ram_clk,
+--												filter_CLK => filter_CLK,
+--												filter_WREN => filter_parallel_wren,
+												parallel_write_data => vector_bus,
+--												parallel_rden => coeffs_mem_parallel_rden,
+												parallel_wren => coeffs_mem_parallel_wren,
+												parallel_read_data => coeffs_mem_vector_bus,
+												Q_coeffs => coeffs_mem_Q,
+												all_coeffs => coefficients
+												);
 
 	filter_CLK <= CLK_fs;
 	proc_filter_parallel_wren <= lvec_dst_mask(1);
@@ -574,7 +557,7 @@ begin
 --	vmac_parallel_rden_B <= '1' when (lvec='1' and lvec_src="110") else '0';
 	vmac_parallel_wren_A <= lvec_dst_mask(5);
 	vmac_parallel_wren_B <= lvec_dst_mask(6);
-	vmac: vectorial_multiply_accumulator_unit
+	vmac: entity work.vectorial_multiply_accumulator_unit
 	generic map (N => 5)
 	port map(D => ram_write_data,
 				ADDR => ram_addr(4 downto 0),
