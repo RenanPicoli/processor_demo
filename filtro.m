@@ -11,12 +11,13 @@ pkg load signal % para usar downsample()
 downsample_factor = 2;
 x = downsample(x,downsample_factor);
 min_x=3200;% esse algoritmo precisa que xN != 0
-max_x=300_000;
-x = x(min_x:max_x);
-x=single(x);% converte x para precisão simples
+% max_x=300_000;
+% x = x(min_x:max_x);
+x = x(min_x:end);
+x=single(x);% converte x para precisï¿½o simples
 L=length(x);
 y=zeros(1,L);
-y=single(y);% converte y para precisão simples
+y=single(y);% converte y para precisï¿½o simples
 
 b=[1 0 -2 1]
 a=[1 0.590110 0.582896 0.302579 0.076053]
@@ -43,7 +44,7 @@ Qmax=4;
 tol=1e-13;
 [y,w,filters,err,step,n] = adaptive_filter(x,d,Pmax,Qmax,tol);
 toc;
-disp('filtro concluído');
+disp('filtro concluï¿½do');
 
 figure;
 for i=1:8
@@ -63,7 +64,7 @@ for i=1:L
   s(9*i-8:9*i)=[convertidos(i,:) "\n"];
 end
 
-fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/input_vectors.txt";
+fname="./simulation/modelsim/input_vectors.txt";
 fid=fopen(fname,"w");
 fprintf(fid,"%s",s);
 fclose(fid);
@@ -75,7 +76,7 @@ for i=1:L
   s(9*i-8:9*i)=[convertidos(i,:) "\n"];
 end
 
-fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/desired_vectors.txt";
+fname="./simulation/modelsim/desired_vectors.txt";
 fid=fopen(fname,"w");
 fprintf(fid,"%s",s);
 fclose(fid);
@@ -93,12 +94,12 @@ fclose(fid);
 ##disp('val');
 ##disp(val);
 ##
-##%ignorar os X até o segundo 0000_0000 inclusive
+##%ignorar os X atï¿½ o segundo 0000_0000 inclusive
 ####count_invalid_outputs=0;
-####while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)% o circuito inicia a saída com esse valor após reset
+####while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)% o circuito inicia a saï¿½da com esse valor apï¿½s reset
 ####  count_invalid_outputs++;
 ####endwhile
-####count_invalid_outputs++;% o 1º 00000000 também é inválido
+####count_invalid_outputs++;% o 1ï¿½ 00000000 tambï¿½m ï¿½ invï¿½lido
 ####while(strcmp(char(val(count_invalid_outputs+1,1)), "00000000")==0)
 ####  count_invalid_outputs++;
 ####endwhile
@@ -119,21 +120,21 @@ disp('Resultados calculados no octave:');
 octave_result_string = toupper(num2hex(single(y(1:length(x)))));
 disp(octave_result_string)
 
-%como o testbench sempre abre o arquivo de saída no append_mode, preciso deletá-lo após usar
-% se a linha abaixo estiver comentada, manualmente apagar o arquivo de saída do hardware antes de reiniciar o testbench
+%como o testbench sempre abre o arquivo de saï¿½da no append_mode, preciso deletï¿½-lo apï¿½s usar
+% se a linha abaixo estiver comentada, manualmente apagar o arquivo de saï¿½da do hardware antes de reiniciar o testbench
 %delete(fname)
 
-% imprime as divergências entre os resultados do hardware e do octave
+% imprime as divergï¿½ncias entre os resultados do hardware e do octave
 
 ##s=blanks(8*length(x));
-##for i=1:length(x) % i+1: índice do y lido; y(1) sempre é zero
+##for i=1:length(x) % i+1: ï¿½ndice do y lido; y(1) sempre ï¿½ zero
 ##	if (strcmp(octave_result_string(i,:),char(val(i)))==0)
 ##		s(18*i-17:18*i)=[octave_result_string(i,:) "," char(val(i)) "\n"]';
-##		disp(["Diferença octave - circuito na amostra " num2str(i) " é " num2str(results(i) - y(i)) " (" num2str((results(i) - y(i))*100/y(i)) "%)"])
+##		disp(["Diferenï¿½a octave - circuito na amostra " num2str(i) " ï¿½ " num2str(results(i) - y(i)) " (" num2str((results(i) - y(i))*100/y(i)) "%)"])
 ##	endif
 ##end
 ##
-##fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/relatório.txt";
+##fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/relatï¿½rio.txt";
 ##fid=fopen(fname,"w");
 ##fprintf(fid,"%s",s);
 ##fclose(fid);
@@ -141,7 +142,7 @@ s=blanks(9*L);
 for i=1:L
   s(9*i-8:9*i)=[octave_result_string(i,:) "\n"];
 end
-fname="C:/Users/renan/Documents/FPGA projects/processor_demo/simulation/modelsim/output_vectors.txt";
+fname="./simulation/modelsim/output_vectors.txt";
 fid=fopen(fname,"w");
 fprintf(fid,"%s",s);
 fclose(fid);
