@@ -25,8 +25,7 @@
 #include <string.h>
 
 //number of samples (pairs data_in,desired) to store
-// 296801 = 0x48761 (tamanho do input_vectors.txt)
-#define N_SAMPLES 0x48761
+#define N_SAMPLES 0x100000
 
 //maximum number of samples (pairs data_in,desired) that could fit inside the FLASH
 // 8MB/8B=1M = 1048576 = 0x100000
