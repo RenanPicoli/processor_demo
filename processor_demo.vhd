@@ -196,6 +196,7 @@ component pll_dbg_uproc
 		inclk0		: IN STD_LOGIC  := '0';
 		c0		: OUT STD_LOGIC ;
 		c1 	: OUT STD_LOGIC ;
+		c2 	: OUT STD_LOGIC ;
 		locked		: OUT STD_LOGIC 
 	);
 END component;
@@ -1084,6 +1085,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		inclk0=> CLK_IN,
 		c0		=> CLK_dbg,
 		c1		=> CLK,--produces CLK=4MHz for processor
+		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
 		locked=> open
 	);
 
