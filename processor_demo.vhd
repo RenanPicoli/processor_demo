@@ -23,7 +23,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
 		AUD_DACDAT: out std_logic;--DACDAT aka SD
 		AUD_DACLRCK: out std_logic;--DACLRCK aka WS
-		--FLASH
+		--FLASH (data samples)
 		flash_IO: in std_logic_vector(7 downto 0);--flash data; input because we'll only read
 		flash_ADDR: out std_logic_vector(22 downto 0);--ADDR for flash
 		flash_CE_n: out std_logic;--chip enable, active LOW
@@ -32,6 +32,14 @@ port (CLK_IN: in std_logic;--50MHz input
 		flash_RST_n: out std_logic;--reset, active LOW
 		flash_WP_n: out std_logic; --write protection, active LOW
 		flash_RY: in std_logic; --readiness flag, active HIGH, HIGH means busy (writing or erasing)
+		--SRAM (instructions)
+		sram_IO: in std_logic_vector(15 downto 0);--sram data; input because we'll only read
+		sram_ADDR: out std_logic_vector(19 downto 0);--ADDR for SRAM
+		sram_CE_n: out std_logic;--chip enable, active LOW
+		sram_OE_n: out std_logic;--output enable, active LOW
+		sram_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
+		sram_UB_n: out std_logic;--upper IO byte access, active LOW
+		sram_LB_n: out std_logic; --lower	IO byte access, active LOW
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -369,6 +377,13 @@ signal rst: std_logic;--active high
 signal flash_reading_state: std_logic_vector(3 downto 0);
 signal flash_count: std_logic_vector(19 downto 0);--counter: generates the address for FLASH, 1 bit must be added to obtain address
 
+--on next rising edge of CLK, sram_ADDR will be updated, at next CLK falling edge IO will be latched
+signal sram_ADDR_lower_half: std_logic_vector(19 downto 0);--address of lower half of next instruction
+signal sram_ADDR_upper_half: std_logic_vector(19 downto 0);--address of lower half of next instruction
+signal sram_reading_state: std_logic;--'0' means reading enabled, '1' means reading complete
+signal sram_CLK: std_logic;--clock for process reading instructions in SRAM, must be 4x CLK, delayed 1/8 CLK cycle
+signal count: std_logic_vector(17 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
+
 signal sample_number: std_logic_vector(7 downto 0);--used to generate address for data_in_rom_ip and desired_rom_ip
 signal desired_sync: std_logic_vector(31 downto 0);--desired response  SYNCCHRONIZED TO ram_CLK
 
@@ -577,10 +592,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq &
 											filter_CLK & CLK & instruction_memory_address;	
-	rom: mini_rom port map(	--CLK => CLK,
-									ADDR=> instruction_memory_address,
-									Q	 => instruction_memory_output
-	);
+--	rom: mini_rom port map(	--CLK => CLK,
+--									ADDR=> instruction_memory_address,
+--									Q	 => instruction_memory_output
+--	);
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
@@ -664,7 +679,56 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		end if;
 	end process;
 --------------------------------------------------------
+-----------------SRAM interfacing---------------------
+	sram_CE_n <= '0';--chip always enabled
+	sram_OE_n <= '0';--output always enabled
+	sram_WE_n <= '1';--reading always enabled
+	sram_UB_n <= '0';--upper byte always enabled
+	sram_LB_n <= '0';--lower byte always enabled
 
+	sram_ADDR_lower_half <= (19 downto 9 => '0') & instruction_memory_address & '0';--address of lower half of instruction
+	sram_ADDR_upper_half <= (19 downto 9 => '0') & instruction_memory_address & '1';--address of upper	half of instruction
+	--process for reading instructions stored at SRAM
+	sram_reading: process(sram_CLK,CLK,rst,instruction_memory_address,sram_reading_state)
+	begin
+		if(rst='1')then
+			sram_ADDR <= (others=>'1');--must be odd
+		elsif(rising_edge(sram_CLK) and CLK='1') then
+			if (sram_ADDR(0)='1')then--previous address was odd
+				sram_ADDR <= sram_ADDR_lower_half;
+			else -- previous address was even: lower half of instruction
+				sram_ADDR <= sram_ADDR_upper_half;
+			end if;
+		end if;
+	end process;
+
+--	process(sram_CLK,CLK,rst,sram_reading_state,sram_ADDR)
+--	begin
+--		if(rst='1')then
+--			sram_reading_state <= '0';
+--		elsif(falling_edge(sram_CLK)) then
+--			if (sram_ADDR(0)='1' and CLK='1' and sram_reading_state='0')then--previous address was odd
+--				sram_reading_state <= '1';
+--			elsif (sram_ADDR(0)='1' and CLK='0' and sram_reading_state='1') then -- previous address was even: lower half of instruction
+--				sram_reading_state <= '0';
+--			end if;
+--		end if;
+--	end process;
+
+	instr_latching: process(sram_CLK,CLK,rst,sram_ADDR,sram_IO,sram_reading_state)
+	begin
+		if(rst='1')then
+			instruction_memory_output <= (others=>'0');
+		--sram_ADDR is updated at rising_edge of sram_CLK, must wait at least 10 ns to latch valid data
+		elsif(falling_edge(sram_CLK)) then
+			if(sram_ADDR(0)='0' and CLK='1')then--warning: sram_IO is not stable at the first 10 ns
+				instruction_memory_output(15 downto 0) <= sram_IO;
+			elsif(sram_ADDR(0)='1' and CLK='1')then--warning: sram_IO is not stable at the first 10 ns
+				instruction_memory_output(31 downto 16) <= sram_IO;
+			end if;
+		end if;
+	end process;
+--------------------------------------------------------
 	filter_CLK_n <= not filter_CLK;
 
 	-- synchronizes desired to rising_edge of ram_CLK, because:
