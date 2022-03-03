@@ -25,6 +25,13 @@ end testbench;
 
 architecture test of testbench is
 
+component mini_rom
+	port (--CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
+			Q:	out std_logic_vector(31 downto 0)
+			);
+end component;
+
 signal  	CLK_IN:std_logic;--50MHz
 signal	rst: std_logic;
 
@@ -45,7 +52,7 @@ constant N_INSTR: natural := 256; -- number of instructions
 
 begin
 
-	DUT: entity work.mini_rom
+	DUT: mini_rom
 	port map(ADDR 	=> instruction_addr,
 				Q	 	=> data_in
 	);
