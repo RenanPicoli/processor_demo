@@ -185,7 +185,7 @@ int main(void){
 	//close output file
 	fclose(of);
 	printf("Arquivo \"sram_file_experimental\" gerado com sucesso!\n");
-/*	free(dictionary);
+	free(dictionary);
 	free(tmp_str);
 	free(instruction_str);
 	free(comment_str);
@@ -196,7 +196,7 @@ int main(void){
 	free(s[3]);
 	free(s[4]);
 	free(s[5]);
-	free(s);*/
+	free(s);
 	return 0;
 }
 
