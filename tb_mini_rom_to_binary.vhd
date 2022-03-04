@@ -6,6 +6,7 @@
 --	addr[1]= 0x368F
 --	This file will fill completely DE2-115 SRAM as I move the assembly to that memory
 --	It will be downloaded using DE2 Control Panel
+-- MUST BE EXECUTED FROM LINUX (Windows inserts some CR characters in the middle of the file)
 
 library ieee;
 use ieee.std_logic_1164.all;
