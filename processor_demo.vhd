@@ -407,6 +407,9 @@ signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 -----------signals for ROM interfacing---------------------
 signal instruction_memory_output: std_logic_vector(31 downto 0);
 signal instruction_memory_address: std_logic_vector(7 downto 0);
+signal instruction_latched: std_logic;
+signal instruction_upper_half_latched: std_logic;
+signal instruction_lower_half_latched: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
@@ -690,45 +693,28 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_ADDR_lower_half <= (19 downto 9 => '0') & instruction_memory_address & '0';--address of lower half of instruction
 	sram_ADDR_upper_half <= (19 downto 9 => '0') & instruction_memory_address & '1';--address of upper	half of instruction
 	--process for reading instructions stored at SRAM
-	sram_reading: process(sram_CLK,CLK,rst,instruction_memory_address,sram_reading_state)
+	sram_reading: process(sram_CLK,sram_IO,CLK,rst,instruction_memory_address,sram_reading_state,instruction_latched)
 	begin
 		if(rst='1')then
 			sram_ADDR <= (others=>'1');--must be odd
-		elsif(rising_edge(sram_CLK) and CLK='1') then
-			if (sram_ADDR(0)='1')then--previous address was odd
-				sram_ADDR <= sram_ADDR_lower_half;
-			else -- previous address was even: lower half of instruction
-				sram_ADDR <= sram_ADDR_upper_half;
-			end if;
-		end if;
-	end process;
-
---	process(sram_CLK,CLK,rst,sram_reading_state,sram_ADDR)
---	begin
---		if(rst='1')then
---			sram_reading_state <= '0';
---		elsif(falling_edge(sram_CLK)) then
---			if (sram_ADDR(0)='1' and CLK='1' and sram_reading_state='0')then--previous address was odd
---				sram_reading_state <= '1';
---			elsif (sram_ADDR(0)='1' and CLK='0' and sram_reading_state='1') then -- previous address was even: lower half of instruction
---				sram_reading_state <= '0';
---			end if;
---		end if;
---	end process;
-
-	instr_latching: process(sram_CLK,CLK,rst,sram_ADDR,sram_IO,sram_reading_state)
-	begin
-		if(rst='1')then
 			instruction_memory_output <= (others=>'0');
-		--sram_ADDR is updated at rising_edge of sram_CLK, must wait at least 10 ns to latch valid data
-		elsif(falling_edge(sram_CLK)) then
-			if(sram_ADDR(0)='0' and CLK='1')then--warning: sram_IO is not stable at the first 10 ns
-				instruction_memory_output(15 downto 0) <= sram_IO;
-			elsif(sram_ADDR(0)='1' and CLK='1')then--warning: sram_IO is not stable at the first 10 ns
-				instruction_memory_output(31 downto 16) <= sram_IO;
-			end if;
+			instruction_lower_half_latched <= '0';
+			instruction_upper_half_latched <= '0';
+		elsif(sram_CLK='0' and CLK='1' and instruction_latched='0') then
+			sram_ADDR <= sram_ADDR_lower_half;
+			instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
+		elsif(sram_CLK='1' and CLK='1' and instruction_latched='0') then
+			sram_ADDR <= sram_ADDR_upper_half;
+			instruction_lower_half_latched <= '1';
+			instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
+		elsif(sram_CLK='1' and CLK='1' and instruction_lower_half_latched='1')then
+			instruction_upper_half_latched <='1';
+		elsif(CLK='0')then
+			instruction_lower_half_latched <= '0';
+			instruction_upper_half_latched <= '0';
 		end if;
 	end process;
+	instruction_latched <= instruction_lower_half_latched and instruction_upper_half_latched;
 --------------------------------------------------------
 	filter_CLK_n <= not filter_CLK;
 
