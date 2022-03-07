@@ -69,7 +69,7 @@ port (CLK_IN: in std_logic;
 end component;
 
 component mini_rom
-	port (--CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+	port (CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
 			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 			Q:	out std_logic_vector(31 downto 0)
 			);
@@ -577,7 +577,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq &
 											filter_CLK & CLK & instruction_memory_address;	
-	rom: mini_rom port map(	--CLK => CLK,
+	rom: mini_rom port map(	CLK => CLK,
 									ADDR=> instruction_memory_address,
 									Q	 => instruction_memory_output
 	);
