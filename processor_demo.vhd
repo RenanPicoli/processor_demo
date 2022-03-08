@@ -54,6 +54,7 @@ port (CLK_IN: in std_logic;
 		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
+		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to mini_rom)
 		Q_rom:	in std_logic_vector(31 downto 0);
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
@@ -391,6 +392,7 @@ signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 -----------signals for ROM interfacing---------------------
 signal instruction_memory_output: std_logic_vector(31 downto 0);
 signal instruction_memory_address: std_logic_vector(7 downto 0);
+signal instruction_clk: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
@@ -576,8 +578,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq &
-											filter_CLK & CLK & instruction_memory_address;	
-	rom: mini_rom port map(	CLK => CLK,
+											filter_CLK & CLK & instruction_memory_address;
+											
+	rom: mini_rom port map(	CLK => instruction_clk,
 									ADDR=> instruction_memory_address,
 									Q	 => instruction_memory_output
 	);
@@ -965,6 +968,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		iack => iack,
 		instruction_addr => open,
 		ADDR_rom => instruction_memory_address,
+		CLK_rom => instruction_clk,
 		Q_rom => instruction_memory_output,
 		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
