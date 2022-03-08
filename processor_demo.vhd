@@ -1018,7 +1018,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	(
 		areset=> '0',
 		inclk0=> CLK_IN,
-		c0		=> CLK_dbg,
+		c0		=> CLK_dbg,--produces 48MHz for debugging
 		c1		=> CLK,--produces CLK=4MHz for processor
 		locked=> open
 	);
