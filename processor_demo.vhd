@@ -767,7 +767,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				if(rst_n='0')then
 					sram_loader_counter <= (others=>'0');
 					sram_filled <= '0';
-				elsif(rising_edge(CLK_IN))--period is 20 ns, enough for writes
+				elsif(rising_edge(CLK_IN))then--period is 20 ns, enough for writes
 					if(sram_loader_counter /= (19 downto 0 =>'1'))then
 						sram_loader_counter <= sram_loader_counter + 1;
 					else
