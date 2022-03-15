@@ -10,7 +10,6 @@ use ieee.std_logic_textio.all;--for reading of std_logic_vectors
 
 use work.my_types.all;
 
-
 entity testbench is
 end testbench;
 
@@ -26,6 +25,20 @@ component tb_sram
 		wren		: IN STD_LOGIC ;
 		q		: OUT STD_LOGIC_VECTOR (15 DOWNTO 0)
 	);
+end component;
+
+--simulates on-board SRAM
+component async_sram is
+generic	(DATA_WIDTH: natural; ADDR_WIDTH: natural);--data/address widths in bits
+port(	IO:	inout std_logic_vector(DATA_WIDTH-1 downto 0);--data bus
+		ADDR:	in std_logic_vector(ADDR_WIDTH-1 downto 0);
+		WE_n:	in std_logic;--write enable, active low
+		OE_n:	in std_logic;--output enable, active low
+		CE_n: in std_logic;--chip enable, active LOW
+		UB_n: in std_logic;--upper IO byte access, active LOW
+		LB_n: in std_logic --lower IO byte access, active LOW
+);
+
 end component;
 
 component i2c_slave
@@ -94,6 +107,14 @@ signal	filter_CLK: std_logic;--filter clock generated with PLL
 signal	filter_rst: std_logic;
 --signal	alternative_filter_CLK: std_logic := '0';-- to keep in sync with filter clock generated with PLL
 
+signal	sram_IO:		std_logic_vector(15 downto 0);--sram data; input because we'll only read
+signal	sram_ADDR:	std_logic_vector(19 downto 0);--ADDR for SRAM
+signal	sram_CE_n:	std_logic;--chip enable, active LOW
+signal	sram_OE_n:	std_logic;--output enable, active LOW
+signal	sram_WE_n:	std_logic;--write enable, active LOW, HIGH enables reading
+signal	sram_UB_n:	std_logic;--upper IO byte access, active LOW
+signal	sram_LB_n:	std_logic; --lower	IO byte access, active LOW
+
 begin
 
 	I2C_SDAT <= 'H';--pull up resistor on-board
@@ -111,7 +132,7 @@ begin
 		AUD_BCLK => AUD_BCLK,--SCK aka BCLK_IN
 		AUD_DACDAT => AUD_DACDAT,--DACDAT aka SD
 		AUD_DACLRCK => AUD_DACLRCK,--DACLRCK aka WS
-		--SRAM
+		--FLASH
 		flash_IO => flash_IO,--sram data; input because we'll only read
 		flash_ADDR => flash_ADDR,--ADDR for SRAM
 		flash_CE_n => open,--chip enable, active LOW
@@ -120,6 +141,14 @@ begin
 		flash_WP_n => open,--write protection
 		flash_RST_n => open, --reset
 		flash_RY => '1',
+		--SRAM
+		sram_ADDR=> sram_ADDR,
+		sram_IO	=> sram_IO,
+		sram_CE_n=> sram_CE_n,
+		sram_OE_n=> sram_OE_n,
+		sram_WE_n=> sram_WE_n,
+		sram_LB_n=> sram_LB_n,
+		sram_UB_n=> sram_UB_n,
  		--GREEN LEDS
 		LEDG => open,
 		--RED LEDS
@@ -153,6 +182,18 @@ begin
 	ram_CLK <= transport CLK_IN after 1 ns;
 	--sram_IO <= transport ram_Q after 9 ns;--emulates delay in sram response (less than 10 ns)
 	flash_IO <= ram_Q(7 downto 0) when flash_ADDR(0)='0' else ram_Q(15 downto 8);
+	
+	rom: async_sram
+	generic map (DATA_WIDTH => 16, ADDR_WIDTH => 20)
+	port map(
+		IO => sram_IO,
+		ADDR=> sram_ADDR,
+		CE_n=> sram_CE_n,
+		OE_n=> sram_OE_n,
+		WE_n=> sram_WE_n,
+		UB_n=> sram_UB_n,
+		LB_n=> sram_LB_n
+	);
 	
 	clock: process--50MHz input clock
 	begin
