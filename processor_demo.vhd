@@ -734,25 +734,26 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_with_loader: if sram_loader generate
 		sram_WE_n <= '0' when sram_filled='0' else '1';--when sram is not filled, write is enabled, after that, reading is enabled
 		--process for reading/writing instructions at SRAM
-		sram_reading: process(sram_CLK,sram_IO,CLK,rst,instruction_memory_address,sram_reading_state,instruction_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
+		sram_reading: process(sram_CLK,sram_IO,CLK,rst,instruction_memory_address,sram_reading_state,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
 		begin
 			if(rst='1')then--reset is extended to store instructions in SRAM 
 				sram_ADDR <= sram_loader_counter;
 				instruction_memory_output <= (others=>'0');
 				instruction_lower_half_latched <= '0';
 				instruction_upper_half_latched <= '0';
-			elsif(sram_CLK='0' and CLK='1' and instruction_latched='0') then
-				sram_ADDR <= sram_ADDR_lower_half;
-				instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
-			elsif(sram_CLK='1' and CLK='1' and instruction_latched='0') then
-				sram_ADDR <= sram_ADDR_upper_half;
-				instruction_lower_half_latched <= '1';
-				instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
-			elsif(sram_CLK='1' and CLK='1' and instruction_lower_half_latched='1')then
-				instruction_upper_half_latched <= '1';
-			elsif(CLK='0')then
-				instruction_lower_half_latched <= '0';
-				instruction_upper_half_latched <= '0';
+			elsif(rising_edge(sram_CLK)) then
+				if(CLK='1' and instruction_lower_half_latched='0') then
+					sram_ADDR <= sram_ADDR_lower_half;
+					instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
+					instruction_lower_half_latched <= '1';
+				elsif(CLK='1' and instruction_lower_half_latched='1') then
+					sram_ADDR <= sram_ADDR_upper_half;
+					instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
+					instruction_upper_half_latched <= '1';
+				elsif(CLK='0')then
+					instruction_lower_half_latched <= '0';
+					instruction_upper_half_latched <= '0';
+				end if;
 			end if;
 		end process;
 		
