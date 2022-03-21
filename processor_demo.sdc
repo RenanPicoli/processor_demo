@@ -102,8 +102,8 @@ set_clock_groups -asynchronous -group [get_clocks {uproc_clk sram_clk clk_in}] -
 set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_dbg}]
 set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_fs_dbg}]
 
-# following intel guidelines, asynchronous reset is excluded from timing analysis:
-set_false_path  -from  [get_ports {RST}] -to [all_registers]
+# following intel guidelines, asynchronous reset input is excluded from timing analysis:
+set_false_path  -from  [get_ports {rst_n}] -to [all_registers]
 
 
 #**************************************************************
