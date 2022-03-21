@@ -764,33 +764,31 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		
 		write_loop: process(rst_n_sync,CLK_IN)
 			begin
-				if(rising_edge(CLK_IN))then--period is 20 ns, enough for writes
-					if(rst_n_sync='0')then--using synchronous reset to ensure no problems with reset removal
-						sram_loader_counter <= (others=>'0');
-						sram_filled <= '0';
+				if(rst_n_sync='0')then--using synchronous reset to ensure no problems with reset removal
+					sram_loader_counter <= (others=>'0');
+					sram_filled <= '0';
+				elsif(rising_edge(CLK_IN))then--period is 20 ns, enough for writes
+					if(sram_loader_counter /= (19 downto 0 =>'1'))then
+						sram_loader_counter <= sram_loader_counter + 1;
 					else
-						if(sram_loader_counter /= (19 downto 0 =>'1'))then
-							sram_loader_counter <= sram_loader_counter + 1;
-						else
-							sram_filled <= '1';--when sram_loader_counter = xFFFFF
-						end if;
+						sram_filled <= '1';--when sram_loader_counter = xFFFFF
 					end if;
 				end if;
 		end process;
 		
-		rst_n_sync <= rst_n;--bypasses sync_chain
+--		rst_n_sync <= rst_n;--bypasses sync_chain
 		--synchronized asynchronous reset
 		--asserted asynchronously
 		--deasserted synchronously to the rising_edge of CLK_IN
---		sync_async_reset: sync_chain
---		generic map (N => 1,--bus width in bits
---					L => 2)--number of registers in the chain
---		port map (
---				data_in(0) => '1',--data generated at another clock domain
---				CLK => CLK_IN,--clock of new clock domain				
---				RST => not rst_n,--asynchronous reset
---				data_out(0) => rst_n_sync --data synchronized in CLK domain
---		);
+		sync_async_reset: sync_chain
+		generic map (N => 1,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in(0) => '1',--data generated at another clock domain
+				CLK => CLK_IN,--clock of new clock domain				
+				RST => not rst_n,--asynchronous reset
+				data_out(0) => rst_n_sync --data synchronized in CLK domain
+		);
 	end generate;
 	
 	instruction_latched <= instruction_lower_half_latched and instruction_upper_half_latched;
