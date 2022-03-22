@@ -180,7 +180,6 @@ begin
 	);
 	--this delay should permit our ram to update its response correctly (valid data when CLK_IN goes low)
 	ram_CLK <= transport CLK_IN after 1 ns;
-	--sram_IO <= transport ram_Q after 9 ns;--emulates delay in sram response (less than 10 ns)
 	flash_IO <= ram_Q(7 downto 0) when flash_ADDR(0)='0' else ram_Q(15 downto 8);
 	
 	rom: async_sram

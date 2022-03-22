@@ -33,6 +33,8 @@ architecture behv of async_sram is
 --	type word_t is std_logic_vector(DATA_WIDTH-1 downto 0);
 	type mem is array (0 to 2**ADDR_WIDTH-1) of std_logic_vector(DATA_WIDTH-1 downto 0);
 	signal sram: mem := (others=>(others=>'1'));
+	signal sram_IO_instantaneous:	std_logic_vector(DATA_WIDTH-1 downto 0);--sram data; without delay
+	constant	sram_delay: time:= 10 ns;
 	
 begin
 
@@ -43,8 +45,9 @@ begin
 		end if;
 	end process;
 	
-	IO <= sram(to_integer(unsigned(ADDR))) when (WE_n ='1') else
-			(others=>'Z');
+	sram_IO_instantaneous <= sram(to_integer(unsigned(ADDR))) when (WE_n ='1') else
+									 (others=>'Z');
+	IO <= transport sram_IO_instantaneous after sram_delay;--emulates delay in sram response (less than 10 ns)
 
 end behv;
 
