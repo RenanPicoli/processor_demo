@@ -803,18 +803,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);
 		--synchronized asynchronous reset
 		--asserted asynchronously
-		--deasserted synchronously to the rising_edge of CLK_IN
-		sync_async_reset_CLK_IN: sync_chain
-		generic map (N => 1,--bus width in bits
-					L => 2)--number of registers in the chain
-		port map (
-				data_in(0) => '1',--data generated at another clock domain
-				CLK => CLK_IN,--clock of new clock domain				
-				RST => not rst_n,--asynchronous reset
-				data_out(0) => rst_n_sync_CLK_IN --data synchronized in CLK domain
-		);
-		--synchronized asynchronous reset
-		--asserted asynchronously
 		--deasserted synchronously to the rising_edge of uproc_CLK
 		sync_async_reset_uproc: sync_chain
 		generic map (N => 1,--bus width in bits
