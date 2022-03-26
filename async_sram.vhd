@@ -45,9 +45,18 @@ begin
 		end if;
 	end process;
 	
-	sram_IO_instantaneous <= sram(to_integer(unsigned(ADDR))) when (WE_n ='1') else
-									 (others=>'Z');
-	IO <= transport sram_IO_instantaneous after sram_delay;--emulates delay in sram response (less than 10 ns)
+--	sram_IO_instantaneous <= sram(to_integer(unsigned(ADDR))) when (WE_n ='1') else
+--									 (others=>'Z');
+--	IO <= transport sram_IO_instantaneous after sram_delay;--emulates delay in sram response (less than 10 ns)
+	process(WE_n,sram,ADDR)
+	begin
+		if (WE_n ='1') then
+--			IO <= transport sram(to_integer(unsigned(ADDR))) after sram_delay;--emulates delay in sram response (less than 10 ns)
+			IO <= sram(to_integer(unsigned(ADDR)));--no delay
+		else
+			IO <= (others=>'Z');
+		end if;
+	end process;
 
 end behv;
 
