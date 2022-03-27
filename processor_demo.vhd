@@ -602,8 +602,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		rst <= not rst_n;
 	end generate;
 	extended_reset_mini_rom_enabled: if sram_loader generate
-		rst <= '1' when sram_filled = '0' else (not rst_n_sync_uproc);
+--		rst <= '1' when sram_filled = '0' else (not rst_n_sync_uproc);
 --		rst <= not sram_filled;
+		rst <= not rst_n_sync_uproc;--rst is deasserted synchronously with uproc_CLK
 		rom: mini_rom port map(
 										ADDR=> sram_loader_address,
 										Q	 => sram_loader_data
@@ -737,9 +738,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_with_loader: if sram_loader generate
 		sram_WE_n <= '0' when sram_filled='0' else '1';--when sram is not filled, write is enabled, after that, reading is enabled
 		--process for reading/writing instructions at SRAM
-		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_uproc,sram_filled,instruction_memory_address,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
+		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,instruction_memory_address,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
 		begin
-			if(sram_filled='0')then--reset is extended to store instructions in SRAM 
+			if(rst_n_sync_sram_CLK='0')then--reset is extended to store instructions in SRAM 
 				sram_ADDR <= sram_loader_counter;
 			elsif(falling_edge(sram_CLK)) then
 				if(CLK='1' and instruction_lower_half_latched='0') then
@@ -824,7 +825,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		port map (
 				data_in(0) => '1',--data generated at another clock domain
 				CLK => sram_CLK,--clock of new clock domain				
-				RST => not rst_n,--asynchronous reset
+				RST => not sram_filled,--asynchronous reset
 				data_out(0) => rst_n_sync_sram_CLK --data synchronized in CLK domain
 		);
 	end generate;
