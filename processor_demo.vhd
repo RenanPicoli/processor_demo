@@ -603,6 +603,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	end generate;
 	extended_reset_mini_rom_enabled: if sram_loader generate
 		rst <= '1' when sram_filled = '0' else (not rst_n_sync_uproc);
+--		rst <= not sram_filled;
 		rom: mini_rom port map(
 										ADDR=> sram_loader_address,
 										Q	 => sram_loader_data
@@ -736,9 +737,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_with_loader: if sram_loader generate
 		sram_WE_n <= '0' when sram_filled='0' else '1';--when sram is not filled, write is enabled, after that, reading is enabled
 		--process for reading/writing instructions at SRAM
-		sram_reading: process(sram_CLK,sram_IO,CLK,rst,instruction_memory_address,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
+		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_uproc,sram_filled,instruction_memory_address,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
 		begin
-			if(rst_n_sync_sram_CLK='0')then--reset is extended to store instructions in SRAM 
+			if(sram_filled='0')then--reset is extended to store instructions in SRAM 
 				sram_ADDR <= sram_loader_counter;
 			elsif(falling_edge(sram_CLK)) then
 				if(CLK='1' and instruction_lower_half_latched='0') then
