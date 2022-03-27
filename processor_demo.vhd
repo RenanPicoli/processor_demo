@@ -812,7 +812,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		port map (
 				data_in(0) => '1',--data generated at another clock domain
 				CLK => CLK,--clock of new clock domain				
-				RST => not rst_n,--asynchronous reset
+				RST => not sram_filled,--asynchronous reset
 				data_out(0) => rst_n_sync_uproc --data synchronized in CLK domain
 		);
 		--synchronized asynchronous reset
