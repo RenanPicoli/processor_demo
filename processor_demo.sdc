@@ -91,6 +91,7 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 #**************************************************************
 
 set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
+#set_clock_groups -asynchronous -group [get_clocks {clk_in}]
 
 # Intel recomendation for Clock Domain Crossing (CDC)
 set_clock_groups -asynchronous -group [get_clocks {uproc_clk sram_clk clk_in}] -group [get_clocks {i2s_sckin i2s_WS clk_fs}]
@@ -104,6 +105,7 @@ set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_fs_dbg}]
 
 # following intel guidelines, asynchronous reset input is excluded from timing analysis:
 set_false_path  -from  [get_ports {rst_n}] -to [all_registers]
+set_false_path  -from  [get_registers {sram_filled}] -to [all_registers]
 
 
 #**************************************************************
@@ -151,6 +153,7 @@ set_multicycle_path -hold -end -to [get_registers {inner_product_calculation_uni
 
 # set_net_delay requires direct connection between from and to nodes, with logic in between
 # Intel recomendation for Clock Domain Crossing (CDC)
+set_net_delay -from [get_registers {sram_filled}] -to [get_registers {sync_chain:\sram_with_loader:sync_async_reset_sram_CLK|Q[0][0]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 set_net_delay -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
 #set_net_delay -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
 #set_net_delay -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
