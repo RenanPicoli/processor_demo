@@ -77,7 +77,7 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 #**************************************************************
 # Set Input Delay
 #**************************************************************
-
+set_input_delay -clock sram_clk -max 12 [get_ports sram_IO[*]]
 
 
 #**************************************************************
