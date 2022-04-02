@@ -782,8 +782,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					sram_loader_counter <= (others=>'0');
 					sram_filled <= '0';
 				elsif(rising_edge(CLK_IN))then--period is 20 ns, enough for writes
---					if(sram_loader_counter /= (19 downto 0 =>'1'))then
-					if(sram_loader_counter /= x"001FF")then--writes only the first 512 SRAM words (256x32bit instructions)
+					if(sram_loader_counter /= (19 downto 0 =>'1'))then
+--					if(sram_loader_counter /= x"001FF")then--writes only the first 512 SRAM words (256x32bit instructions)
 						sram_loader_counter <= sram_loader_counter + 1;
 					else
 						sram_filled <= '1';--when sram_loader_counter = xFFFFF
