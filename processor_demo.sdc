@@ -84,6 +84,10 @@ set_input_delay -clock sram_clk -clock_fall -min -1 [get_ports sram_IO[*]]
 #**************************************************************
 # Set Output Delay
 #**************************************************************
+set_output_delay -clock clk_in -max 8 [get_ports sram_IO[*]]
+set_output_delay -clock clk_in -min -1 [get_ports sram_IO[*]]
+set_output_delay -clock clk_in -max 2 [get_ports sram_ADDR[*]]
+set_output_delay -clock clk_in -min -1 [get_ports sram_ADDR[*]]
 
 
 
