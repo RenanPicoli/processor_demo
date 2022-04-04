@@ -389,6 +389,7 @@ signal sram_loader_data: std_logic_vector(31 downto 0);--used to read mini_rom
 signal sram_loader_counter: std_logic_vector(19 downto 0);--counts from 0 to 1M-1 to generate write addresses
 
 --on next rising edge of CLK, sram_ADDR will be updated, at next CLK falling edge IO will be latched
+signal sram_ADDR_reading: std_logic_vector(19 downto 0);--ADDR for SRAM reading
 signal sram_ADDR_lower_half: std_logic_vector(19 downto 0);--address of lower half of next instruction
 signal sram_ADDR_upper_half: std_logic_vector(19 downto 0);--address of lower half of next instruction
 signal sram_reading_state: std_logic;--'0' means reading enabled, '1' means reading complete
@@ -635,7 +636,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	flash_WP_n <= '1';--write protection always disabled
 	flash_RST_n <= rst_n;--system reset resets flash to read mode
 
-	flash_reading: process(CLK,filter_rst,flash_reading_state,filter_CLK,rst)
+	flash_reading: process(CLK,filter_rst,flash_reading_state,flash_count,filter_CLK,rst)
 	begin
 		if(rst='1')then
 			flash_reading_state <= "1001";
@@ -652,8 +653,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		--flash_ADDR will update immediately when flash_reading_state changes
 		if (rst='1')then
 			flash_ADDR <= (others=>'0');
-		elsif (flash_reading_state(3)/='1')then--"1000" or "1001"
+		elsif (flash_reading_state(3)/='1')then--NOT ("1000" or "1001")
 			flash_ADDR <= flash_reading_state(0) & flash_count & flash_reading_state(2 downto 1);--data is launched
+		else-- IS "1000" or "1001"			
+			flash_ADDR <= (others=>'0');
 		end if;
 	end process;
 	
@@ -738,15 +741,20 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_with_loader: if sram_loader generate
 		sram_WE_n <= '0' when sram_filled='0' else '1';--when sram is not filled, write is enabled, after that, reading is enabled
 		--process for reading/writing instructions at SRAM
-		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,instruction_memory_address,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
+		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,rst_n_sync_uproc,sram_ADDR_reading,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
 		begin
 			if(rst_n_sync_sram_CLK='0')then--reset is extended to store instructions in SRAM 
 				sram_ADDR <= sram_loader_counter;
-			elsif(falling_edge(sram_CLK)) then
+			else
+				sram_ADDR <= sram_ADDR_reading;
+			end if;
+			
+			--generates SRAM address for instruction READING
+			if(falling_edge(sram_CLK)) then
 				if(CLK='1' and instruction_lower_half_latched='0') then
-					sram_ADDR <= sram_ADDR_lower_half;
+					sram_ADDR_reading <= sram_ADDR_lower_half;
 				elsif(CLK='1' and instruction_lower_half_latched='1' and instruction_upper_half_latched='0') then
-					sram_ADDR <= sram_ADDR_upper_half;
+					sram_ADDR_reading <= sram_ADDR_upper_half;
 				end if;
 			end if;
 
