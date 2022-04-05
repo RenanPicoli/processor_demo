@@ -784,14 +784,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 						(others=>'Z');
 		sram_loader_address <= sram_loader_counter(8 downto 1);--address for mini_rom
 		
-		write_loop: process(rst_n_sync_CLK_IN,CLK_IN)
+		write_loop: process(rst_n_sync_sram_CLK,sram_CLK)
 			begin
-				if(rst_n_sync_CLK_IN='0')then--using synchronous reset to ensure no problems with reset removal
+				if(rst_n_sync_sram_CLK='0')then--using synchronous reset to ensure no problems with reset removal
 					sram_loader_counter <= (others=>'0');
 					sram_filled <= '0';
-				elsif(rising_edge(CLK_IN))then--period is 20 ns, enough for writes
+				elsif(rising_edge(sram_CLK))then--period is 31.25 ns, enough for writes
 					if(sram_loader_counter /= (19 downto 0 =>'1'))then
---					if(sram_loader_counter /= x"001FF")then--writes only the first 512 SRAM words (256x32bit instructions)
 						sram_loader_counter <= sram_loader_counter + 1;
 					else
 						sram_filled <= '1';--when sram_loader_counter = xFFFFF
@@ -803,15 +802,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		--synchronized asynchronous reset
 		--asserted asynchronously
 		--deasserted synchronously to the rising_edge of CLK_IN
-		sync_async_reset_CLK_IN: sync_chain
-		generic map (N => 1,--bus width in bits
-					L => 2)--number of registers in the chain
-		port map (
-				data_in(0) => '1',--data generated at another clock domain
-				CLK => CLK_IN,--clock of new clock domain				
-				RST => not rst_n,--asynchronous reset
-				data_out(0) => rst_n_sync_CLK_IN --data synchronized in CLK domain
-		);
+--		sync_async_reset_CLK_IN: sync_chain
+--		generic map (N => 1,--bus width in bits
+--					L => 2)--number of registers in the chain
+--		port map (
+--				data_in(0) => '1',--data generated at another clock domain
+--				CLK => CLK_IN,--clock of new clock domain				
+--				RST => not rst_n,--asynchronous reset
+--				data_out(0) => rst_n_sync_CLK_IN --data synchronized in CLK domain
+--		);
 		--synchronized asynchronous reset
 		--asserted asynchronously
 		--deasserted synchronously to the rising_edge of uproc_CLK

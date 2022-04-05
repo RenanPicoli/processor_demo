@@ -79,15 +79,19 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 #**************************************************************
 set_input_delay -clock sram_clk -clock_fall -max 12 [get_ports sram_IO[*]]
 set_input_delay -clock sram_clk -clock_fall -min -1 [get_ports sram_IO[*]]
+set_input_delay -clock uproc_clk -max 112 [get_ports flash_IO[*]]
+set_input_delay -clock uproc_clk -min -1 [get_ports flash_IO[*]]
 
 
 #**************************************************************
 # Set Output Delay
 #**************************************************************
-set_output_delay -clock clk_in -max 8 [get_ports sram_IO[*]]
-set_output_delay -clock clk_in -min -1 [get_ports sram_IO[*]]
-set_output_delay -clock clk_in -max 2 [get_ports sram_ADDR[*]]
-set_output_delay -clock clk_in -min -1 [get_ports sram_ADDR[*]]
+set_output_delay -clock sram_clk -max 8 [get_ports sram_IO[*]]
+set_output_delay -clock sram_clk -min -1 [get_ports sram_IO[*]]
+set_output_delay -clock sram_clk -max 2 [get_ports sram_ADDR[*]]
+set_output_delay -clock sram_clk -min -1 [get_ports sram_ADDR[*]]
+set_output_delay -clock uproc_clk -max 2 [get_ports flash_ADDR[*]]
+set_output_delay -clock uproc_clk -min -1 [get_ports flash_ADDR[*]]
 
 
 
