@@ -393,7 +393,8 @@ signal sram_ADDR_reading: std_logic_vector(19 downto 0);--ADDR for SRAM reading
 signal sram_ADDR_lower_half: std_logic_vector(19 downto 0);--address of lower half of next instruction
 signal sram_ADDR_upper_half: std_logic_vector(19 downto 0);--address of lower half of next instruction
 signal sram_reading_state: std_logic;--'0' means reading enabled, '1' means reading complete
-signal sram_CLK: std_logic;--clock for process reading instructions in SRAM, must be 4x CLK, delayed 1/8 CLK cycle
+signal sram_CLK: std_logic;--clock for process reading instructions in SRAM, must be 8x CLK, delayed 1/8 CLK cycle
+signal sram_CLK_n: std_logic;--sram_CLK inverted
 signal count: std_logic_vector(17 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
 
 signal sample_number: std_logic_vector(7 downto 0);--used to generate address for data_in_rom_ip and desired_rom_ip
@@ -789,7 +790,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				if(rst_n_sync_sram_CLK='0')then--using synchronous reset to ensure no problems with reset removal
 					sram_loader_counter <= (others=>'0');
 					sram_filled <= '0';
-				elsif(rising_edge(sram_CLK))then--period is 31.25 ns, enough for writes
+				elsif(falling_edge(sram_CLK))then--period is 31.25 ns, enough for writes
 					if(sram_loader_counter /= (19 downto 0 =>'1'))then
 						sram_loader_counter <= sram_loader_counter + 1;
 					else
@@ -825,16 +826,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);
 		--synchronized asynchronous reset
 		--asserted asynchronously
-		--deasserted synchronously to the rising_edge of sram_CLK
+		--deasserted synchronously to the falling_edge of sram_CLK
 		sync_async_reset_sram_CLK: sync_chain
 		generic map (N => 1,--bus width in bits
 					L => 2)--number of registers in the chain
 		port map (
 				data_in(0) => '1',--data generated at another clock domain
-				CLK => sram_CLK,--clock of new clock domain				
+				CLK => sram_CLK_n,--clock of new clock domain				
 				RST => not sram_filled,--asynchronous reset
 				data_out(0) => rst_n_sync_sram_CLK --data synchronized in CLK domain
 		);
+		sram_CLK_n <= not sram_CLK;
 	end generate;
 	
 	instruction_latched <= instruction_lower_half_latched and instruction_upper_half_latched;

@@ -86,10 +86,10 @@ set_input_delay -clock uproc_clk -min -1 [get_ports flash_IO[*]]
 #**************************************************************
 # Set Output Delay
 #**************************************************************
-set_output_delay -clock sram_clk -max 8 [get_ports sram_IO[*]]
-set_output_delay -clock sram_clk -min -1 [get_ports sram_IO[*]]
-set_output_delay -clock sram_clk -max 2 [get_ports sram_ADDR[*]]
-set_output_delay -clock sram_clk -min -1 [get_ports sram_ADDR[*]]
+set_output_delay -clock sram_clk -clock_fall -max 8 [get_ports sram_IO[*]]
+set_output_delay -clock sram_clk -clock_fall -min -1 [get_ports sram_IO[*]]
+set_output_delay -clock sram_clk -clock_fall -max 2 [get_ports sram_ADDR[*]]
+set_output_delay -clock sram_clk -clock_fall -min -1 [get_ports sram_ADDR[*]]
 set_output_delay -clock uproc_clk -max 2 [get_ports flash_ADDR[*]]
 set_output_delay -clock uproc_clk -min -1 [get_ports flash_ADDR[*]]
 
