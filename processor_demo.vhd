@@ -742,9 +742,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_with_loader: if sram_loader generate
 		sram_WE_n <= '0' when sram_filled='0' else '1';--when sram is not filled, write is enabled, after that, reading is enabled
 		--process for reading/writing instructions at SRAM
-		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,rst_n_sync_uproc,sram_ADDR_reading,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
+		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,rst_n_sync_uproc,sram_filled,sram_ADDR_reading,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
 		begin
-			if(rst_n_sync_sram_CLK='0')then--reset is extended to store instructions in SRAM 
+			if(sram_filled='0')then--reset is extended to store instructions in SRAM 
 				sram_ADDR <= sram_loader_counter;
 			else
 				sram_ADDR <= sram_ADDR_reading;
@@ -833,7 +833,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		port map (
 				data_in(0) => '1',--data generated at another clock domain
 				CLK => sram_CLK_n,--clock of new clock domain				
-				RST => not sram_filled,--asynchronous reset
+				RST => not rst_n,--asynchronous reset
 				data_out(0) => rst_n_sync_sram_CLK --data synchronized in CLK domain
 		);
 		sram_CLK_n <= not sram_CLK;
