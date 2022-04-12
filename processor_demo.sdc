@@ -161,6 +161,9 @@ set_multicycle_path -hold -end -to [get_registers {inner_product_calculation_uni
 #**************************************************************
 
 # set_net_delay requires direct connection between from and to nodes, with NO logic in between
+#set_net_delay -from [get_pins {instruction_memory_output[*]|q}] -to [get_pins {processor|control|*}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.05
+# above constraint didn't work so I replaced it with constraint below (12.5ns = 0.05*uproc_clk_period):
+set_net_delay -from [get_pins {instruction_memory_output[*]|q}] -to [get_pins -compatibility_mode processor|control|*] -max 12.5
 # Intel recomendation for Clock Domain Crossing (CDC)
 set_net_delay -from [get_pins {filter_rst~clkctrl|outclk}] -to [get_registers {sync_chain_filter_output|Q[0][*]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 set_net_delay -from [get_registers {sram_filled}] -to [get_registers {sync_chain:\sram_with_loader:sync_async_reset_sram_CLK|Q[0][0]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
