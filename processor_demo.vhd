@@ -799,19 +799,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				end if;
 		end process;
 		
---		rst_n_sync <= rst_n;--bypasses sync_chain
-		--synchronized asynchronous reset
-		--asserted asynchronously
-		--deasserted synchronously to the rising_edge of CLK_IN
---		sync_async_reset_CLK_IN: sync_chain
---		generic map (N => 1,--bus width in bits
---					L => 2)--number of registers in the chain
---		port map (
---				data_in(0) => '1',--data generated at another clock domain
---				CLK => CLK_IN,--clock of new clock domain				
---				RST => not rst_n,--asynchronous reset
---				data_out(0) => rst_n_sync_CLK_IN --data synchronized in CLK domain
---		);
 		--synchronized asynchronous reset
 		--asserted asynchronously
 		--deasserted synchronously to the rising_edge of uproc_CLK
@@ -909,7 +896,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		port map (
 				data_in => filter_output,--data generated at another clock domain
 				CLK => CLK,--clock of new clock domain
-				RST => filter_rst,--asynchronous reset
+				RST => rst,--asynchronous reset
 				data_out => filter_output_sync --data synchronized in CLK domain
 		);
 	
