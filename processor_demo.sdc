@@ -115,6 +115,7 @@ set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_fs_dbg}]
 # following intel guidelines, asynchronous reset input is excluded from timing analysis:
 set_false_path  -from  [get_ports {rst_n}] -to [all_registers]
 set_false_path  -from  [get_registers {sram_filled}] -to [all_registers]
+set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pins -compatibility_mode {i2s|sync_async_reset_iack|Q[*]|clrn}]
 
 
 #**************************************************************
@@ -166,7 +167,8 @@ set_multicycle_path -hold -end -to [get_registers {inner_product_calculation_uni
 set_net_delay -from [get_pins {instruction_memory_output[*]|q}] -to [get_pins -compatibility_mode processor|control|*] -max 12.5
 # Intel recomendation for Clock Domain Crossing (CDC)
 set_net_delay -from [get_pins {filter_rst~clkctrl|outclk}] -to [get_registers {sync_chain_filter_output|Q[0][*]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
-set_net_delay -from [get_registers {sram_filled}] -to [get_registers {sync_chain:\sram_with_loader:sync_async_reset_sram_CLK|Q[0][0]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
+#set_net_delay -from [get_registers {sram_filled}] -to [get_registers {sync_chain:\sram_with_loader:sync_async_reset_sram_CLK|Q[0][0]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
+set_net_delay -from [get_registers {sram_filled}] -to [get_registers {sync_async_reset_sram_CLK|Q[0][0]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 set_net_delay -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.5
 #set_net_delay -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
 #set_net_delay -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
