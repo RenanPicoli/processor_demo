@@ -116,6 +116,7 @@ set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_fs_dbg}]
 set_false_path  -from  [get_ports {rst_n}] -to [all_registers]
 set_false_path  -from  [get_registers {sram_filled}] -to [all_registers]
 set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pins -compatibility_mode {i2s|sync_async_reset_iack|Q[*]|clrn}]
+set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pins -compatibility_mode {sync_chain_filter_CLK|Q[*]|clrn}]
 
 
 #**************************************************************
