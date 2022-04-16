@@ -56,6 +56,7 @@ port (CLK_IN: in std_logic;
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to mini_rom)
 		Q_rom:	in std_logic_vector(31 downto 0);
+		cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid)
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
@@ -549,6 +550,7 @@ signal all_periphs_wren: std_logic_vector(11 downto 0);
 
 signal filter_CLK: std_logic;
 signal filter_CLK_n: std_logic;--filter_CLK inverted
+signal filter_CLK_syncd_uproc: std_logic;-- filter_CLK synchronized to uproc_CLK rising edge
 signal filter_parallel_wren: std_logic;
 signal filter_rst: std_logic := '1';
 signal filter_input: std_logic_vector(31 downto 0);
@@ -602,11 +604,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	flash_WP_n <= '1';--write protection always disabled
 	flash_RST_n <= rst_n;--system reset resets flash to read mode
 
-	flash_reading: process(CLK,filter_rst,flash_reading_state,filter_CLK,rst)
+	flash_reading: process(CLK,filter_rst,flash_reading_state,flash_count,filter_CLK_syncd_uproc,rst)
 	begin
 		if(rst='1')then
 			flash_reading_state <= "1001";
-		elsif(filter_CLK='1')then
+		elsif(filter_CLK_syncd_uproc='1')then
 			flash_reading_state <= "1001";
 		elsif(rising_edge(CLK) and filter_rst='0') then
 			if (flash_reading_state(3)/='1')then--"1000" or "1001"
@@ -669,6 +671,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --------------------------------------------------------
 
 	filter_CLK_n <= not filter_CLK;
+	
+	-- synchronizes desired to rising_edge of CLK, because:
+	--1: filter_CLK is generated at filter_CLK domain
+	--2: this signal is used to reset flash_reading_state (in CLK domain)
+	sync_chain_filter_CLK: sync_chain
+		generic map (N => 1,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in(0) => filter_CLK,--data generated at another clock domain
+				CLK => CLK,--clock of new clock domain				
+				RST => rst,--asynchronous reset
+				data_out(0) => filter_CLK_syncd_uproc --data synchronized in CLK domain
+		);
 
 	-- synchronizes desired to rising_edge of ram_CLK, because:
 	--1: desired is generated at filter_CLK domain
@@ -970,6 +985,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		ADDR_rom => instruction_memory_address,
 		CLK_rom => instruction_clk,
 		Q_rom => instruction_memory_output,
+		cache_ready => '1',
 		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
 		rden_ram => ram_rden,
