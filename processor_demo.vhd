@@ -585,6 +585,9 @@ signal filter_input: std_logic_vector(31 downto 0);
 signal filter_output: std_logic_vector(31 downto 0);
 signal filter_irq: std_logic;
 signal filter_iack: std_logic;
+signal filter_iack_received: std_logic;
+signal filter_iack_received_proc: std_logic;
+signal filter_iack_send_proc: std_logic;
 signal proc_filter_parallel_wren: std_logic;
 
 --signals for vector transfers
@@ -895,11 +898,54 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 											WREN => filter_parallel_wren,--enables updating all coefficients at once
 											CLK => filter_CLK,--sampling clock
 											coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
-											iack => filter_iack,
+											iack => filter_iack_received,
 											irq => filter_irq,
 											output => filter_output											
 											);
 	filter_input <= data_in;
+	
+	process(filter_rst,filter_irq,filter_CLK,CLK_fs_dbg,filter_iack_send_proc)
+	begin
+		if (filter_rst='1') then
+			filter_iack_received <= '0';
+--		elsif(falling_edge(filter_CLK))then
+		elsif(falling_edge(CLK_fs_dbg))then
+			if (filter_CLK='1') then
+				filter_iack_received <= filter_iack_send_proc;
+			elsif (filter_CLK='0') then
+				filter_iack_received <= '0';
+			end if;
+		end if;
+	end process;
+	
+	-- synchronizes filter_iack_received to rising_edge of CLK, because:
+	--1: ffilter_iack_received is generated at filter_CLK domain
+	--2: this signal is sampled in filter_iack_send_proc at rising_edge of ram_CLK
+	sync_chain_filter_iack_received: sync_chain
+		generic map (N => 1,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in(0) => filter_iack_received,--data generated at another clock domain
+				CLK => CLK,--clock of new clock domain
+				RST => rst,--asynchronous reset
+				data_out(0) => filter_iack_received_proc --data synchronized in CLK domain
+		);
+	
+	--must extend filter_iack until receives the filter_iack_received_proc='1'
+	process(rst,CLK,filter_iack,filter_iack_received_proc)
+	begin
+		if (rst='1') then
+			filter_iack_send_proc <= '0';
+		elsif(rising_edge(CLK))then
+			--flag is raised
+			if (filter_iack='1') then
+				filter_iack_send_proc <= '1';
+			--flag is cleared
+			elsif (filter_iack_received_proc='1') then
+				filter_iack_send_proc <= '0';
+			end if;
+		end if;
+	end process;		
 
 	-- synchronizes filter output to rising_edge of CLK, because:
 	--1: filter output is generated at filter_CLK domain
