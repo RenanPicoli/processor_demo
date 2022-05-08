@@ -15,6 +15,8 @@ use work.my_types.all;
 entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
 		rst_n: in std_logic;--active low reset, connected to KEY3
+		--SWITCHES
+		SW: in std_logic_vector(17 downto 0);
 		--I2C
 		I2C_SDAT: inout std_logic;--I2C SDA
 		I2C_SCLK: inout std_logic;--I2C SCL
@@ -140,15 +142,6 @@ component filter
 			output: out std_logic_vector(31 downto 0)-- output
 	);
 
-end component;
-
----------------------------------------------------
-
-component wren_ctrl
-	port (input: in std_logic;--input able of asynchronously setting the output
-			CLK: in std_logic;--synchronously resets output
-			output: inout std_logic := '0'--output clock
-	);
 end component;
 
 ---------------------------------------------------
@@ -608,8 +601,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		rst <= not rst_n;
 	end generate;
 	extended_reset_mini_rom_enabled: if sram_loader generate
---		rst <= '1' when sram_filled = '0' else (not rst_n_sync_uproc);
---		rst <= not sram_filled;
 		rst <= not rst_n_sync_uproc;--rst is deasserted synchronously with uproc_CLK
 		rom: mini_rom port map(
 										ADDR=> sram_loader_address,
@@ -993,9 +984,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	process(RST,proc_filter_parallel_wren,filter_CLK)
 	begin
---		if(RST='1')then
---			filter_parallel_wren <= '0';
---		elsif(proc_filter_parallel_wren=	'1')then
 		if(proc_filter_parallel_wren=	'1')then
 			filter_parallel_wren <= '1';
 		elsif(rising_edge(filter_CLK))then--next rising_edge of filter means next sample, so filter_parallel_wren must be reset
