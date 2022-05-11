@@ -9,13 +9,14 @@ use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;--to_integer
 
 use work.my_types.all;
+use work.single_precision_type.all;--float
 
 -------------------------------------------------------------
 
 entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
 		rst_n: in std_logic;--active low reset, connected to KEY3
-		--SWITCHES
+		--SWITCHES for runtime configuration
 		SW: in std_logic_vector(17 downto 0);
 		--I2C
 		I2C_SDAT: inout std_logic;--I2C SDA
@@ -518,8 +519,10 @@ signal all_iack: std_logic_vector(2 downto 0);
 --signals for fp32_to_integer----------------------------------
 constant audio_resolution: natural := 16;
 signal fp_in: std_logic_vector(31 downto 0);
+signal fp_in_new_exponent: std_logic_vector(7 downto 0);
 signal fp32_to_int_out: std_logic_vector(audio_resolution-1 downto 0);
-signal left_padded_fp32_to_int_out: std_logic_vector(31 downto 0);--fp32_to_int_out left padded with zeroes
+signal fp32_to_int_out_gain: std_logic_vector(audio_resolution-1 downto 0);
+signal left_padded_fp32_to_int_out_gain: std_logic_vector(31 downto 0);--fp32_to_int_out_gain left padded with zeroes
 
 --signals for converted_out----------------------------------
 signal converted_out_Q: std_logic_vector(31 downto 0);-- register containing current filter output converted to 2's complement
@@ -859,8 +862,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 						vmac_vector_bus_A when (lvec='1' and lvec_src="101") else
 						vmac_vector_bus_B when (lvec='1' and lvec_src="110") else
 						(others=>(others => '0'));
-						
-						
 	
 --	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
 	coeffs_mem_parallel_wren <= lvec_dst_mask(0);
@@ -1066,16 +1067,54 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				output => vmac_Q
 	);
 	
-	fp_in <= filter_output_sync;
 	fp32_to_int: fp32_to_integer
 	generic map (N=> audio_resolution)
 	port map (fp_in => fp_in,
 				 output=> fp32_to_int_out);
-				 
+	
+	--Switches are used to select fp_in division and fp32_to_int_out gain (preventing saturation)
+	process(filter_output_sync,fp32_to_int_out,SW)
+	begin
+		if(SW(1 downto 0)="00")then
+			fp_in_new_exponent <= filter_output_sync(30 downto 23);--decreases by 0 dB
+--			fp_in <= filter_output_sync;--decreases by 0 dB
+--			fp32_to_int_out_gain <= fp32_to_int_out;--increases by 0 dB
+		elsif(SW(1 downto 0)="01")then
+			if(filter_output_sync(30 downto 23)/=x"00")then
+				fp_in_new_exponent <= filter_output_sync(30 downto 23) - '1';--decreases by 6 dB
+				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
+			else
+				fp_in_new_exponent <= filter_output_sync(30 downto 23);
+			end if;
+--			fp_in <= filter_output_sync(31) & fp_in_new_exponent & filter_output_sync(22 downto 0);
+--			if(fp32_to_int_out)then
+--				fp32_to_int_out_gain <= fp32_to_int_out(audio_resolution) &  sla 1);--increases by 6 dB
+--			end if;
+		elsif(SW(1 downto 0)="10")then
+			if(filter_output_sync(30 downto 23) >= x"02")then
+				fp_in_new_exponent <= filter_output_sync(30 downto 23) - x"02";--decreases by 12 dB
+				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
+			else
+				fp_in_new_exponent <= filter_output_sync(30 downto 23);
+			end if;
+--			fp_in <= filter_output_sync(31) & fp_in_new_exponent & filter_output_sync(22 downto 0);
+--			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) sla 2);--increases by 12 dB
+		else-- SW(1 downto 0)="11"
+			if(filter_output_sync(30 downto 23) >= x"03")then
+				fp_in_new_exponent <= filter_output_sync(30 downto 23) - x"03";--decreases by 18 dB
+				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
+			else
+				fp_in_new_exponent <= filter_output_sync(30 downto 23);
+			end if;
+--			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) sla 3);--increases by 18 dB
+		end if;
+	end process;
+	fp_in <= filter_output_sync(31) & fp_in_new_exponent & filter_output_sync(22 downto 0);
+	fp32_to_int_out_gain <= fp32_to_int_out;--bypass: increases 0 dB
 
-	left_padded_fp32_to_int_out <= (31 downto audio_resolution => '0') & fp32_to_int_out;
+	left_padded_fp32_to_int_out_gain <= (31 downto audio_resolution => '0') & fp32_to_int_out_gain;
 	converted_output: d_flip_flop
-	 port map(	D => left_padded_fp32_to_int_out,
+	 port map(	D => left_padded_fp32_to_int_out_gain,
 					RST=> RST,--resets all previous history of filter output
 					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
 					Q=> converted_out_Q
