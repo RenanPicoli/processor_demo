@@ -1084,7 +1084,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				fp_in_new_exponent <= filter_output_sync(30 downto 23) - '1';--decreases by 6 dB
 				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
 			else
-				fp_in_new_exponent <= filter_output_sync(30 downto 23);
+				fp_in_new_exponent <= (others=>'0');--fp32_to_int should produce 0
 			end if;
 --			fp_in <= filter_output_sync(31) & fp_in_new_exponent & filter_output_sync(22 downto 0);
 --			if(fp32_to_int_out)then
@@ -1095,7 +1095,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				fp_in_new_exponent <= filter_output_sync(30 downto 23) - x"02";--decreases by 12 dB
 				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
 			else
-				fp_in_new_exponent <= filter_output_sync(30 downto 23);
+				fp_in_new_exponent <= (others=>'0');--fp32_to_int should produce 0
 			end if;
 --			fp_in <= filter_output_sync(31) & fp_in_new_exponent & filter_output_sync(22 downto 0);
 --			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) sla 2);--increases by 12 dB
@@ -1104,7 +1104,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				fp_in_new_exponent <= filter_output_sync(30 downto 23) - x"03";--decreases by 18 dB
 				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
 			else
-				fp_in_new_exponent <= filter_output_sync(30 downto 23);
+				fp_in_new_exponent <= (others=>'0');--fp32_to_int should produce 0
 			end if;
 --			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) sla 3);--increases by 18 dB
 		end if;
