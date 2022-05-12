@@ -123,6 +123,7 @@ begin
 	port map(
 		CLK_IN => CLK_IN,--50MHz input
 		rst_n => rst_n,
+		SW => (others=>'0'),
 --		data_out => data_out,--filter output (encoded in IEEE 754 single precision)
 		--I2C
 		I2C_SDAT => I2C_SDAT,--I2C SDA
