@@ -66,6 +66,7 @@ port (CLK_IN: in std_logic;
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		Q_rom:	in std_logic_vector(31 downto 0);
+		cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid)
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
@@ -84,6 +85,20 @@ component mini_rom
 			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 			Q:	out std_logic_vector(31 downto 0)
 			);
+end component;
+
+component I_cache
+	generic (REQUESTED_SIZE: natural);--user requested cache size, in 32 bit words
+	port (
+			req_ADDR: in std_logic_vector(7 downto 0);--address of requested instruction
+			CLK: in std_logic;--processor clock for reading instructions
+			sram_IO: in std_logic_vector(15 downto 0);--data coming from SRAM for write
+			sram_CLK: in std_logic;--clock for reading SRAM
+			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+			sram_ADDR: out std_logic_vector(19 downto 0);--address for write
+			req_ready: out std_logic;--indicates that instruction already contains the requested instruction
+			instruction: out std_logic_vector(31 downto 0)--fetched instruction
+	);
 end component;
 
 component mini_ram
@@ -416,6 +431,7 @@ signal instruction_memory_address: std_logic_vector(7 downto 0);
 signal instruction_latched: std_logic;
 signal instruction_upper_half_latched: std_logic;
 signal instruction_lower_half_latched: std_logic;
+signal cache_ready: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
@@ -713,31 +729,57 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	sram_no_loader: if not sram_loader generate
 		sram_WE_n <= '1';--reading always enabled
+		cache: I_cache
+			generic map (REQUESTED_SIZE => 16)--user requested cache size, in 32 bit words
+			port map (
+					req_ADDR => instruction_memory_address,--address of requested instruction
+					CLK => CLK,--processor clock for reading instructions
+					sram_IO => sram_IO,--data coming from SRAM for write
+					sram_CLK => sram_CLK,--clock for reading SRAM
+					RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+					sram_ADDR => sram_ADDR,--address for write
+					req_ready => cache_ready,--indicates that instruction already contains the requested instruction
+					instruction => instruction_memory_output--fetched instruction
+			);
 		--process for reading instructions stored at SRAM
-		sram_reading: process(sram_CLK,sram_IO,CLK,rst,instruction_memory_address,sram_reading_state,instruction_latched)
-		begin
-			if(rst='1')then
-				sram_ADDR <= (others=>'1');--must be odd
-				instruction_memory_output <= (others=>'0');
-				instruction_lower_half_latched <= '0';
-				instruction_upper_half_latched <= '0';
-			elsif(sram_CLK='0' and CLK='1' and instruction_latched='0') then
-				sram_ADDR <= sram_ADDR_lower_half;
-				instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
-			elsif(sram_CLK='1' and CLK='1' and instruction_latched='0') then
-				sram_ADDR <= sram_ADDR_upper_half;
-				instruction_lower_half_latched <= '1';
-				instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
-			elsif(sram_CLK='1' and CLK='1' and instruction_lower_half_latched='1')then
-				instruction_upper_half_latched <= '1';
-			elsif(CLK='0')then
-				instruction_lower_half_latched <= '0';
-				instruction_upper_half_latched <= '0';
-			end if;
-		end process;
+--		sram_reading: process(sram_CLK,sram_IO,CLK,rst,instruction_memory_address,sram_reading_state,instruction_latched)
+--		begin
+--			if(rst='1')then
+--				sram_ADDR <= (others=>'1');--must be odd
+--				instruction_memory_output <= (others=>'0');
+--				instruction_lower_half_latched <= '0';
+--				instruction_upper_half_latched <= '0';
+--			elsif(sram_CLK='0' and CLK='1' and instruction_latched='0') then
+--				sram_ADDR <= sram_ADDR_lower_half;
+--				instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
+--			elsif(sram_CLK='1' and CLK='1' and instruction_latched='0') then
+--				sram_ADDR <= sram_ADDR_upper_half;
+--				instruction_lower_half_latched <= '1';
+--				instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
+--			elsif(sram_CLK='1' and CLK='1' and instruction_lower_half_latched='1')then
+--				instruction_upper_half_latched <= '1';
+--			elsif(CLK='0')then
+--				instruction_lower_half_latched <= '0';
+--				instruction_upper_half_latched <= '0';
+--			end if;
+--		end process;
 	end generate;
 	
 	sram_with_loader: if sram_loader generate
+	
+		cache: I_cache
+			generic map (REQUESTED_SIZE => 16)--user requested cache size, in 32 bit words
+			port map (
+					req_ADDR => instruction_memory_address,--address of requested instruction
+					CLK => CLK,--processor clock for reading instructions
+					sram_IO => sram_IO,--data coming from SRAM for write
+					sram_CLK => sram_CLK,--clock for reading SRAM
+					RST => not sram_filled,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+					sram_ADDR => sram_ADDR_reading,--address for write
+					req_ready => cache_ready,--indicates that instruction already contains the requested instruction
+					instruction => instruction_memory_output--fetched instruction
+			);
+		
 		sram_WE_n <= '0' when sram_filled='0' else '1';--when sram is not filled, write is enabled, after that, reading is enabled
 		--process for reading/writing instructions at SRAM
 		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,rst_n_sync_uproc,sram_filled,sram_ADDR_reading,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
@@ -749,32 +791,32 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			end if;
 			
 			--generates SRAM address for instruction READING
-			if(falling_edge(sram_CLK)) then
-				if(CLK='1' and instruction_lower_half_latched='0') then
-					sram_ADDR_reading <= sram_ADDR_lower_half;
-				elsif(CLK='1' and instruction_lower_half_latched='1' and instruction_upper_half_latched='0') then
-					sram_ADDR_reading <= sram_ADDR_upper_half;
-				end if;
-			end if;
+--			if(falling_edge(sram_CLK)) then
+--				if(CLK='1' and instruction_lower_half_latched='0') then
+--					sram_ADDR_reading <= sram_ADDR_lower_half;
+--				elsif(CLK='1' and instruction_lower_half_latched='1' and instruction_upper_half_latched='0') then
+--					sram_ADDR_reading <= sram_ADDR_upper_half;
+--				end if;
+--			end if;
 
 			--this reset must be deasserted synchronously to uproc_CLK
 			--because instruction_memory_output is read by processor
-			if(rst_n_sync_uproc='0')then--reset is extended to store instructions in SRAM
-				instruction_memory_output <= (others=>'0');
-				instruction_lower_half_latched <= '0';
-				instruction_upper_half_latched <= '0';
-			elsif(rising_edge(sram_CLK)) then
-				if(CLK='1' and instruction_lower_half_latched='0') then
-					instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
-					instruction_lower_half_latched <= '1';
-				elsif(CLK='1' and instruction_lower_half_latched='1' and instruction_upper_half_latched='0') then
-					instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
-					instruction_upper_half_latched <= '1';
-				elsif(CLK='0')then
-					instruction_lower_half_latched <= '0';
-					instruction_upper_half_latched <= '0';
-				end if;
-			end if;
+--			if(rst_n_sync_uproc='0')then--reset is extended to store instructions in SRAM
+--				instruction_memory_output <= (others=>'0');
+--				instruction_lower_half_latched <= '0';
+--				instruction_upper_half_latched <= '0';
+--			elsif(rising_edge(sram_CLK)) then
+--				if(CLK='1' and instruction_lower_half_latched='0') then
+--					instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
+--					instruction_lower_half_latched <= '1';
+--				elsif(CLK='1' and instruction_lower_half_latched='1' and instruction_upper_half_latched='0') then
+--					instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
+--					instruction_upper_half_latched <= '1';
+--				elsif(CLK='0')then
+--					instruction_lower_half_latched <= '0';
+--					instruction_upper_half_latched <= '0';
+--				end if;
+--			end if;
 		end process;
 		
 		sram_IO <= 	sram_loader_data(15 downto 0) when (sram_filled='0' and sram_loader_counter(0)='0' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
@@ -1216,6 +1258,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		iack => iack,
 		instruction_addr => open,
 		ADDR_rom => instruction_memory_address,
+		cache_ready => cache_ready,
 		Q_rom => instruction_memory_output,
 		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
