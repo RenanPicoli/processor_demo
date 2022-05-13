@@ -24,8 +24,7 @@ entity sdp_ram is
 end sdp_ram;
 
 architecture structure of sdp_ram is
-type word is array (N-1 downto 0) of std_logic;--aka std_logic_vector(N-1 downto 0);
-type memory is array (0 to 2**L-1) of word;
+type memory is array (0 to 2**L-1) of std_logic_vector(N-1 downto 0);
 signal ram: memory;
 
 begin
