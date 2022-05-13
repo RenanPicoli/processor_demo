@@ -32,7 +32,7 @@ architecture structure of I_cache is
 component sdp_ram
 	generic (N: natural; L: natural);--N: data width in bits; L: address width in bits
 	port (
-			WDAT: in std_logic_vector(N_1 downto 0);--data for write
+			WDAT: in std_logic_vector(N-1 downto 0);--data for write
 			WCLK: in std_logic;--processor clock for writes
 			WADDR: in std_logic_vector(L-1 downto 0);--address for write
 			WREN: in std_logic;--enables software write
@@ -82,7 +82,7 @@ begin
 					WREN	=> upper_WREN,
 					RCLK	=> CLK,
 					RADDR	=> raddr,
-					RDAT	=> instruction(31 downto 15)
+					RDAT	=> instruction(31 downto 16)
 		);
 		
 	--bit 0 is used to select between upper and lower half
