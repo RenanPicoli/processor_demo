@@ -13,7 +13,7 @@ use work.my_types.all;--array32
 entity sdp_ram is
 	generic (N: natural; L: natural);--N: data width in bits; L: address width in bits
 	port (
-			WDAT: in std_logic_vector(N_1 downto 0);--data for write
+			WDAT: in std_logic_vector(N-1 downto 0);--data for write
 			WCLK: in std_logic;--processor clock for writes
 			WADDR: in std_logic_vector(L-1 downto 0);--address for write
 			WREN: in std_logic;--enables software write
