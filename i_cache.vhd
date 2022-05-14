@@ -46,8 +46,9 @@ constant D: natural := natural(ceil(log2(real(REQUESTED_SIZE))));--number of bit
 constant SIZE: natural := 2**D;--real cache size in words SHOULD BE A POWER OF 2 to prevent errors;
 
 signal raddr: std_logic_vector(D-1 downto 0);--read address for the sdp_ram
-signal waddr: std_logic_vector(D downto 0);--write address for the sdp_ram, 1 bit wider than raddr
+signal waddr: std_logic_vector(D+1 downto 0);--write address for the sdp_ram, 2 bit wider than raddr
 														-- because bit 0 is used to select between upper and lower half
+														-- and 1 bit (overflow) is used to detect full
 signal full: std_logic;--sdp is full
 signal empty: std_logic;--sdp is empty
 signal hit: std_logic;--cache hit
@@ -104,9 +105,9 @@ begin
 	
 	offset <= req_ADDR(7 downto D);--current offset (aka page address)
 	
-	sram_ADDR <= (19 downto 9 => '0')& offset & waddr;--bit 0 must be included
+	sram_ADDR <= (19 downto 9 => '0')& offset & waddr(D downto 0);--bit 0 must be included
 	
-	full <= '1' when waddr=(D downto 0=>'1') else '0';
+	full <= '1' when waddr=('1' & (D downto 0=>'0')) else '0';--next position to write exceeds ram limits
 	
 	--previous_offset generation
 	process(CLK,offset)
