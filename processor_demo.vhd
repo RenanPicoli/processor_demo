@@ -754,28 +754,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				RST => not cache_ready,--asynchronous reset (asserted at rising_edge(sram_CLK), deasserted at rising_edge(CLK))
 				data_out(0) => cache_ready_sync --data synchronized in CLK domain
 		);
-		--process for reading instructions stored at SRAM
---		sram_reading: process(sram_CLK,sram_IO,CLK,rst,instruction_memory_address,sram_reading_state,instruction_latched)
---		begin
---			if(rst='1')then
---				sram_ADDR <= (others=>'1');--must be odd
---				instruction_memory_output <= (others=>'0');
---				instruction_lower_half_latched <= '0';
---				instruction_upper_half_latched <= '0';
---			elsif(sram_CLK='0' and CLK='1' and instruction_latched='0') then
---				sram_ADDR <= sram_ADDR_lower_half;
---				instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
---			elsif(sram_CLK='1' and CLK='1' and instruction_latched='0') then
---				sram_ADDR <= sram_ADDR_upper_half;
---				instruction_lower_half_latched <= '1';
---				instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
---			elsif(sram_CLK='1' and CLK='1' and instruction_lower_half_latched='1')then
---				instruction_upper_half_latched <= '1';
---			elsif(CLK='0')then
---				instruction_lower_half_latched <= '0';
---				instruction_upper_half_latched <= '0';
---			end if;
---		end process;
 	end generate;
 	
 	sram_with_loader: if sram_loader generate
@@ -814,34 +792,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			else
 				sram_ADDR <= sram_ADDR_reading;
 			end if;
-			
-			--generates SRAM address for instruction READING
---			if(falling_edge(sram_CLK)) then
---				if(CLK='1' and instruction_lower_half_latched='0') then
---					sram_ADDR_reading <= sram_ADDR_lower_half;
---				elsif(CLK='1' and instruction_lower_half_latched='1' and instruction_upper_half_latched='0') then
---					sram_ADDR_reading <= sram_ADDR_upper_half;
---				end if;
---			end if;
-
-			--this reset must be deasserted synchronously to uproc_CLK
-			--because instruction_memory_output is read by processor
---			if(rst_n_sync_uproc='0')then--reset is extended to store instructions in SRAM
---				instruction_memory_output <= (others=>'0');
---				instruction_lower_half_latched <= '0';
---				instruction_upper_half_latched <= '0';
---			elsif(rising_edge(sram_CLK)) then
---				if(CLK='1' and instruction_lower_half_latched='0') then
---					instruction_memory_output(15 downto 0) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
---					instruction_lower_half_latched <= '1';
---				elsif(CLK='1' and instruction_lower_half_latched='1' and instruction_upper_half_latched='0') then
---					instruction_memory_output(31 downto 16) <= sram_IO;--warning: sram_IO is not stable at the first 10 ns
---					instruction_upper_half_latched <= '1';
---				elsif(CLK='0')then
---					instruction_lower_half_latched <= '0';
---					instruction_upper_half_latched <= '0';
---				end if;
---			end if;
 		end process;
 		
 		sram_IO <= 	sram_loader_data(15 downto 0) when (sram_filled='0' and sram_loader_counter(0)='0' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
