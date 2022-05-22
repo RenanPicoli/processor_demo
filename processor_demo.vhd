@@ -339,6 +339,21 @@ end component;
 
 ---------------------------------------------------
 
+--to produce audio attenuation and try to avoid clipping
+component fpu_divider
+port (
+	A: in std_logic_vector(31 downto 0);--supposed to be normalized
+	B: in std_logic_vector(31 downto 0);--supposed to be normalized
+	--FLAGS (overflow, underflow, etc)
+	divideByZero:	out std_logic;
+	overflow:		out std_logic;
+	underflow:		out std_logic;
+	result:out std_logic_vector(31 downto 0)
+);
+end component;
+
+---------------------------------------------------
+
 component i2c_master
 	port (
 			D: in std_logic_vector(31 downto 0);--for register write
@@ -537,6 +552,7 @@ signal all_iack: std_logic_vector(2 downto 0);
 constant audio_resolution: natural := 16;
 signal fp_in: std_logic_vector(31 downto 0);
 signal fp_in_new_exponent: std_logic_vector(7 downto 0);
+signal fpu_denominator: std_logic_vector(31 downto 0);
 signal fp32_to_int_out: std_logic_vector(audio_resolution-1 downto 0);
 signal fp32_to_int_out_gain: std_logic_vector(audio_resolution-1 downto 0);
 signal left_padded_fp32_to_int_out_gain: std_logic_vector(31 downto 0);--fp32_to_int_out_gain left padded with zeroes
@@ -1088,45 +1104,30 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	generic map (N=> audio_resolution)
 	port map (fp_in => fp_in,
 				 output=> fp32_to_int_out);
+				 
+	fp32_attenuation: fpu_divider
+	port map(A => filter_output_sync,
+				B => fpu_denominator,
+				overflow	=> open,
+				underflow=> open,
+				divideByZero=> open,
+				result=> fp_in				
+				);
 	
-	--Switches are used to select fp_in division and fp32_to_int_out gain (preventing saturation)
+	--Switches are used to select fp_in division (preventing saturation) and fp32_to_int_out gain
 	process(filter_output_sync,fp32_to_int_out,SW)
 	begin
 		if(SW(1 downto 0)="00")then
-			fp_in_new_exponent <= filter_output_sync(30 downto 23);--decreases by 0 dB
---			fp_in <= filter_output_sync;--decreases by 0 dB
---			fp32_to_int_out_gain <= fp32_to_int_out;--increases by 0 dB
+			fpu_denominator <= x"3F80_0000";-- +1.0, decreases by 0 dB
 		elsif(SW(1 downto 0)="01")then
-			if(filter_output_sync(30 downto 23)/=x"00")then
-				fp_in_new_exponent <= filter_output_sync(30 downto 23) - '1';--decreases by 6 dB
-				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
-			else
-				fp_in_new_exponent <= (others=>'0');--fp32_to_int should produce 0
-			end if;
---			fp_in <= filter_output_sync(31) & fp_in_new_exponent & filter_output_sync(22 downto 0);
---			if(fp32_to_int_out)then
---				fp32_to_int_out_gain <= fp32_to_int_out(audio_resolution) &  sla 1);--increases by 6 dB
---			end if;
+			fpu_denominator <= x"4000_0000";-- +2.0, decreases by 6 dB
 		elsif(SW(1 downto 0)="10")then
-			if(filter_output_sync(30 downto 23) >= x"02")then
-				fp_in_new_exponent <= filter_output_sync(30 downto 23) - x"02";--decreases by 12 dB
-				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
-			else
-				fp_in_new_exponent <= (others=>'0');--fp32_to_int should produce 0
-			end if;
---			fp_in <= filter_output_sync(31) & fp_in_new_exponent & filter_output_sync(22 downto 0);
---			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) sla 2);--increases by 12 dB
+			fpu_denominator <= x"4080_0000";-- +4.0, decreases by 12 dB
 		else-- SW(1 downto 0)="11"
-			if(filter_output_sync(30 downto 23) >= x"03")then
-				fp_in_new_exponent <= filter_output_sync(30 downto 23) - x"03";--decreases by 18 dB
-				--I DO NOT check for fp_in_new_exponent=0x00 because I do NOT support subnormal numbers yet
-			else
-				fp_in_new_exponent <= (others=>'0');--fp32_to_int should produce 0
-			end if;
---			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) sla 3);--increases by 18 dB
+			fpu_denominator <= x"4100_0000";-- +8.0, decreases by 18 dB
 		end if;
 	end process;
-	fp_in <= filter_output_sync(31) & fp_in_new_exponent & filter_output_sync(22 downto 0);
+
 	fp32_to_int_out_gain <= fp32_to_int_out;--bypass: increases 0 dB
 
 	left_padded_fp32_to_int_out_gain <= (31 downto audio_resolution => '0') & fp32_to_int_out_gain;
