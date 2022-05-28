@@ -31,8 +31,10 @@ begin
 	--write
 	process(WDAT,WCLK,WREN,WADDR)
 	begin
-		if(rising_edge(WCLK) and WREN='1') then
-			ram(to_integer(unsigned(WADDR))) <= WDAT;
+		if(rising_edge(WCLK)) then
+			if (WREN='1') then
+				ram(to_integer(unsigned(WADDR))) <= WDAT;
+			end if;
 		end if;
 	end process;
 	
@@ -40,7 +42,7 @@ begin
 	process(RCLK,RADDR)
 	begin
 		if (rising_edge(RCLK)) then
-			--CDC, but there is no metastability if setup/hold are onot violated
+			--CDC, but there is no metastability if setup/hold are not violated
 			--necessary that RCLK/WCLK be a rational number for timing analysis
 			RDAT <= ram(to_integer(unsigned(RADDR)));
 		end if;
