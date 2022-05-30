@@ -94,6 +94,12 @@ signal	filter_CLK: std_logic;--filter clock generated with PLL
 signal	filter_rst: std_logic;
 --signal	alternative_filter_CLK: std_logic := '0';-- to keep in sync with filter clock generated with PLL
 
+--signals for verification
+signal	expected_output: std_logic_vector(31 downto 0);--filter output calculated by Octave
+signal	filter_output: std_logic_vector(31 downto 0);--filter output calculated by hardware
+signal	error_flag: std_logic;
+file		output_file: text;-- open write_mode;--estrutura representando arquivo de saída de dados da simulacao no Octave
+
 begin
 
 	I2C_SDAT <= 'H';--pull up resistor on-board
@@ -130,6 +136,69 @@ begin
 		--GPIO 40 PINS
 		GPIO => GPIO
 	);
+
+	-----------------------------------------------------------
+	--	this process reads a file vector, loads its vectors,
+	--	and checks the result.
+	-----------------------------------------------------------
+	reading_process: process--parses input text file
+		variable v_space: character;--stores the white space used to separate 2 arguments
+		variable v_C: std_logic_vector(31 downto 0);--expected filter output (calculated  by Octave)
+		variable v_iline_C: line;
+		
+		variable count: integer := 0;-- para sincronização da apresentação de amostras
+		
+	begin
+		file_open(output_file,"output_vectors.txt",read_mode);--PRECISA FICAR NA PASTA simulation/modelsim
+		
+--		wait for TIME_RST+2*FILTER_CLK_SEMIPERIOD;--wait until reset finishes
+--		wait until filter_CLK ='1';-- waits until the first rising edge after reset
+--		wait for (TIME_DELTA/2);-- additional delay (rising edge of sampling will be in the middle of sample)
+		wait until filter_rst ='0';--wait until filter reset finishes
+--		wait until filter_CLK ='0';-- waits for first falling EDGE after reset
+		wait until rising_edge(filter_CLK);--because filter_output is updated after rising_edge(filter_CLK)
+		
+		while not endfile(output_file) loop			
+			readline(output_file,v_iline_C);--lê uma linha do arquivo de resposta desejada
+			hread(v_iline_C,v_C);
+			expected_output <= v_C;-- assigns exepcted filter response (calculated by Octave)
+			
+			-- IMPORTANTE: CONVERSÃO DE TEMPO PARA REAL
+			-- se FILTER_CLK_SEMIPERIOD em ms, use 1000 e 1 ms
+			-- se FILTER_CLK_SEMIPERIOD em us, use 1000000 e 1 us
+			-- se FILTER_CLK_SEMIPERIOD em ns, use 1000000000 e 1 ns
+			-- se FILTER_CLK_SEMIPERIOD em ps, use 1000000000000 e 1 ps
+--			if (count = COUNT_MAX) then
+--				wait until filter_CLK ='1';-- waits until the first rising edge occurs
+--				wait for (FILTER_CLK_SEMIPERIOD);-- reestabelece o devido delay entre amostras e clock de amostragem
+--			else
+--				if (count = COUNT_MAX + 1) then
+--					count := 0;--variable assignment takes place immediately
+--				end if;
+--				wait for 2*FILTER_CLK_SEMIPERIOD;-- usual delay between 2 samples
+				wait until falling_edge(filter_CLK);
+--			end if;
+--			count := count + 1;--variable assignment takes place immediately
+		end loop;
+		
+		file_close(output_file);
+
+		wait; --?
+	end process;
+	filter_output <= << signal .testbench.DUT.filter_output: std_logic_vector(31 downto 0) >>;--updated at rising_edge(filter_CLK)
+	
+	verification: process(filter_CLK,filter_rst,filter_output,expected_output)
+	begin
+		if(filter_rst='1')then--this reset is sync'd with falling_edge(filter_CLK)
+			error_flag <= '0';
+		elsif(falling_edge(filter_CLK))then
+			if (filter_output /= expected_output) then
+				error_flag <= '1';
+			else
+				error_flag <=  '0';
+			end if;
+		end if;
+	end process;
 	
 	--calculate number of instruction being executed
 	instruction_number <= to_integer(unsigned(GPIO(7 downto 0)));--row number of mini_rom, starting from 0
