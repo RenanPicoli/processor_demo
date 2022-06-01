@@ -392,6 +392,17 @@ component i2s_master_transmitter
 	);
 end component;
 
+---------------------------------------------------
+
+--generic mux
+component mux
+	generic(N_BITS_SEL: natural);--number of bits in sel port
+	port(	A: in array_of_std_logic_vector;--user must ensure correct sizes
+			sel: in std_logic_vector(N_BITS_SEL-1 downto 0);--user must ensure correct sizes
+			Q: out std_logic_vector--user must ensure correct sizes
+			);
+end component;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -420,6 +431,9 @@ signal sram_reading_state: std_logic;--'0' means reading enabled, '1' means read
 signal sram_CLK: std_logic;--clock for process reading instructions in SRAM, must be 8x CLK, delayed 1/8 CLK cycle
 signal sram_CLK_n: std_logic;--sram_CLK inverted
 signal count: std_logic_vector(17 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
+signal sram_write_data: std_logic_vector(15 downto 0);--data to be writen in SRAM
+signal all_sram_write_data: array_of_std_logic_vector (3 downto 0)(15 downto 0);
+signal sram_write_data_sel: std_logic_vector(1 downto 0);
 
 signal sample_number: std_logic_vector(7 downto 0);--used to generate address for data_in_rom_ip and desired_rom_ip
 signal desired_sync: std_logic_vector(31 downto 0);--desired response  SYNCCHRONIZED TO ram_CLK
@@ -628,6 +642,7 @@ signal lvec: std_logic;
 signal lvec_src: std_logic_vector(2 downto 0);
 signal lvec_dst_mask: std_logic_vector(6 downto 0);
 signal vector_bus: array32 (0 to 7);--shared data bus for parallel write of 8 fp32
+--signal vector_bus_inputs: array_of_std_logic_vector;--shared data bus for parallel write of 8 fp32
 
 signal filter_CLK_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
@@ -814,10 +829,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			end if;
 		end process;
 		
-		sram_IO <= 	sram_loader_data(15 downto 0) when (sram_filled='0' and sram_loader_counter(0)='0' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
-						sram_loader_data(31 downto 16) when (sram_filled='0' and sram_loader_counter(0)='1' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
-						(15 downto 0=>'0') when (sram_filled='0' and sram_loader_counter(19 downto 9) /= (19 downto 9=>'0')) else
-						(others=>'Z');
+--		sram_write_data <=sram_loader_data(15 downto 0) when (sram_filled='0' and sram_loader_counter(0)='0' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
+--								sram_loader_data(31 downto 16) when (sram_filled='0' and sram_loader_counter(0)='1' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
+--								(15 downto 0=>'0') when (sram_filled='0' and sram_loader_counter(19 downto 9) /= (19 downto 9=>'0'));
+		all_sram_write_data <= (3 => (15 downto 0=>'0'),2=> (15 downto 0=>'0'),
+										1=> sram_loader_data(31 downto 16),0=> sram_loader_data(15 downto 0));
+		sram_write_data_sel(1) <= '1' when sram_loader_counter(19 downto 9) /= (19 downto 9=>'0') else '0';
+		sram_write_data_sel(0) <= sram_loader_counter(0);
+		sram_write_data_mux: mux
+									generic map (N_BITS_SEL => 2)
+									port map(A => all_sram_write_data,
+												sel => sram_write_data_sel,
+												Q => sram_write_data);
+		sram_IO <= sram_write_data when sram_filled='0' else (others=>'Z');
 		sram_loader_address <= sram_loader_counter(8 downto 1);--address for mini_rom
 		
 		write_loop: process(rst_n_sync_sram_CLK,sram_CLK)
@@ -892,6 +916,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);
 		
 	--vector_bus multiplexer
+	-- index 1 was skipped because refers to filter internal coefficients
 	vector_bus <= 	coeffs_mem_vector_bus when (lvec='1' and lvec_src="000") else
 						filter_xN_vector_bus when (lvec='1' and lvec_src="010") else
 						inner_product_vector_bus_A when (lvec='1' and lvec_src="011") else
@@ -899,6 +924,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 						vmac_vector_bus_A when (lvec='1' and lvec_src="101") else
 						vmac_vector_bus_B when (lvec='1' and lvec_src="110") else
 						(others=>(others => '0'));
+	-- index 1 was skipped because refers to filter internal coefficients
+--	vector_bus_inputs <= (	0=> coeffs_mem_vector_bus, 2 => filter_xN_vector_bus, 3 => inner_product_vector_bus_A,
+--									4=> inner_product_vector_bus_B, 5=> vmac_vector_bus_A, 6=> vmac_vector_bus_B,
+--									others=> (others=>(others => '0')));
+--	vector_bus_mux: mux
+--						generic map (N_BITS_SEL => 4)
+--						port map(A => vector_bus_inputs,
+--									sel => ((not lvec) & lvec_src),
+--									Q => vector_bus);
 	
 --	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
 	coeffs_mem_parallel_wren <= lvec_dst_mask(0);
