@@ -1,18 +1,18 @@
-%Objetivo: fazer um filtro cuja saída y para a excitação x seja igual a resposta desejada d (ou seja, descobrir o filtro u usado)
+%Objetivo: fazer um filtro cuja saï¿½da y para a excitaï¿½ï¿½o x seja igual a resposta desejada d (ou seja, descobrir o filtro u usado)
 %x: input: input signal
-%d: input: Resposta do filtro desconhecido à entrada x
-%Pmax: input: número máximo -1 de coeficientes na porção feed forward
-%Qmax: input: número máximo de coeficientes na porção feedback
+%d: input: Resposta do filtro desconhecido ï¿½ entrada x
+%Pmax: input: nï¿½mero mï¿½ximo -1 de coeficientes na porï¿½ï¿½o feed forward
+%Qmax: input: nï¿½mero mï¿½ximo de coeficientes na porï¿½ï¿½o feedback
 %tol:input: erro percentual entre dois filtros consecutivos |h(n+1)-h(n)| / |h(n)|
 %varargin: input: argumento opcional: valor fixo de step size
-%y: output: saí­da do FA para entrada x (ao longo do processo de adaptação
+%y: output: saï¿½ï¿½da do FA para entrada x (ao longo do processo de adaptaï¿½ï¿½o
 %w: output: filtro obtido
-%filters: output: filtros intermediários calculados
+%filters: output: filtros intermediï¿½rios calculados
 %err: output: erros em cada amostra
 %step: output: step size em cada amostra
-%n: output: número de iterações usadas
+%n: output: nï¿½mero de iteraï¿½ï¿½es usadas
 
-% último argumento pode ser um valor fixo de step
+% ï¿½ltimo argumento pode ser um valor fixo de step
 function [y,w,filters,err,step,n] = adaptive_filter(x,d,Pmax,Qmax,tol,varargin)
 N=Pmax+Qmax+1;
 L=length(x);
@@ -27,9 +27,9 @@ if (nargin > 5)
 end
     
 % itera sobre as amostras
-for n=1:L % cálculo de filtro em n+1 usando filtro em n
-    %xN contém as últimas Pmax+1 entradas e Qmax saídas
-    % atualiza com última entrada
+for n=1:L % cÃ¡lculo de filtro em n+1 usando filtro em n
+    %xN contÃ©m as Ãºltimas Pmax+1 entradas e Qmax saÃ­das
+    % atualiza com Ãºltima entrada
     xN = [x(n) xN(1:Pmax) xN(Pmax+2:N)];
     if (nargin == 5)
       step(n)=min(1/(2*xN*xN.'),1e4);% this parameter is adjusted to accelerate convergence
@@ -37,20 +37,32 @@ for n=1:L % cálculo de filtro em n+1 usando filtro em n
       step(n)=varargin{1};
     end
   
-    yn = filter_mat(:,:,n)*xN.';% saí­da atual
-    y(n) = yn; % adiciona a saída atual ao vetor de saídas
-    % aproximação do erro: xN é aproximação do sinal completo
+    %yn = filter_mat(:,:,n)*xN.';% saÃ­da atual
+    % reproduzindo as operaÃ§Ãµes acima na exata ordem realizada pelo filtro em hardware
+    tmp_i=single(0);
+    for i=Pmax:-1:0
+      tmp_i = tmp_i + (filter_mat(:,:,n)(i+1)*xN(i+1));
+    end
+    tmp_j=single(filter_mat(:,:,n)(N)*xN(N));
+    for j=Qmax-1:-1:1
+      tmp_j = tmp_j + (filter_mat(:,:,n)(Pmax+j+1)*xN(Pmax+j+1));
+    end
+    tmp_j = tmp_j + tmp_i;
+    yn=tmp_j;
+    
+    y(n) = yn; % adiciona a saÃ­da atual ao vetor de saÃ­das
+    % aproximaÃ§Ã£o do erro: xN Ã© aproximaÃ§Ã£o do sinal completo
 	  err(n) = d(n) - yn;
     
-    delta_filter = 2*step(n)*err(n)*xN;% [alfa beta] approx xN: Feintuch's approximation
+    delta_filter = ((2*step(n))*err(n))*xN;% [alfa beta] approx xN: Feintuch's approximation
     filter_mat(:,:,n+1) = filter_mat(:,:,n) + delta_filter;
-    %xN contém as últimas Pmax+1 entradas e Qmax saí­das
-    % atualiza com a saída atual (será o y(n-1) da próxima iteração)
+    %xN contÃ©m as Ãºltimas Pmax+1 entradas e Qmax saÃ­das
+    % atualiza com a saÃ­da atual (serÃ¡ o y(n-1) da prÃ³xima iteraÃ§Ã£o)
     xN = [xN(1:Pmax+1) yn xN(Pmax+2:N-1)];
-    % testa se já convergiu
+    % testa se jÃ¡ convergiu
 ##    if(norm(delta_filter)/norm(filter_mat(:,:,n)) < tol)
 ##      if (norm(filter_mat(:,:,n))==0)
-##        disp('Divisão por zero na iteração:');
+##        disp('DivisÃ£o por zero na iteraÃ§Ã£o:');
 ##        n
 ##       end;
 ##      break;
