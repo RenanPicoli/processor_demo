@@ -186,6 +186,7 @@ begin
 		wait until filter_rst ='0';--wait until filter reset finishes
 --		wait until filter_CLK ='0';-- waits for first falling EDGE after reset
 		wait until rising_edge(filter_CLK);--because filter_output is updated after rising_edge(filter_CLK)
+		wait until rising_edge(filter_CLK);--waits additional edge for synchronization
 		
 		while not endfile(output_file) loop			
 			readline(output_file,v_iline_C);--lê uma linha do arquivo de resposta desejada
