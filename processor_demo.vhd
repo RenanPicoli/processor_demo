@@ -131,9 +131,9 @@ component filter
 			WREN:	in std_logic;--enables writing on coefficients
 			CLK:	in std_logic;--sampling clock
 			coeffs:	in array32((P+Q) downto 0);-- todos os coeficientes são lidos de uma vez
-			IACK: in std_logic;--iack
-			IRQ:	out std_logic;--interrupt request: new sample arrived
-			output: out std_logic_vector(31 downto 0)-- output
+			IACK: in std_logic_vector(1 downto 0);--iack
+			IRQ:	out std_logic_vector(1 downto 0);--bit 0: new sample arrived, bit 1: new output is ready
+			output: out std_logic_vector(31 downto 0)-- output registered (updated at falling_edge of CLK)
 	);
 
 end component;
@@ -316,6 +316,21 @@ end component;
 
 ---------------------------------------------------
 
+--to produce audio attenuation and try to avoid clipping
+component fpu_divider
+port (
+	A: in std_logic_vector(31 downto 0);--supposed to be normalized
+	B: in std_logic_vector(31 downto 0);--supposed to be normalized
+	--FLAGS (overflow, underflow, etc)
+	divideByZero:	out std_logic;
+	overflow:		out std_logic;
+	underflow:		out std_logic;
+	result:out std_logic_vector(31 downto 0)
+);
+end component;
+
+---------------------------------------------------
+
 component i2c_master
 	port (
 			D: in std_logic_vector(31 downto 0);--for register write
@@ -352,6 +367,17 @@ component i2s_master_transmitter
 			WS: buffer std_logic;--left/right clock
 			SCK: out std_logic--continuous clock (bit clock); fSCK=128fs
 	);
+end component;
+
+---------------------------------------------------
+
+--generic mux
+component mux
+	generic(N_BITS_SEL: natural);--number of bits in sel port
+	port(	A: in array_of_std_logic_vector;--user must ensure correct sizes
+			sel: in std_logic_vector(N_BITS_SEL-1 downto 0);--user must ensure correct sizes
+			Q: out std_logic_vector--user must ensure correct sizes
+			);
 end component;
 
 signal rst: std_logic;--active high
@@ -484,14 +510,20 @@ signal irq_ctrl_rden: std_logic;-- not used, just to keep form
 signal irq_ctrl_wren: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
-signal all_irq: std_logic_vector(2 downto 0);
-signal all_iack: std_logic_vector(2 downto 0);
+signal all_irq: std_logic_vector(3 downto 0);
+signal all_iack: std_logic_vector(3 downto 0);
 
 --signals for fp32_to_integer----------------------------------
 constant audio_resolution: natural := 16;
 signal fp_in: std_logic_vector(31 downto 0);
+signal fp_in_new_exponent: std_logic_vector(7 downto 0);
+signal fpu_denominator: std_logic_vector(31 downto 0);
+signal fp32_div0: std_logic;
+signal fp32_ovf: std_logic;
+signal fp32_undf: std_logic;
 signal fp32_to_int_out: std_logic_vector(audio_resolution-1 downto 0);
-signal left_padded_fp32_to_int_out: std_logic_vector(31 downto 0);--fp32_to_int_out left padded with zeroes
+signal fp32_to_int_out_gain: std_logic_vector(audio_resolution+4 downto 0);--5 bit more than fp32_to_int_out (overflow detection)
+signal left_padded_fp32_to_int_out_gain: std_logic_vector(31 downto 0);--fp32_to_int_out_gain left padded with zeroes
 
 --signals for converted_out----------------------------------
 signal converted_out_Q: std_logic_vector(31 downto 0);-- register containing current filter output converted to 2's complement
@@ -519,7 +551,7 @@ signal i2s_SCK: std_logic;--continuous clock (bit clock)
 signal i2s_SCK_IN_PLL_LOCKED: std_logic;--'1' if PLL that provides SCK_IN is locked
 
 -----------signals for synchronizer chain -------------------
-signal filter_irq_sync: std_logic_vector(0 downto 0);--filter_irq synchronized to ram_clk posedge
+signal filter_irq_sync: std_logic_vector(1 downto 0);--filter_irq synchronized to ram_clk posedge
 signal filter_output_sync: std_logic_vector(31 downto 0);--filter output synchronized to ram_CLK negedge
 
 -----------signals for memory map interfacing----------------
@@ -548,11 +580,12 @@ signal filter_parallel_wren: std_logic;
 signal filter_rst: std_logic := '1';
 signal filter_input: std_logic_vector(31 downto 0);
 signal filter_output: std_logic_vector(31 downto 0);
-signal filter_irq: std_logic;
-signal filter_iack: std_logic;
-signal filter_iack_received: std_logic;
-signal filter_iack_received_proc: std_logic;
-signal filter_iack_send_proc: std_logic;
+signal filter_output_reg: std_logic_vector(31 downto 0);
+signal filter_irq: std_logic_vector(1 downto 0);
+signal filter_iack: std_logic_vector(1 downto 0);
+signal filter_iack_received: std_logic_vector(1 downto 0);
+signal filter_iack_received_proc: std_logic_vector(1 downto 0);
+signal filter_iack_send_proc: std_logic_vector(1 downto 0);
 signal proc_filter_parallel_wren: std_logic;
 
 --signals for vector transfers
@@ -575,7 +608,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
-	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq &
+	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
 											filter_CLK & CLK & instruction_memory_address;
 											
 	rom: mini_rom port map(	CLK => instruction_clk,
@@ -741,42 +774,46 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	process(filter_rst,filter_irq,filter_CLK,CLK_fs_dbg,filter_iack_send_proc)
 	begin
 		if (filter_rst='1') then
-			filter_iack_received <= '0';
+			filter_iack_received <= (others=>'0');
 --		elsif(falling_edge(filter_CLK))then
 		elsif(falling_edge(CLK_fs_dbg))then
 			if (filter_CLK='1') then
-				filter_iack_received <= filter_iack_send_proc;
+				--accepts iack of irq(0) only during filter_CLK positive semicycle
+				filter_iack_received(0) <= filter_iack_send_proc(0);
+				filter_iack_received(1) <= '0';
 			elsif (filter_CLK='0') then
-				filter_iack_received <= '0';
+				--accepts iack of irq(1) only during filter_CLK negative semicycle
+				filter_iack_received(0) <= '0';
+				filter_iack_received(1) <= filter_iack_send_proc(1);
 			end if;
 		end if;
 	end process;
 	
 	-- synchronizes filter_iack_received to rising_edge of CLK, because:
-	--1: ffilter_iack_received is generated at filter_CLK domain
+	--1: filter_iack_received is generated at CLK_fs_dbg domain
 	--2: this signal is sampled in filter_iack_send_proc at rising_edge of ram_CLK
 	sync_chain_filter_iack_received: sync_chain
-		generic map (N => 1,--bus width in bits
+		generic map (N => 2,--bus width in bits
 					L => 2)--number of registers in the chain
 		port map (
-				data_in(0) => filter_iack_received,--data generated at another clock domain
+				data_in => filter_iack_received,--data generated at another clock domain
 				CLK => CLK,--clock of new clock domain
 				RST => rst,--asynchronous reset
-				data_out(0) => filter_iack_received_proc --data synchronized in CLK domain
+				data_out => filter_iack_received_proc --data synchronized in CLK domain
 		);
 	
 	--must extend filter_iack until receives the filter_iack_received_proc='1'
 	process(rst,CLK,filter_iack,filter_iack_received_proc)
 	begin
 		if (rst='1') then
-			filter_iack_send_proc <= '0';
+			filter_iack_send_proc <= (others=>'0');
 		elsif(rising_edge(CLK))then
 			--flag is raised
-			if (filter_iack='1') then
-				filter_iack_send_proc <= '1';
+			if (filter_iack/="00") then
+				filter_iack_send_proc <= filter_iack;
 			--flag is cleared
-			elsif (filter_iack_received_proc='1') then
-				filter_iack_send_proc <= '0';
+			elsif (filter_iack_received_proc/="00") then
+				filter_iack_send_proc <= filter_iack_send_proc and (not filter_iack_received_proc);--zeroes the IRQ lineas acked
 			end if;
 		end if;
 	end process;		
@@ -789,17 +826,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					L => 2)--number of registers in the chain
 		port map (
 				data_in => filter_output,--data generated at another clock domain
-				CLK => CLK,--clock of new clock domain
-				RST => filter_rst,--asynchronous reset
+				CLK => ram_clk,--clock of new clock domain
+				RST => rst,--asynchronous reset
 				data_out => filter_output_sync --data synchronized in CLK domain
 		);
-	
-	filter_out: d_flip_flop
-	 port map(	D => filter_output_sync,
-					RST=> RST,--resets all previous history of filter output
-					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
-					Q=> filter_out_Q
-					);
+		filter_out_Q <= filter_output_sync;
 					
 	filter_ctrl_status: d_flip_flop
 	 port map(	D => ram_write_data,--written by software
@@ -847,7 +878,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			DY => filter_output,--current filter output
 			ADDR => ram_addr(2 downto 0),-- input
 			CLK_x => filter_CLK,
-			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
+--			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
+			CLK_y => filter_CLK,--IF using registered filter_output
 			RST => filter_rst,
 			WREN => filter_xN_wren,--not used (peripheral supports only read)
 			RDEN => filter_xN_rden,-- input
@@ -909,16 +941,53 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				output => vmac_Q
 	);
 	
-	fp_in <= filter_output_sync;
 	fp32_to_int: fp32_to_integer
 	generic map (N=> audio_resolution)
 	port map (fp_in => fp_in,
 				 output=> fp32_to_int_out);
 				 
+	fp32_attenuation: fpu_divider
+	port map(A => filter_output_sync,
+				B => fpu_denominator,
+				overflow	=> fp32_ovf,
+				underflow=> fp32_undf,
+				divideByZero=> fp32_div0,
+				result=> fp_in				
+				);
+	
+	--Switches are used to select fp_in division (preventing saturation) and fp32_to_int_out gain
+	process(fp32_to_int_out_gain,fp32_to_int_out,SW)
+	begin
+		if(SW(1 downto 0)="00")then
+			fpu_denominator <= x"3F80_0000";-- +1.0, decreases by 0 dB
+			fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution => fp32_to_int_out(audio_resolution-1)) & fp32_to_int_out;--increases 0 dB, sign extension
+		elsif(SW(1 downto 0)="01")then
+			fpu_denominator <= x"4000_0000";-- +2.0, decreases by 6 dB
+			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(2,5));--increases 6 dB
+			--detection of overflow
+			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
+				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+			end if;
+		elsif(SW(1 downto 0)="10")then
+			fpu_denominator <= x"4080_0000";-- +4.0, decreases by 12 dB
+			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(4,5));--increases 12 dB
+			--detection of overflow
+			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
+				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+			end if;
+		else-- SW(1 downto 0)="11"
+			fpu_denominator <= x"4100_0000";-- +8.0, decreases by 18 dB
+			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(8,5));--increases 18 dB
+			--detection of overflow
+			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
+				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+			end if;
+		end if;
+	end process;
 
-	left_padded_fp32_to_int_out <= (31 downto audio_resolution => '0') & fp32_to_int_out;
+	left_padded_fp32_to_int_out_gain <= (31 downto audio_resolution => '0') & fp32_to_int_out_gain(audio_resolution-1 downto 0);
 	converted_output: d_flip_flop
-	 port map(	D => left_padded_fp32_to_int_out,
+	 port map(	D => left_padded_fp32_to_int_out_gain,
 					RST=> RST,--resets all previous history of filter output
 					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
 					Q=> converted_out_Q
@@ -1035,7 +1104,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);	
 
 	--patch replacing deffective sync chain
-	filter_irq_sync(0) <= filter_irq;
+	filter_irq_sync <= filter_irq;
 --	-- synchronizes IRQ to rising_edge of CLK, because:
 --	-- 1: filter_irq is generated at filter_CLK domain
 --	-- 2: this signal is sampled in irq_ctrl at falling_edge of CLK
@@ -1051,12 +1120,12 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--filter_irq_sync is synchronized to ram_clk rising_edge by a sync chain in this level
 	--i2s_irq is synchronized to ram_clk rising_edge inside I2S peripheral
 	--aparently, i2c_irq is synchronized to ram_clk rising_edge because I2C clocks are created dividing ram_clk
-	all_irq	<= (2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq_sync(0));
+	all_irq	<= (3 => filter_irq_sync(1), 2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq_sync(0));
 	i2s_iack	<= all_iack(2);										 
 	i2c_iack	<= all_iack(1);
-	filter_iack	<= all_iack(0);
+	filter_iack	<= all_iack(3) & all_iack(0);
 	irq_ctrl: interrupt_controller
-	generic map (L => 3)--L: number of IRQ lines
+	generic map (L => 4)--L: number of IRQ lines
 	port map (	D => ram_write_data,-- input: data to register write
 			ADDR => ram_addr(1 downto 0),
 			CLK => ram_clk,-- input
