@@ -48,11 +48,12 @@ create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports
 
 create_generated_clock -name {clk_12M} -source [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 12 -divide_by 50 -master_clock {clk_in} [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|clk[0]}] 
 create_generated_clock -name {uproc_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 25 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[1]}] 
+create_generated_clock -name {sram_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 16 -divide_by 25 -offset 23.43 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[2]}]
 create_generated_clock -name {clk_fs} -source [get_pins {clk_fs_sckin|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 1 -divide_by 544 -master_clock {clk_12M} [get_pins { clk_fs_sckin|altpll_component|auto_generated|pll1|clk[0] }] 
 create_generated_clock -name {clk_fs_dbg} -source [get_pins {clk_fs_sckin|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 5 -divide_by 272 -master_clock {clk_12M} [get_pins { clk_fs_sckin|altpll_component|auto_generated|pll1|clk[2] }] 
 
-# clk_dbg: 48MHz
-create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 24 -divide_by 25 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
+# clk_dbg: 100MHz
+create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 1 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
 
 create_generated_clock -name {i2s_WS} -source [get_pins {i2s|i2s|ws_gen|count[0]|clk}] -divide_by 64 -master_clock {i2s_sckin} [get_pins {i2s|i2s|ws_gen|CLK|q}] 
 create_generated_clock -name {i2s_sckin} -source [get_pins {clk_fs_sckin|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 5 -divide_by 3 -master_clock {clk_12M} [get_pins { clk_fs_sckin|altpll_component|auto_generated|pll1|clk[1] }] 
@@ -76,12 +77,21 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 #**************************************************************
 # Set Input Delay
 #**************************************************************
-
+set_input_delay -clock sram_clk -clock_fall -max 12 [get_ports sram_IO[*]]
+set_input_delay -clock sram_clk -clock_fall -min -1 [get_ports sram_IO[*]]
+set_input_delay -clock uproc_clk -max 112 [get_ports flash_IO[*]]
+set_input_delay -clock uproc_clk -min -1 [get_ports flash_IO[*]]
 
 
 #**************************************************************
 # Set Output Delay
 #**************************************************************
+set_output_delay -clock sram_clk -clock_fall -max 8 [get_ports sram_IO[*]]
+set_output_delay -clock sram_clk -clock_fall -min -1 [get_ports sram_IO[*]]
+set_output_delay -clock sram_clk -clock_fall -max 2 [get_ports sram_ADDR[*]]
+set_output_delay -clock sram_clk -clock_fall -min -1 [get_ports sram_ADDR[*]]
+set_output_delay -clock uproc_clk -max 2 [get_ports flash_ADDR[*]]
+set_output_delay -clock uproc_clk -min -1 [get_ports flash_ADDR[*]]
 
 
 
@@ -90,9 +100,10 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 #**************************************************************
 
 set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
+#set_clock_groups -asynchronous -group [get_clocks {clk_in}]
 
 # Intel recomendation for Clock Domain Crossing (CDC)
-set_clock_groups -asynchronous -group [get_clocks {uproc_clk sram_clk}] -group [get_clocks {i2s_sckin i2s_WS clk_fs}]
+#set_clock_groups -asynchronous -group [get_clocks {uproc_clk sram_clk clk_in}] -group [get_clocks {i2s_sckin i2s_WS clk_fs}]
 
 #**************************************************************
 # Set False Path
@@ -101,23 +112,26 @@ set_clock_groups -asynchronous -group [get_clocks {uproc_clk sram_clk}] -group [
 set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_dbg}]
 set_false_path  -from  [get_clocks *]  -to  [get_clocks {clk_fs_dbg}]
 
-# following intel guidelines, asynchronous reset is excluded from timing analysis:
-set_false_path  -from  [get_ports {RST}] -to [all_registers]
+# following intel guidelines, asynchronous reset input is excluded from timing analysis:
+set_false_path  -from  [get_ports {rst_n}] -to [all_registers]
+set_false_path  -from  [get_registers {sram_filled}] -to [all_registers]
+set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pins -compatibility_mode {i2s|sync_async_reset_iack|Q[*]|clrn}]
+set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pins -compatibility_mode {sync_chain_filter_CLK|Q[*]|clrn}]
 
 
 #**************************************************************
 # Set Multicycle Path
 #**************************************************************
 
-set_multicycle_path -setup -end -from [get_pins {i2s|i2s|WS|combout}] -to [get_cells {i2s|l_fifo|OVF i2s|r_fifo|OVF}] 2
+#set_multicycle_path -setup -end -from [get_pins {i2s|i2s|WS|combout}] -to [get_cells {i2s|l_fifo|OVF i2s|r_fifo|OVF}] 2
 #relaxing time to I2S generic perceive I2S_EN assertion
-set_multicycle_path -setup -end -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] 2
+#set_multicycle_path -setup -end -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] 2
 #relaxing time to I2S generic perceive l_fifo output
 #set_multicycle_path -setup -end -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] 2
 #relaxing time to I2S generic perceive r_fifo output
 #set_multicycle_path -setup -end -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] 2
 #relaxing time to I2S generic perceive IACK assertion
-set_multicycle_path -setup -end -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] 2
+#set_multicycle_path -setup -end -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] 2
 #set_multicycle_path -setup -end -from [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:\A_i:*:d_ff_A|Q[*]}] -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
 #set_multicycle_path -setup -end -from [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:\B_i:*:d_ff_B|Q[*]}] -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
 set_multicycle_path -setup -end -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
@@ -148,12 +162,18 @@ set_multicycle_path -hold -end -to [get_registers {inner_product_calculation_uni
 # Set Net Delay
 #**************************************************************
 
-# set_net_delay requires direct connection between from and to nodes, with logic in between
+# set_net_delay requires direct connection between from and to nodes, with NO logic in between
+#set_net_delay -from [get_pins {instruction_memory_output[*]|q}] -to [get_pins {processor|control|*}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.05
+# above constraint didn't work so I replaced it with constraint below (12.5ns = 0.05*uproc_clk_period):
+set_net_delay -from [get_pins {instruction_memory_output[*]|q}] -to [get_pins -compatibility_mode processor|control|*] -max 12.5
 # Intel recomendation for Clock Domain Crossing (CDC)
-set_net_delay -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
+#set_net_delay -from [get_pins {filter_rst~clkctrl|outclk}] -to [get_registers {sync_chain_filter_output|Q[0][*]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
+#set_net_delay -from [get_registers {sram_filled}] -to [get_registers {sync_chain:\sram_with_loader:sync_async_reset_sram_CLK|Q[0][0]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
+#set_net_delay -from [get_registers {sram_filled}] -to [get_registers {sync_async_reset_sram_CLK|Q[0][0]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
+#set_net_delay -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.5
 #set_net_delay -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
 #set_net_delay -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
-set_net_delay -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.01
+#set_net_delay -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_async_reset_iack|Q[0][*]} ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.5
 #set_net_delay -from [get_pins i2s|i2s|ws_gen|CLK|q] -to [get_registers {i2s|r_fifo|fifo[*][*] i2s|l_fifo|fifo[*][*]}] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 #set_net_delay -from [get_registers processor\|PC\|Q\[*\]] -to [get_registers IIR_filter\|IRQ] -max -get_value_from_clock_period dst_clock_period -value_multiplier 0.8
 #set_net_delay -max 8.000 -from [get_registers {i2s_master_transmitter:i2s|d_flip_flop:CR|Q[0] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[1] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[2] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[3] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[4] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[5] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[6] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[7] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[8] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[9] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[10] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[11] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[12] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[13] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[14] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[15] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[16] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[17] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[18] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[19] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[20] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[21] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[22] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[23] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[24] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[25] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[26] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[27] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[28] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[29] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[30] i2s_master_transmitter:i2s|d_flip_flop:CR|Q[31]}] -to [get_registers {i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|stop i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|sck_en i2s_master_transmitter:i2s|i2s_master_transmitter_generic:i2s|IRQ[0]}]
