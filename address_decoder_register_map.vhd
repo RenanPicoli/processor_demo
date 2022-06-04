@@ -53,7 +53,7 @@ begin
 		data_in_extended(j) <= (others=>'0');
 	end generate;
 	
-	data_out <= output when RDEN='1' else (others=>'Z');
+	data_out <= output when RDEN='1' else (others=>'-');
 	
 	--demux of WREN
 	process(ADDR,WREN)
