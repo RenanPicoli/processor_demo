@@ -650,8 +650,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		--flash_ADDR will update immediately when flash_reading_state changes
 		if (rst='1')then
 			flash_ADDR <= (others=>'0');
-		elsif (flash_reading_state(3)/='1')then--"1000" or "1001"
+		elsif (flash_reading_state(3)/='1')then--NOT ("1000" or "1001")
 			flash_ADDR <= flash_reading_state(0) & flash_count & flash_reading_state(2 downto 1);--data is launched
+		else-- IS "1000" or "1001"			
+			flash_ADDR <= (others=>'0');
 		end if;
 	end process;
 	
