@@ -22,9 +22,9 @@ port(	input:	in std_logic_vector(31 downto 0);-- input
 		WREN:	in std_logic;--enables writing on coefficients
 		CLK:	in std_logic;--sampling clock
 		coeffs:	in array32((P+Q) downto 0);-- todos os coeficientes são lidos de uma vez
-		IACK: in std_logic;--iack
-		IRQ:	out std_logic;--interrupt request: new sample arrived
-		output: out std_logic_vector(31 downto 0)-- output
+		IACK: in std_logic_vector(1 downto 0);--iack
+		IRQ:	out std_logic_vector(1 downto 0);--bit 0: new sample arrived, bit 1: new output is ready
+		output: out std_logic_vector(31 downto 0)-- output registered (updated at falling_edge of CLK)
 );
 
 end filter;
@@ -114,9 +114,8 @@ begin
 												Q=> y(j)
 												);
 	end generate;
---	y(0) <= sum_feedback(0);
-	output_signal <= y(0);
-	output <= output_signal;
+--	output <= sum_feedback(0);
+	output <= y(0);
 	
 ---------- feed-forward (bi*x[n-i]) adders --------------------------------------------------
 	sum_i: for i in 0 to P-1 generate
@@ -189,14 +188,25 @@ begin
 
 	---------------IRQ--------------------------------
 	---------new sample arrived-----------------------
-	irq_set: process(CLK,IACK,RST)
+	irq_0: process(CLK,IACK,RST)
 	begin
 		if(RST='1') then
-			IRQ <= '0';
-		elsif (IACK ='1') then
-			IRQ <= '0';
+			IRQ(0) <= '0';
+		elsif (IACK(0) ='1') then
+			IRQ(0) <= '0';
 		elsif rising_edge(CLK) then
-			IRQ <= '1';
+			IRQ(0) <= '1';
+		end if;
+	end process;	
+	---------new output is ready-----------------------
+	irq_1: process(CLK,IACK,RST)
+	begin
+		if(RST='1') then
+			IRQ(1) <= '0';
+		elsif (IACK(1) ='1') then
+			IRQ(1) <= '0';
+		elsif falling_edge(CLK) then
+			IRQ(1) <= '1';
 		end if;
 	end process;	
 
