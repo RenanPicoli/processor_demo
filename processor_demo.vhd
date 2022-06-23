@@ -74,6 +74,7 @@ end component;
 
 component mini_rom
 	port (CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+			RST: in std_logic;--asynchronous reset
 			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 			Q:	out std_logic_vector(31 downto 0)
 			);
@@ -611,7 +612,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
 											filter_CLK & CLK & instruction_memory_address;
 											
-	rom: mini_rom port map(	CLK => instruction_clk,
+	rom: mini_rom port map(	CLK => instruction_clk,	
+									RST => rst,--asynchronous reset
 									ADDR=> instruction_memory_address,
 									Q	 => instruction_memory_output
 	);
