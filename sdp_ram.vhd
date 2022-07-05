@@ -41,10 +41,10 @@ begin
 	--reading
 	process(RCLK,RADDR)
 	begin
-		if (rising_edge(RCLK)) then
+--		if (rising_edge(RCLK)) then
 			--CDC, but there is no metastability if setup/hold are not violated
 			--necessary that RCLK/WCLK be a rational number for timing analysis
 			RDAT <= ram(to_integer(unsigned(RADDR)));
-		end if;
+--		end if;
 	end process;
 end structure;
