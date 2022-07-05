@@ -65,6 +65,7 @@ port (CLK_IN: in std_logic;
 		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
+		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to mini_rom)
 		Q_rom:	in std_logic_vector(31 downto 0);
 		cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
 		-----RAM-----------
@@ -81,7 +82,8 @@ port (CLK_IN: in std_logic;
 end component;
 
 component mini_rom
-	port (
+	port (--CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+--			RST: in std_logic;--asynchronous reset
 			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 			Q:	out std_logic_vector(31 downto 0)
 			);
@@ -462,6 +464,7 @@ signal instruction_upper_half_latched: std_logic;
 signal instruction_lower_half_latched: std_logic;
 signal cache_ready: std_logic;
 signal cache_ready_sync: std_logic;--cache_ready synchronized to rising_edge(CLK)
+signal instruction_clk: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
@@ -659,6 +662,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		rst <= not rst_n_sync_uproc;--rst is deasserted synchronously with uproc_CLK
 		rom: mini_rom port map(
 										ADDR=> sram_loader_address,
+--										CLK=> ,
+--										RST=> ,
 										Q	 => sram_loader_data
 		);
 	end generate;
@@ -1286,6 +1291,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		instruction_addr => open,
 		ADDR_rom => instruction_memory_address,
 		cache_ready => cache_ready_sync,--synchronized to rising_edge(CLK)
+		CLK_rom => instruction_clk,
 		Q_rom => instruction_memory_output,
 		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
@@ -1339,7 +1345,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	(
 		areset=> '0',
 		inclk0=> CLK_IN,
-		c0		=> CLK_dbg,
+		c0		=> CLK_dbg,--produces 48MHz for debugging
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
 		locked=> open

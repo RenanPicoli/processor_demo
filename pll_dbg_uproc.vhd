@@ -60,10 +60,9 @@ ARCHITECTURE SYN OF pll_dbg_uproc IS
 	SIGNAL sub_wire2	: STD_LOGIC ;
 	SIGNAL sub_wire3	: STD_LOGIC ;
 	SIGNAL sub_wire4	: STD_LOGIC ;
-	SIGNAL sub_wire5	: STD_LOGIC ;
-	SIGNAL sub_wire6	: STD_LOGIC_VECTOR (1 DOWNTO 0);
-	SIGNAL sub_wire7_bv	: BIT_VECTOR (0 DOWNTO 0);
-	SIGNAL sub_wire7	: STD_LOGIC_VECTOR (0 DOWNTO 0);
+	SIGNAL sub_wire5	: STD_LOGIC_VECTOR (1 DOWNTO 0);
+	SIGNAL sub_wire6_bv	: BIT_VECTOR (0 DOWNTO 0);
+	SIGNAL sub_wire6	: STD_LOGIC_VECTOR (0 DOWNTO 0);
 
 
 
@@ -142,24 +141,22 @@ ARCHITECTURE SYN OF pll_dbg_uproc IS
 	END COMPONENT;
 
 BEGIN
-	sub_wire7_bv(0 DOWNTO 0) <= "0";
-	sub_wire7    <= To_stdlogicvector(sub_wire7_bv);
-	sub_wire3    <= sub_wire0(2);
+	sub_wire6_bv(0 DOWNTO 0) <= "0";
+	sub_wire6    <= To_stdlogicvector(sub_wire6_bv);
 	sub_wire2    <= sub_wire0(1);
 	sub_wire1    <= sub_wire0(0);
 	c0    <= sub_wire1;
 	c1    <= sub_wire2;
-	c2    <= sub_wire3;
-	locked    <= sub_wire4;
-	sub_wire5    <= inclk0;
-	sub_wire6    <= sub_wire7(0 DOWNTO 0) & sub_wire5;
+	locked    <= sub_wire3;
+	sub_wire4    <= inclk0;
+	sub_wire5    <= sub_wire6(0 DOWNTO 0) & sub_wire4;
 
 	altpll_component : altpll
 	GENERIC MAP (
 		bandwidth_type => "AUTO",
 		clk0_divide_by => 1,
 		clk0_duty_cycle => 50,
-		clk0_multiply_by => 2,
+		clk0_multiply_by => 24,
 		clk0_phase_shift => "0",
 		clk1_divide_by => 25,
 		clk1_duty_cycle => 50,
@@ -222,9 +219,9 @@ BEGIN
 	)
 	PORT MAP (
 		areset => areset,
-		inclk => sub_wire6,
+		inclk => sub_wire5,
 		clk => sub_wire0,
-		locked => sub_wire4
+		locked => sub_wire3
 	);
 
 
@@ -255,8 +252,7 @@ END SYN;
 -- Retrieval info: PRIVATE: DIV_FACTOR2 NUMERIC "1"
 -- Retrieval info: PRIVATE: DUTY_CYCLE0 STRING "50.00000000"
 -- Retrieval info: PRIVATE: DUTY_CYCLE1 STRING "50.00000000"
--- Retrieval info: PRIVATE: DUTY_CYCLE2 STRING "50.00000000"
--- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE0 STRING "100.000000"
+-- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE0 STRING "48.000000"
 -- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE1 STRING "4.000000"
 -- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE2 STRING "32.000000"
 -- Retrieval info: PRIVATE: EXPLICIT_SWITCHOVER_COUNTER STRING "0"
@@ -289,7 +285,7 @@ END SYN;
 -- Retrieval info: PRIVATE: MULT_FACTOR1 NUMERIC "1"
 -- Retrieval info: PRIVATE: MULT_FACTOR2 NUMERIC "1"
 -- Retrieval info: PRIVATE: NORMAL_MODE_RADIO STRING "1"
--- Retrieval info: PRIVATE: OUTPUT_FREQ0 STRING "100.00000000"
+-- Retrieval info: PRIVATE: OUTPUT_FREQ0 STRING "48.00000000"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ1 STRING "4.00000000"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ2 STRING "32.00000000"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_MODE0 STRING "1"
@@ -346,7 +342,7 @@ END SYN;
 -- Retrieval info: CONSTANT: BANDWIDTH_TYPE STRING "AUTO"
 -- Retrieval info: CONSTANT: CLK0_DIVIDE_BY NUMERIC "1"
 -- Retrieval info: CONSTANT: CLK0_DUTY_CYCLE NUMERIC "50"
--- Retrieval info: CONSTANT: CLK0_MULTIPLY_BY NUMERIC "2"
+-- Retrieval info: CONSTANT: CLK0_MULTIPLY_BY NUMERIC "24"
 -- Retrieval info: CONSTANT: CLK0_PHASE_SHIFT STRING "0"
 -- Retrieval info: CONSTANT: CLK1_DIVIDE_BY NUMERIC "25"
 -- Retrieval info: CONSTANT: CLK1_DUTY_CYCLE NUMERIC "50"
