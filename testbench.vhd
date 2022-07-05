@@ -114,7 +114,6 @@ signal	sram_OE_n:	std_logic;--output enable, active LOW
 signal	sram_WE_n:	std_logic;--write enable, active LOW, HIGH enables reading
 signal	sram_UB_n:	std_logic;--upper IO byte access, active LOW
 signal	sram_LB_n:	std_logic; --lower	IO byte access, active LOW
-
 --signals for verification
 signal	expected_output: std_logic_vector(31 downto 0);--filter output calculated by Octave
 signal	filter_output: std_logic_vector(31 downto 0);--filter output calculated by hardware
@@ -183,10 +182,10 @@ begin
 --		wait for TIME_RST+2*FILTER_CLK_SEMIPERIOD;--wait until reset finishes
 --		wait until filter_CLK ='1';-- waits until the first rising edge after reset
 --		wait for (TIME_DELTA/2);-- additional delay (rising edge of sampling will be in the middle of sample)
-		wait until filter_rst ='0';--wait until filter reset finishes
+--		wait until filter_rst ='0';--wait until filter reset finishes
 --		wait until filter_CLK ='0';-- waits for first falling EDGE after reset
-		wait until rising_edge(filter_CLK);--because filter_output is updated after rising_edge(filter_CLK)
-		wait until rising_edge(filter_CLK);--waits additional edge for synchronization
+		wait until (rising_edge(filter_CLK) and filter_rst='0');--first sample is lacthed by filter
+		wait until falling_edge(filter_CLK);--filter_output latency is half cycle
 		
 		while not endfile(output_file) loop			
 			readline(output_file,v_iline_C);--lê uma linha do arquivo de resposta desejada
