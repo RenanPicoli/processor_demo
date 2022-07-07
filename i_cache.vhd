@@ -31,7 +31,7 @@ architecture structure of I_cache is
 
 component sdp_ram
 	generic (N: natural; L: natural);--N: data width in bits; L: address width in bits
-	port (
+	port (RST: in std_logic;
 			WDAT: in std_logic_vector(N-1 downto 0);--data for write
 			WCLK: in std_logic;--processor clock for writes
 			WADDR: in std_logic_vector(L-1 downto 0);--address for write
@@ -63,7 +63,7 @@ begin
 	--cache for the lower half of instruction
 	cache_lower: sdp_ram
 		generic map (N => 16, L=> D)
-		port map(
+		port map(RST => RST,
 					WDAT	=> sram_IO,
 					WCLK	=> sram_CLK,
 					WADDR	=> waddr(D downto 1),--bit 0 is used to select between upper and lower half
@@ -76,7 +76,7 @@ begin
 	--cache for the upper half of instruction
 	cache_upper: sdp_ram
 		generic map (N => 16, L=> 4)
-		port map(
+		port map(RST => RST,
 					WDAT	=> sram_IO,
 					WCLK	=> sram_CLK,
 					WADDR	=> waddr(D downto 1),--bit 0 is used to select between upper and lower half
