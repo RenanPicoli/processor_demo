@@ -17,7 +17,7 @@ entity I_cache is
 	generic (REQUESTED_SIZE: natural);--user requested cache size, in 32 bit words
 	port (
 			req_ADDR: in std_logic_vector(7 downto 0);--address of requested instruction
-			CLK: in std_logic;--processor clock for reading instructions
+			CLK: in std_logic;--processor clock for reading instructions, must run even if cache is not ready
 			sram_IO: in std_logic_vector(15 downto 0);--data coming from SRAM for write
 			sram_CLK: in std_logic;--clock for reading SRAM
 			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
@@ -55,6 +55,7 @@ signal hit: std_logic;--cache hit
 signal miss: std_logic;--cache miss
 signal offset: std_logic_vector(7 downto D);--aka (current) page address
 signal previous_offset: std_logic_vector(7 downto D);--offset during previous RCLK cycle
+signal req_ADDR_reg: std_logic_vector(7 downto 0);
 
 signal lower_WREN: std_logic;--WREN for the lower half cache
 signal upper_WREN: std_logic;--WREN for the upper half cache
@@ -101,24 +102,38 @@ begin
 	end process;
 	
 	--cache read address generation
-	raddr <= req_ADDR(D-1 downto 0);
+	raddr <= req_ADDR(D-1 downto 0) when req_ready='1' else req_ADDR_reg(D-1 downto 0);--not registered here, but raddr is "registered" inside sdp_ram
 	
-	offset <= req_ADDR(7 downto D);--current offset (aka page address)
+	offset <= req_ADDR_reg(7 downto D);--current offset (aka page address)
 	
-	sram_ADDR <= (19 downto 9 => '0')& offset & waddr(D downto 0);--bit 0 must be included
+	sram_ADDR <= (19 downto 9 => '0') & offset & waddr(D downto 0);--bit 0 must be included
 	
 	full <= '1' when waddr=('1' & (D downto 0=>'0')) else '0';--next position to write exceeds ram limits
 	
 	--previous_offset generation
-	process(CLK,offset)
+	--registers address for correct operation of flag req_ready
+	process(CLK,offset,req_ready,RST)
 	begin
-		if(rising_edge(CLK)) then
+		if(RST='1')then
+			previous_offset <= (others=>'0');
+			req_ADDR_reg <= (others=>'0');
+		elsif(rising_edge(CLK)) then
 			previous_offset <= offset;
+			if(req_ready='1')then
+				req_ADDR_reg <= req_ADDR;
+			end if;
 		end if;
 	end process;
 	
 	hit <= '1' when offset=previous_offset else '0';
 	miss <= not hit;
 	
-	req_ready <= '1' when waddr>raddr else '0';	
+	process(RST,CLK,waddr,raddr)
+	begin
+		if(miss='1' or (waddr(D+1 downto 1) <= raddr(D-1 downto 0)))then
+			req_ready<='0';
+		elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
+			req_ready <= '1';
+		end if;
+	end process;	
 end structure;

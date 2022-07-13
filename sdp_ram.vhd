@@ -27,13 +27,16 @@ architecture structure of sdp_ram is
 type memory is array (0 to 2**L-1) of std_logic_vector(N-1 downto 0);
 signal ram: memory;
 
+signal RADDR_reg : std_logic_vector(L-1 downto 0);
+
 begin
 	--write
 	process(RST,WDAT,WCLK,WREN,WADDR)
 	begin
-		if(RST='1')then
-			ram <= (others=>(others=>'0'));
-		elsif(rising_edge(WCLK)) then
+--		if(RST='1')then
+--			ram <= (others=>(others=>'0'));
+--		elsif(rising_edge(WCLK)) then
+		if(rising_edge(WCLK)) then
 			if (WREN='1') then
 				ram(to_integer(unsigned(WADDR))) <= WDAT;
 			end if;
@@ -41,12 +44,17 @@ begin
 	end process;
 	
 	--reading
---	process(RCLK,RADDR)
---	begin
---		if (rising_edge(RCLK)) then
+	process(RCLK,RADDR)
+	begin
+--		if(RST='1')then
+--			RADDR_reg <= (others=>'0');
+--		elsif (rising_edge(RCLK)) then
+		if (rising_edge(RCLK)) then
 			--CDC, but there is no metastability if setup/hold are not violated
 			--necessary that RCLK/WCLK be a rational number for timing analysis
+--			RADDR_reg <= RADDR;
 			RDAT <= ram(to_integer(unsigned(RADDR)));
---		end if;
---	end process;
+		end if;
+	end process;
+--			RDAT <= ram(to_integer(unsigned(RADDR_reg)));
 end structure;
