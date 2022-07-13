@@ -774,7 +774,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			generic map (REQUESTED_SIZE => 16)--user requested cache size, in 32 bit words
 			port map (
 					req_ADDR => instruction_memory_address,--address of requested instruction
-					CLK => not CLK,--processor clock for reading instructions
+					CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
 					sram_IO => sram_IO,--data coming from SRAM for write
 					sram_CLK => sram_CLK,--clock for reading SRAM
 					RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
@@ -802,7 +802,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			generic map (REQUESTED_SIZE => 16)--user requested cache size, in 32 bit words
 			port map (
 					req_ADDR => instruction_memory_address,--address of requested instruction
-					CLK => not CLK,--processor clock for reading instructions
+					CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
 					sram_IO => sram_IO,--data coming from SRAM for write
 					sram_CLK => sram_CLK,--clock for reading SRAM
 					RST => not sram_filled,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
