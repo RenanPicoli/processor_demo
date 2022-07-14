@@ -419,7 +419,7 @@ signal flash_reading_state: std_logic_vector(3 downto 0);
 signal flash_count: std_logic_vector(19 downto 0);--counter: generates the address for FLASH, 1 bit must be added to obtain address
 
 -----------signals for sram_loader interfacing---------------------
-constant sram_loader: boolean := true;
+constant sram_loader: boolean := false;
 signal sram_filled: std_logic := '0';
 signal sram_loader_address: std_logic_vector(7 downto 0);--used to read mini_rom
 signal sram_loader_data: std_logic_vector(31 downto 0);--used to read mini_rom
@@ -656,7 +656,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
 	simple_reset_no_mini_rom: if not sram_loader generate
-		rst <= not rst_n;
+		rst <= not rst_n_sync_uproc;
 	end generate;
 	extended_reset_mini_rom_enabled: if sram_loader generate
 		rst <= not rst_n_sync_uproc;--rst is deasserted synchronously with uproc_CLK
@@ -795,6 +795,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --				data_out(0) => cache_ready_sync --data synchronized in CLK domain
 --		);
 	cache_ready_sync <= cache_ready;
+	
+		--synchronized asynchronous reset
+		--asserted asynchronously
+		--deasserted synchronously to the rising_edge of uproc_CLK
+		sync_async_reset_uproc: sync_chain
+		generic map (N => 1,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in(0) => '1',--data generated at another clock domain
+				CLK => CLK,--clock of new clock domain				
+				RST => not rst_n,--asynchronous reset
+				data_out(0) => rst_n_sync_uproc --data synchronized in CLK domain
+		);
 	end generate;
 	
 	sram_with_loader: if sram_loader generate
