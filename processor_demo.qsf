@@ -42,7 +42,7 @@ set_global_assignment -name DEVICE EP4CE115F29C7
 set_global_assignment -name TOP_LEVEL_ENTITY processor_demo
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 17.0.0
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "18:19:00  OCTOBER 20, 2019"
-set_global_assignment -name LAST_QUARTUS_VERSION "21.1.0 Lite Edition"
+set_global_assignment -name LAST_QUARTUS_VERSION "18.1.0 Lite Edition"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
@@ -531,6 +531,7 @@ set_location_assignment PIN_AC25 -to SW[8]
 set_location_assignment PIN_AB25 -to SW[9]
 set_global_assignment -name SDC_ENTITY_FILE sync_chain.sdc -entity sync_chain
 set_global_assignment -name STRICT_RAM_RECOGNITION ON
+
 set_global_assignment -name VHDL_FILE microprocessor/stack.vhd
 set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_sign_1bit.vhd
 set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_geq_zero.vhd
@@ -566,7 +567,6 @@ set_global_assignment -name VHDL_FILE microprocessor/reg_file.vhd
 set_global_assignment -name VHDL_FILE microprocessor/my_types.vhd
 set_global_assignment -name VHDL_FILE microprocessor/mux.vhd
 set_global_assignment -name VHDL_FILE microprocessor/multiplier.vhd
-set_global_assignment -name VHDL_FILE microprocessor/mini_rom.vhd
 set_global_assignment -name VHDL_FILE microprocessor/mini_ram.vhd
 set_global_assignment -name VHDL_FILE microprocessor/microprocessor.vhd
 set_global_assignment -name VHDL_FILE microprocessor/full_adder.vhd
@@ -603,5 +603,4 @@ set_global_assignment -name QIP_FILE desired_rom_ip.qip
 set_global_assignment -name QIP_FILE output_rom_ip.qip
 set_global_assignment -name VHDL_FILE i2s_master_transmitter/dc_fifo.vhd
 set_global_assignment -name SDC_FILE sync_chain.sdc
-
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
