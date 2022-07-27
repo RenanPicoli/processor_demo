@@ -37,12 +37,12 @@ port (CLK_IN: in std_logic;--50MHz input
 		flash_RY: in std_logic; --readiness flag, active HIGH, HIGH means busy (writing or erasing)
 		--SRAM (instructions)
 		sram_IO: inout std_logic_vector(15 downto 0);--sram data; input because we'll only read
-		sram_ADDR: out std_logic_vector(19 downto 0);--ADDR for SRAM
-		sram_CE_n: out std_logic;--chip enable, active LOW
-		sram_OE_n: out std_logic;--output enable, active LOW
-		sram_WE_n: out std_logic;--write enable, active LOW, HIGH enables reading
-		sram_UB_n: out std_logic;--upper IO byte access, active LOW
-		sram_LB_n: out std_logic; --lower	IO byte access, active LOW
+		sram_ADDR: buffer std_logic_vector(19 downto 0);--ADDR for SRAM
+		sram_CE_n: buffer std_logic;--chip enable, active LOW
+		sram_OE_n: buffer std_logic;--output enable, active LOW
+		sram_WE_n: buffer std_logic;--write enable, active LOW, HIGH enables reading
+		sram_UB_n: buffer std_logic;--upper IO byte access, active LOW
+		sram_LB_n: buffer std_logic; --lower	IO byte access, active LOW
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -313,10 +313,10 @@ end component;
 
 ---------------------------------------------------
 
-component interrupt_controller
+component interrupt_controller_vectorized
 generic	(L: natural);--L: number of IRQ lines
 port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
-		ADDR: in std_logic_vector(1 downto 0);--address offset of registers relative to peripheral base address
+		ADDR: in std_logic_vector(6 downto 0);--address offset of registers relative to peripheral base address
 		CLK: in std_logic;-- input
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
@@ -325,6 +325,7 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
 		IRQ_OUT: out std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
 		IACK_OUT: buffer std_logic_vector(L-1 downto 0);--output: all IACK lines going to peripherals
+		ISR_ADDR: out std_logic_vector(31 downto 0);--address of ISR
 		output: out std_logic_vector(31 downto 0)-- output of register reading
 );
 
@@ -403,6 +404,20 @@ component mux
 			sel: in std_logic_vector(N_BITS_SEL-1 downto 0);--user must ensure correct sizes
 			Q: out std_logic_vector--user must ensure correct sizes
 			);
+end component;
+
+--simulates on-board SRAM
+component async_sram
+generic	(INIT: boolean; DATA_WIDTH: natural; ADDR_WIDTH: natural);--data/address widths in bits
+port(	IO:	inout std_logic_vector(DATA_WIDTH-1 downto 0);--data bus
+		ADDR:	in std_logic_vector(ADDR_WIDTH-1 downto 0);
+		WE_n:	in std_logic;--write enable, active low
+		OE_n:	in std_logic;--output enable, active low
+		CE_n: in std_logic;--chip enable, active LOW
+		UB_n: in std_logic;--upper IO byte access, active LOW
+		LB_n: in std_logic --lower IO byte access, active LOW
+);
+
 end component;
 
 signal rst: std_logic;--active high
@@ -1340,10 +1355,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	i2s_iack	<= all_iack(2);										 
 	i2c_iack	<= all_iack(1);
 	filter_iack	<= all_iack(3) & all_iack(0);
-	irq_ctrl: interrupt_controller
+	irq_ctrl: interrupt_controller_vectorized
 	generic map (L => 4)--L: number of IRQ lines
 	port map (	D => ram_write_data,-- input: data to register write
-			ADDR => ram_addr(1 downto 0),
+			ADDR => ram_addr(6 downto 0),
 			CLK => ram_clk,-- input
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
@@ -1352,6 +1367,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			IRQ_OUT => irq,--output: IRQ line to cpu
 			IACK_IN => iack,--input: IACK line coming from cpu
 			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
+			ISR_ADDR => open,
 			output => irq_ctrl_Q -- output of register reading
 	);
 	
@@ -1384,4 +1400,18 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	c2 => CLK_fs_dbg,--10x fs
 	locked => i2s_SCK_IN_PLL_LOCKED
 	);
+	
+	-- synthesis translate_off
+	rom: async_sram
+	generic map (INIT => true, DATA_WIDTH => 16, ADDR_WIDTH => 20)
+	port map(
+		IO => sram_IO,
+		ADDR=> sram_ADDR,
+		CE_n=> sram_CE_n,
+		OE_n=> sram_OE_n,
+		WE_n=> sram_WE_n,
+		UB_n=> sram_UB_n,
+		LB_n=> sram_LB_n
+	);
+	-- synthesis translate_on
 end setup;

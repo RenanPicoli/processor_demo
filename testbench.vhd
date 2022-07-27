@@ -28,8 +28,8 @@ component tb_sram
 end component;
 
 --simulates on-board SRAM
-component async_sram is
-generic	(DATA_WIDTH: natural; ADDR_WIDTH: natural);--data/address widths in bits
+component async_sram
+generic	(INIT: boolean; DATA_WIDTH: natural; ADDR_WIDTH: natural);--data/address widths in bits
 port(	IO:	inout std_logic_vector(DATA_WIDTH-1 downto 0);--data bus
 		ADDR:	in std_logic_vector(ADDR_WIDTH-1 downto 0);
 		WE_n:	in std_logic;--write enable, active low
@@ -252,17 +252,17 @@ begin
 	ram_CLK <= transport CLK_IN after 1 ns;
 	flash_IO <= ram_Q(7 downto 0) when flash_ADDR(0)='0' else ram_Q(15 downto 8);
 	
-	rom: async_sram
-	generic map (DATA_WIDTH => 16, ADDR_WIDTH => 20)
-	port map(
-		IO => sram_IO,
-		ADDR=> sram_ADDR,
-		CE_n=> sram_CE_n,
-		OE_n=> sram_OE_n,
-		WE_n=> sram_WE_n,
-		UB_n=> sram_UB_n,
-		LB_n=> sram_LB_n
-	);
+--	rom: async_sram
+--	generic map (INIT => true, DATA_WIDTH => 16, ADDR_WIDTH => 20)
+--	port map(
+--		IO => sram_IO,
+--		ADDR=> sram_ADDR,
+--		CE_n=> sram_CE_n,
+--		OE_n=> sram_OE_n,
+--		WE_n=> sram_WE_n,
+--		UB_n=> sram_UB_n,
+--		LB_n=> sram_LB_n
+--	);
 	
 	clock: process--50MHz input clock
 	begin
