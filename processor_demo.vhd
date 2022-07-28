@@ -483,7 +483,7 @@ signal instruction_clk: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
-constant N: integer := 7;-- size in bits of data addresses (each address refers to a 32 bit word)
+constant N: integer := 8;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
 signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_rden: std_logic;
@@ -633,8 +633,10 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#70#,16#70#),--current filter output
 											(16#71#,16#71#),--desired response
 											(16#72#,16#72#),--filter status
-											(16#74#,16#77#),--interrupt controller
-											(16#78#,16#78#)--converted_out
+											(16#73#,16#73#),--converted_out
+											(16#80#,16#FF#)--interrupt controller
+--											(16#74#,16#77#),--interrupt controller
+--											(16#78#,16#78#)--converted_out
 											);
 signal all_periphs_output: array32 (11 downto 0);
 signal all_periphs_rden: std_logic_vector(11 downto 0);
@@ -1262,14 +1264,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (11 => irq_ctrl_Q, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	converted_out_rden		<= all_periphs_rden(11);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden(10);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(11);-- not used, just to keep form
+	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
 	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
 	d_ff_desired_rden			<= all_periphs_rden(8);-- not used, just to keep form
 	filter_out_rden			<= all_periphs_rden(7);-- not used, just to keep form
@@ -1281,8 +1283,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	converted_out_wren		<= all_periphs_wren(11);-- not used, just to keep form
-	irq_ctrl_wren				<= all_periphs_wren(10);
+	irq_ctrl_wren				<= all_periphs_wren(11);
+	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
 	filter_ctrl_status_wren	<= all_periphs_wren(9);
 	d_ff_desired_wren			<= all_periphs_wren(8);-- not used, just to keep form
 	filter_out_wren			<= all_periphs_wren(7);-- not used, just to keep form
