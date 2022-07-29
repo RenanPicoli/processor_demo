@@ -12,6 +12,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
+use ieee.numeric_std.all;--to_unsigned
 
 use work.my_types.all;--array32
 use ieee.math_real.all;--ceil and log2
@@ -26,11 +27,11 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
 		RDEN: in std_logic;-- input
-		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines
+		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines, sampled internally at rising_edge(CLK)
 		IRQ_OUT: out std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
 		IACK_OUT: buffer std_logic_vector(L-1 downto 0);--output: all IACK lines going to peripherals
-		ISR_ADDR: out std_logic_vector(31 downto 0);--address of ISR
+		ISR_ADDR: out std_logic_vector(31 downto 0);--address of ISR, it is updated the next clock cycle after the IRQ detection
 		output: out std_logic_vector(31 downto 0)-- output of register reading
 );
 
@@ -51,27 +52,25 @@ architecture behv of interrupt_controller_vectorized is
 			data_out: out std_logic_vector(31 downto 0)-- data read
 	);
 	end component;
-	
-	component sdp_ram
-		generic (N: natural; L: natural);--N: data width in bits; L: address width in bits
-		port (RST: in std_logic;
-				WDAT: in std_logic_vector(N-1 downto 0);--data for write
-				WCLK: in std_logic;--processor clock for writes
-				WADDR: in std_logic_vector(L-1 downto 0);--address for write
-				WREN: in std_logic;--enables software write
-				RCLK: in std_logic;--processor clock for reading
-				RADDR: in std_logic_vector(L-1 downto 0);--address for write
-				RDAT: out std_logic_vector(N-1 downto 0)--oldest data
-		);
-	end component;
 
-	component d_flip_flop
-		port (D:	in std_logic_vector(31 downto 0);
-				RST: in std_logic;
-				ENA:	in std_logic:='1';--enables writes
-				CLK:in std_logic;
-				Q:	out std_logic_vector(31 downto 0)  
-				);
+	component stack
+		generic(L: natural);--log2 of number of stored words
+		port (CLK: in std_logic;--active edge: rising_edge
+				rst: in std_logic;-- active high asynchronous reset (should be deasserted at rising_edge of CLK)
+				--STACK INTERFACE
+				pop: in std_logic;
+				push: in std_logic;
+				addsp: in std_logic;--sp <- sp + imm
+				imm: in std_logic_vector(L-1 downto 0);--imm > 0: deletes vars, imm < 0: reserves space for vars
+				stack_in: in std_logic_vector(31 downto 0);-- word to be pushed
+				sp: buffer std_logic_vector(L-1 downto 0);-- points to last stacked item (address of a 32-bit word)
+				stack_out: out std_logic_vector(31 downto 0);--data retrieved from stack
+				--MEMORY-MAPPED INTERFACE
+				D: in std_logic_vector(31 downto 0);-- data to be written by memory-mapped interface
+				WREN: in std_logic;--write enable for memory-mapped interface
+				ADDR: in std_logic_vector(L-1 downto 0);-- address to be written by memory-mapped interface
+				Q:		out std_logic_vector(31 downto 0)-- data output for memory-mapped interface
+		);
 	end component;
 	
 	signal irq_pend_Q: std_logic_vector(31 downto 0);
@@ -92,8 +91,14 @@ architecture behv of interrupt_controller_vectorized is
 	
 	------------signals for IRQ control-------------------
 	signal IRQ_IN_prev:			std_logic_vector(31 downto 0);--state of IRQ_IN in previous clock cycle
-	signal IRQ_pend_out:			std_logic_vector(31 downto 0);-- status of all IRQs
+	signal IRQ_pend_out:			std_logic_vector(31 downto 0);-- IRQ waiting to be transmitted to CPU
 	signal IRQ_pend_out_prev:	std_logic_vector(31 downto 0);-- status of all IRQs in previous clock cycle
+	signal IRQ_active_out:		std_logic_vector(31 downto 0);-- all IRQ being SERVICED (includes nested interrupts)
+	signal IRQ_active_in:		std_logic_vector(31 downto 0);-- signal used to feed IRQ_active_out register
+	signal IRQ_curr_out:			std_logic_vector( 4 downto 0);-- number of IRQ CURRENTLY being serviced
+	signal IRQ_curr_out_oh:		std_logic_vector(31 downto 0);-- one-hot of the IRQ CURRENTLY being serviced
+	signal IRQ_curr_stack_out_oh:std_logic_vector(31 downto 0);-- one-hot of the IRQ CURRENTLY being serviced on top of stack	
+	signal tmp_IRQ_curr:			array32(31 downto 0);
 	signal IACK_pend_out:		std_logic_vector(31 downto 0);-- where the IACK must be sent when IACK_IN is asserted by processor
 	signal IACK_OUT_prev:		std_logic_vector(31 downto 0);-- status of all IACKs in previous clock cycle
 	signal IACK_finished:		std_logic_vector(31 downto 0);-- '1' when IACK_OUT is deasserted
@@ -115,6 +120,11 @@ architecture behv of interrupt_controller_vectorized is
 	signal ISR_ADDR_in:		std_logic_vector(31 downto 0);--address of next ISR
 	signal tmp_ISR_ADDR_in:	array32(L-1 downto 0);--address of next ISR
 	
+	signal preemption: std_logic;
+	signal tmp_preemption: std_logic_vector(31 downto 0);
+	
+	constant STACK_LEVELS_LOG2: natural := 4;--up to 16 nested interrupts
+	
 begin
 	--L must be limited to 32 
 	assertion: assert (L <= 32) report "parameter L must be <= 32" severity Error;
@@ -122,13 +132,15 @@ begin
 ---------------------------------- IRQ pending register ------------------------------------
 		irq_pend_wren <= address_decoder_wren(0);
 		irq_pending_i: for i in 0 to L-1 generate
-			irq_pending: process(RST,irq_pend_wren,D,IRQ_pend_out,IRQ_IN,IACK_OUT,CLK)
+			irq_pending: process(RST,irq_pend_wren,D,IRQ_pend_out,IRQ_curr_out_oh,IRQ_IN,IACK_OUT,CLK)
 			begin
 				if(RST='1') then
 					IRQ_pend_out(i) <= '0';
 					IRQ_pend_out_prev(i) <= '0';
 					IRQ_IN_prev(i)  <= '0';
 					IACK_OUT_prev(i) <= '0';
+				elsif(IRQ_curr_out_oh(i)='1')then					
+					IRQ_pend_out(i) <= '0';
 				elsif(rising_edge(CLK)) then -- MUST be the same active edge of other RAM peripherals
 					IRQ_IN_prev(i) <= IRQ_IN(i);
 					IRQ_pend_out_prev(i) <= IRQ_pend_out(i);
@@ -144,6 +156,25 @@ begin
 		end generate irq_pending_i;		
 		IRQ_pend_out(31 downto L) <= (others => '0');--unused bits receive '0'
 		irq_pend_Q <= IRQ_pend_out;--signal renaming
+
+		irq_stack: stack
+			generic map (L => STACK_LEVELS_LOG2)
+			port map (CLK => CLK,--active edge: rising_edge
+						rst => RST,-- active high asynchronous reset (should be deasserted at rising_edge)
+						--STACK INTERFACE
+						pop => IACK_IN,
+						push => preemption,
+						addsp => '0',
+						imm => (others=>'0'),--imm > 0: deletes vars, imm < 0: reserves space for vars
+						stack_in => IRQ_curr_out_oh,-- word to be pushed
+						sp => open,-- points to last stacked item (address of a 32-bit word)
+						stack_out => IRQ_curr_stack_out_oh,--data retrieved from stack
+						--MEMORY-MAPPED INTERFACE
+						D => (others=>'0'),-- data to be written by memory-mapped interface
+						WREN => '0',--write enable for memory-mapped interface
+						ADDR => (others=>'0'),-- address to be written by memory-mapped interface
+						Q    => open-- data output for memory-mapped interface
+				);
 		
 ---------------------------------- IACK pending register ------------------------------------
 		iack_pend_wren <= address_decoder_wren(1);
@@ -197,21 +228,43 @@ begin
 		
 ------------------------------ ISR_ADDR update ----------------------------------------
 ---------------- determines which interrupt will be serviced --------------------------
-	process(IRQ_IN,CLK,RST)--must be synchronous to rising_edge(CLK)
-	begin		
+	process(IRQ_active_in,CLK,RST)--must be synchronous to rising_edge(CLK)
+	begin
 		if(RST='1')then
-			ISR_ADDR <= (others=>'0');
+			IRQ_active_out <= (others=>'0');
 		elsif(rising_edge(CLK))then
-			ISR_ADDR <= ISR_ADDR_in;
-		end if;		
+			IRQ_active_out <= IRQ_active_in;
+		end if;
 	end process;
+	ISR_ADDR <= ISR_ADDR_in;
 	
-	tmp_ISR_ADDR_in(0) <= vector(0) when IRQ_IN(0)='1' else (others=>'0');
+	tmp_ISR_ADDR_in(0) <= vector(0) when IRQ_pend_out(0)='1' else (others=>'0');
+	tmp_IRQ_curr(0) <= std_logic_vector(to_unsigned(2**0,32)) when IRQ_pend_out(0)='1' else (others=>'0');
+	tmp_preemption(0) <= '0'; 
 	isr_addr_in_gen: for i in 1 to L-1 generate
 		-- a interruption being serviced can be preempted by another of higher priority
-		tmp_ISR_ADDR_in(i) <= vector(i) when (IRQ_IN(i)='1' and (priorities(i) < priorities(i-1))) else tmp_ISR_ADDR_in(i-1);
+		tmp_ISR_ADDR_in(i) <= vector(i) when (IRQ_pend_out(i)='1' and (priorities(i) < priorities(i-1))) else tmp_ISR_ADDR_in(i-1);
+		tmp_IRQ_curr(i) <= std_logic_vector(to_unsigned(2**i,32)) when (IRQ_pend_out(i)='1' and (priorities(i) < priorities(i-1))) else tmp_IRQ_curr(i-1);
+		
+		tmp_preemption(i) <= '1' when ((IRQ_curr_out_oh /= (31 downto 0 =>'0')) and
+												(to_integer(unsigned(IRQ_curr_out)) /= i) and
+												(IRQ_pend_out(i)='1' and (priorities(i) < priorities(to_integer(unsigned(IRQ_curr_out)))))) else
+												tmp_preemption(i-1);
 	end generate isr_addr_in_gen;
 	ISR_ADDR_in <= tmp_ISR_ADDR_in(L-1);
+	IRQ_curr_out_oh <= tmp_IRQ_curr(L-1);
+	preemption <= tmp_preemption(L-1);
+	
+	--DOES NOT CHECK if is a true one-hot, if two bits are high, the MSb takes precendence
+	process(IRQ_curr_out_oh)
+	begin
+		IRQ_curr_out <= (others=>'0');
+		for i in 31 downto 0 loop
+			if(IRQ_curr_out_oh(i) = '1') then
+				IRQ_curr_out <= std_logic_vector(to_unsigned(i,5));
+			end if;
+		end loop;
+	end process;
 	
 	-------------vector write----------------------------
 	vector_gen: for i in 0 to L-1 generate
