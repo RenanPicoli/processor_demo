@@ -62,6 +62,7 @@ port (CLK_IN: in std_logic;
 		rst: in std_logic;
 		irq: in std_logic;--interrupt request
 		iack: out std_logic;--interrupt acknowledgement
+		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
@@ -579,6 +580,7 @@ signal irq: std_logic;
 signal iack: std_logic;
 signal all_irq: std_logic_vector(3 downto 0);
 signal all_iack: std_logic_vector(3 downto 0);
+signal ISR_ADDR: std_logic_vector(31 downto 0);
 
 --signals for fp32_to_integer----------------------------------
 constant audio_resolution: natural := 16;
@@ -1319,7 +1321,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		CLK_IN => CLK,
 		rst => rst,
 		irq => irq,
-		iack => iack,
+		iack => iack,		
+		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		instruction_addr => open,
 		ADDR_rom => instruction_memory_address,
 		cache_ready => cache_ready_sync,--synchronized to rising_edge(CLK)
@@ -1369,7 +1372,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			IRQ_OUT => irq,--output: IRQ line to cpu
 			IACK_IN => iack,--input: IACK line coming from cpu
 			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
-			ISR_ADDR => open,
+			ISR_ADDR => ISR_ADDR,
 			output => irq_ctrl_Q -- output of register reading
 	);
 	
@@ -1403,6 +1406,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	locked => i2s_SCK_IN_PLL_LOCKED
 	);
 	
+	-- this instruction ROM is meant to be used only in simulation
 	-- synthesis translate_off
 	rom: async_sram
 	generic map (INIT => true, DATA_WIDTH => 16, ADDR_WIDTH => 20)
