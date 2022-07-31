@@ -94,7 +94,6 @@ architecture behv of interrupt_controller_vectorized is
 	signal IRQ_curr_stack_out_oh:std_logic_vector(31 downto 0);-- one-hot of the IRQ CURRENTLY being serviced on top of stack	
 	signal tmp_IRQ_curr:			array32(31 downto 0);
 	signal IACK_pend_out:		std_logic_vector(31 downto 0);-- where the IACK must be sent when IACK_IN is asserted by processor
-	signal IACK_OUT_prev:		std_logic_vector(31 downto 0);-- status of all IACKs in previous clock cycle
 	signal IACK_finished:		std_logic_vector(31 downto 0);-- '1' when IACK_OUT is deasserted
 	signal irq:						std_logic;
 	signal tmp:						std_logic_vector(31 downto 0);
@@ -138,12 +137,10 @@ begin
 					
 					--resets previous history
 					IRQ_IN_prev(i)		<= '0';
-					IACK_OUT_prev(i)	<= '0';
 					
 				--next state will be determined
 				elsif(rising_edge(CLK)) then -- MUST be the same active edge of other RAM peripherals
 					IRQ_IN_prev(i)		<= IRQ_IN(i);
-					IACK_OUT_prev(i)	<= IACK_OUT(i);
 					
 					-- idle state
 					if (fsm_state(i)="000")then

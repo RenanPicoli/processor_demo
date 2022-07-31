@@ -128,7 +128,7 @@ begin
 	hit <= '1' when offset=previous_offset else '0';
 	miss <= not hit;
 	
-	process(RST,CLK,waddr,raddr)
+	process(RST,CLK,waddr,raddr,miss)
 	begin
 		if(miss='1' or (waddr(D+1 downto 1) <= raddr(D-1 downto 0)))then
 			req_ready<='0';
