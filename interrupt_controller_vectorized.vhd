@@ -88,7 +88,7 @@ architecture behv of interrupt_controller_vectorized is
 	signal IRQ_IN_prev:			std_logic_vector(31 downto 0);--state of IRQ_IN in previous clock cycle
 	signal IRQ_pend:				std_logic_vector(31 downto 0);-- IRQ waiting to be transmitted to CPU
 	signal IRQ_active:			std_logic_vector(31 downto 0);-- one-hot of the ISR being executed NOW
-	signal IRQ_started:			std_logic_vector(31 downto 0);-- all IRQ being SERVICED (includes nested interrupts)
+	signal IRQ_started:			std_logic_vector(31 downto 0);-- Means the IRQ was sent. All IRQ being SERVICED (includes nested interrupts)
 --	signal IRQ_suspended:		std_logic_vector(31 downto 0);-- flag indicating that the IRQx was active, but preemption occurred
 	signal IRQ_status:			std_logic_vector(31 downto 0);-- status register
 	signal IRQ_curr_out:			std_logic_vector(31 downto 0);-- number of IRQ CURRENTLY being serviced
