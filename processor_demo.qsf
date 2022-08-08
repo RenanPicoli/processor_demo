@@ -532,10 +532,11 @@ set_location_assignment PIN_AB25 -to SW[9]
 set_global_assignment -name SDC_ENTITY_FILE sync_chain.sdc -entity sync_chain
 set_global_assignment -name STRICT_RAM_RECOGNITION ON
 
+set_global_assignment -name VHDL_FILE "microprocessor/pure_stack .vhd"
+set_global_assignment -name VHDL_FILE microprocessor/memory_mapped_stack.vhd
 set_global_assignment -name VHDL_FILE sdp_ram.vhd
 set_global_assignment -name VHDL_FILE i_cache.vhd
 set_global_assignment -name VHDL_FILE interrupt_controller_vectorized.vhd
-set_global_assignment -name VHDL_FILE microprocessor/stack.vhd
 set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_sign_1bit.vhd
 set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_geq_zero.vhd
 set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/signed_digit_pkg.vhd
