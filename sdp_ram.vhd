@@ -26,6 +26,9 @@ end sdp_ram;
 architecture structure of sdp_ram is
 type memory is array (0 to 2**L-1) of std_logic_vector(N-1 downto 0);
 signal ram: memory;
+--since the upper hierarchy guarantees there will be no read-during-write
+attribute ramstyle : string;
+attribute ramstyle of ram : signal is "no_rw_check";
 
 signal RADDR_reg : std_logic_vector(L-1 downto 0);
 
