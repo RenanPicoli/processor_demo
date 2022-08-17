@@ -4,10 +4,10 @@
 --combines irq of all peripherals in one signal delivered to cpu
 --IRQ_IN is level-triggered, IRQ_OUT is edge-triggered
 --contains one register to store all IRQ pending (whose IRQ was not sent to cpu)
---contains one register to store all IRQ active (being service by cpu)
---contains one register to store all IRQ suspended (was active, but preemption occurred)
+--contains one register to store all IRQ started (being service by cpu, even if preempted)
+--contains one register to store all IRQ active (one-hot of IRQ being serviced NOW)
 --cpu loads ISR_ADDR port to its PC to execute the ISR (first clock after IRQ_OUT assertion)
---at interrupt return, the cpu asserts IACK_IN
+--during interrupt return, the cpu asserts IACK_IN
 --after receiving the iack from cpu, controller will send iack to the appropriate peripheral 
 --by Renan Picoli de Souza
 ---------------------------------------------------
@@ -87,9 +87,9 @@ architecture behv of interrupt_controller_vectorized is
 	
 	signal IRQ_IN_prev:			std_logic_vector(31 downto 0);--state of IRQ_IN in previous clock cycle
 	signal IRQ_pend:				std_logic_vector(31 downto 0);-- IRQ waiting to be transmitted to CPU
-	signal IRQ_active:			std_logic_vector(31 downto 0);-- one-hot of the ISR being executed NOW
 	signal IRQ_started:			std_logic_vector(31 downto 0);-- Means the IRQ was sent. All IRQ being SERVICED (includes nested interrupts)
 --	signal IRQ_suspended:		std_logic_vector(31 downto 0);-- flag indicating that the IRQx was active, but preemption occurred
+	signal IRQ_active:			std_logic_vector(31 downto 0);-- one-hot of the ISR being executed NOW
 	signal IRQ_status:			std_logic_vector(31 downto 0);-- status register
 	signal IRQ_curr_out:			std_logic_vector(31 downto 0);-- number of IRQ CURRENTLY being serviced
 	signal IRQ_curr_stack_out_oh:std_logic_vector(31 downto 0);-- one-hot of the IRQ CURRENTLY being serviced on top of stack	
@@ -137,11 +137,11 @@ begin
 					fsm_state(i)	<= "00";
 					
 					--resets previous history
-					IRQ_IN_prev(i)		<= '0';
+					IRQ_IN_prev(i)	<= '0';
 					
 				--next state will be determined
 				elsif(rising_edge(CLK)) then -- MUST be the same active edge of other RAM peripherals
-					IRQ_IN_prev(i)		<= IRQ_IN(i);
+					IRQ_IN_prev(i)	<= IRQ_IN(i);
 					
 					-- idle state
 					if (fsm_state(i)="00")then
@@ -169,7 +169,7 @@ begin
 		IRQ_started(31 downto L)	<= (others => '0');
 		IRQ_IN_prev(31 downto L)	<= (others => '0');
 		
-		tmp_preferred(0) <= (0=> '1', others=>'0') when (IRQ_pend(0)='1' or IRQ_started(0)='1') else (others=>'0');
+		tmp_preferred(0) <= (0=> '1', others=>'0') when ((IRQ_pend(0)='1' or IRQ_started(0)='1') and (priorities(0) = tmp_highest_priority(L-1))) else (others=>'0');
 		arbiter: for i in 1 to L-1 generate
 			--if two IRQ's of equal priority arrive in the along the same clock cycle, the IRQ of highest index takes precendence
 			tmp_preferred(i) <= (i=> '1', others=>'0') when	((IRQ_pend(i)='1' or IRQ_started(i)='1') and
@@ -194,7 +194,8 @@ begin
 					IACK_OUT(i) <= IACK_IN and IRQ_active(i);
 		end generate;
 		
-		IRQ_active <= IRQ_started and (not preemption);
+--		IRQ_active <= IRQ_started and (not preemption);
+		IRQ_active <= tmp_preferred(L-1);
 
 		-- AFTER irq_pend_out UPDATE
 		tmp(0) <= tmp_IRQ_out(0);
