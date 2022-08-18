@@ -114,8 +114,10 @@ architecture behv of interrupt_controller_vectorized is
 	signal preemption: std_logic_vector(31 downto 0) := (others=>'0');--bit i indicates for IRQi that it was preempted
 	signal preemption_evt: std_logic;--flag indicating that an active IRQ was preempted
 	signal tmp_preemption_evt: std_logic_vector(31 downto 0);
-	signal tmp_preferred: array32(L-1 downto 0) := (others=>(others=>'0'));
+	signal tmp_preferred: array32(L downto 0) := (others=>(others=>'0'));
+	signal req: array32(L-1 downto 0) := (others=>(others=>'0'));
 	signal tmp_highest_priority: array32(L-1 downto 0) := (others=>(others=>'1'));
+	signal tmp_IRQ_active:	array32(L-1 downto 0);-- one-hot of the ISR being executed NOW
 	
 	constant STACK_LEVELS_LOG2: natural := 4;--up to 16 nested interrupts
 	
@@ -169,23 +171,17 @@ begin
 		IRQ_started(31 downto L)	<= (others => '0');
 		IRQ_IN_prev(31 downto L)	<= (others => '0');
 		
-		tmp_preferred(0) <= (0=> '1', others=>'0') when ((IRQ_pend(0)='1' or IRQ_started(0)='1') and (priorities(0) = tmp_highest_priority(L-1))) else (others=>'0');
-		arbiter: for i in 1 to L-1 generate
+		arbiter: for i in 0 to L-1 generate
 			--if two IRQ's of equal priority arrive in the along the same clock cycle, the IRQ of highest index takes precendence
-			tmp_preferred(i) <= (i=> '1', others=>'0') when	((IRQ_pend(i)='1' or IRQ_started(i)='1') and
-																	(priorities(i) = tmp_highest_priority(L-1))) else
-																	tmp_preferred(i-1);
+			req(i) <= (i=> (IRQ_pend(i) or IRQ_started(i)), others=>'0');
+			tmp_preferred(i) <= req(to_integer(unsigned(priorities(i))));
+			tmp_IRQ_active(i) <= tmp_preferred(i) when (tmp_preferred(i) /= x"0000_0000") else tmp_preferred(i+1);
 		end generate arbiter;
+		tmp_preferred(L) <= x"0000_0000";
 		
-		tmp_highest_priority(0) <= priorities(0) when (IRQ_pend(0)='1' or IRQ_started(0)='1') else (others=>'1');
-		highest_priority: for i in 1 to L-1 generate
-			--updates tmp_higher_priority
-			tmp_highest_priority(i) <= priorities(i) when ((IRQ_pend(i)='1' or IRQ_started(i)='1') and
-																	(priorities(i) < tmp_highest_priority(i-1))) else
-																	tmp_highest_priority(i-1);
-		end generate highest_priority;
+		IRQ_active <= tmp_IRQ_active(0);
 		
-		preemption <= (IRQ_pend or IRQ_started) and (not tmp_preferred(L-1));
+		preemption <= (IRQ_pend or IRQ_started) and (not IRQ_active);
 			
 		-- AFTER irq_pend_out UPDATE
 		--é necessário que o software zere os bits das IRQ atendidas e
@@ -195,7 +191,7 @@ begin
 		end generate;
 		
 --		IRQ_active <= IRQ_started and (not preemption);
-		IRQ_active <= tmp_preferred(L-1);
+--		IRQ_active <= tmp_preferred(L-1);
 
 		-- AFTER irq_pend_out UPDATE
 		tmp(0) <= tmp_IRQ_out(0);
