@@ -114,10 +114,10 @@ architecture behv of interrupt_controller_vectorized is
 	signal preemption: std_logic_vector(31 downto 0) := (others=>'0');--bit i indicates for IRQi that it was preempted
 	signal preemption_evt: std_logic;--flag indicating that an active IRQ was preempted
 	signal tmp_preemption_evt: std_logic_vector(31 downto 0);
-	signal tmp_preferred: array32(L downto 0) := (others=>(others=>'0'));
+	signal tmp_preferred: array32(L-1 downto 0) := (others=>(others=>'0'));
 	signal req: array32(L-1 downto 0) := (others=>(others=>'0'));
 	signal tmp_highest_priority: array32(L-1 downto 0) := (others=>(others=>'1'));
-	signal tmp_IRQ_active:	array32(L-1 downto 0);-- one-hot of the ISR being executed NOW
+	signal tmp_IRQ_active:	array32(L downto 0);-- one-hot of the ISR being executed NOW
 	
 	constant STACK_LEVELS_LOG2: natural := 4;--up to 16 nested interrupts
 	
@@ -175,9 +175,9 @@ begin
 			--if two IRQ's of equal priority arrive in the along the same clock cycle, the IRQ of highest index takes precendence
 			req(i) <= (i=> (IRQ_pend(i) or IRQ_started(i)), others=>'0');
 			tmp_preferred(i) <= req(to_integer(unsigned(priorities(i))));
-			tmp_IRQ_active(i) <= tmp_preferred(i) when (tmp_preferred(i) /= x"0000_0000") else tmp_preferred(i+1);
+			tmp_IRQ_active(i) <= tmp_preferred(i) when (tmp_preferred(i) /= x"0000_0000") else tmp_IRQ_active(i+1);
 		end generate arbiter;
-		tmp_preferred(L) <= x"0000_0000";
+		tmp_IRQ_active(L) <= x"0000_0000";
 		
 		IRQ_active <= tmp_IRQ_active(0);
 		
