@@ -76,11 +76,13 @@ architecture behv of async_sram is
 
 	--array of latches
 	constant ADDR_WIDTH_implemented: natural := 9;
+--	constant initial_value: mem(0 to 2**ADDR_WIDTH_implemented-1)(DATA_WIDTH-1 downto 0):= set_initial_value(INIT,(2**ADDR_WIDTH_implemented-1 downto 0 => (DATA_WIDTH-1 downto 0 => '1')),
+--																										get_slv_array_from_file(DATA_WIDTH/8,2**ADDR_WIDTH_implemented,"../../sram_file_experimental.bin"));
 	constant initial_value: mem(0 to 2**ADDR_WIDTH_implemented-1)(DATA_WIDTH-1 downto 0):= set_initial_value(INIT,(2**ADDR_WIDTH_implemented-1 downto 0 => (DATA_WIDTH-1 downto 0 => '1')),
-																										get_slv_array_from_file(DATA_WIDTH/8,2**ADDR_WIDTH_implemented,"../../sram_file_experimental.bin"));
-																										
+																										get_slv_array_from_file(DATA_WIDTH/8,2**ADDR_WIDTH_implemented,"../../microprocessor/executable.bin"));
+
 	signal sram: mem(0 to 2**ADDR_WIDTH_implemented-1)(DATA_WIDTH-1 downto 0) := initial_value;
-																						
+
 	signal sram_IO_instantaneous:	std_logic_vector(DATA_WIDTH-1 downto 0);--sram data; without delay
 	constant	sram_delay: time:= 10 ns;
 	signal ADDR_uint: natural;
