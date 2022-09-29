@@ -790,7 +790,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_no_loader: if not sram_loader generate
 		sram_WE_n <= '1';--reading always enabled
 		cache: I_cache
-			generic map (REQUESTED_SIZE => 16)--user requested cache size, in 32 bit words
+			generic map (REQUESTED_SIZE => 128)--user requested cache size, in 32 bit words
 			port map (
 					req_ADDR => instruction_memory_address,--address of requested instruction
 					CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
