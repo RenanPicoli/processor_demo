@@ -76,7 +76,7 @@ begin
 		
 	--cache for the upper half of instruction
 	cache_upper: sdp_ram
-		generic map (N => 16, L=> 4)
+		generic map (N => 16, L=> D)
 		port map(RST => RST,
 					WDAT	=> sram_IO,
 					WCLK	=> sram_CLK,
