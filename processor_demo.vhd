@@ -43,6 +43,8 @@ port (CLK_IN: in std_logic;--50MHz input
 		sram_WE_n: buffer std_logic;--write enable, active LOW, HIGH enables reading
 		sram_UB_n: buffer std_logic;--upper IO byte access, active LOW
 		sram_LB_n: buffer std_logic; --lower	IO byte access, active LOW
+		-- 7 segments displays
+		segments: out array7(7 downto 0);
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -636,13 +638,12 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#71#,16#71#),--desired response
 											(16#72#,16#72#),--filter status
 											(16#73#,16#73#),--converted_out
+											(16#74#,16#74#),--display 7 segments data register
 											(16#80#,16#FF#)--interrupt controller
---											(16#74#,16#77#),--interrupt controller
---											(16#78#,16#78#)--converted_out
 											);
-signal all_periphs_output: array32 (11 downto 0);
-signal all_periphs_rden: std_logic_vector(11 downto 0);
-signal all_periphs_wren: std_logic_vector(11 downto 0);
+signal all_periphs_output: array32 (12 downto 0);
+signal all_periphs_rden: std_logic_vector(12 downto 0);
+signal all_periphs_wren: std_logic_vector(12 downto 0);
 
 signal filter_CLK: std_logic;
 signal filter_CLK_n: std_logic;--filter_CLK inverted
@@ -658,6 +659,12 @@ signal filter_iack_received: std_logic_vector(1 downto 0);
 signal filter_iack_received_proc: std_logic_vector(1 downto 0);
 signal filter_iack_send_proc: std_logic_vector(1 downto 0);
 signal proc_filter_parallel_wren: std_logic;
+
+--signals  for 7-segment register
+signal disp_7seg_DR_in: std_logic_vector(31 downto 0);
+signal disp_7seg_DR_out: std_logic_vector(31 downto 0);
+signal disp_7seg_DR_wren: std_logic;
+signal disp_7seg_DR_rden: std_logic;
 
 --signals for vector transfers
 signal lvec: std_logic;
@@ -1266,13 +1273,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (11 => irq_ctrl_Q, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	irq_ctrl_rden				<= all_periphs_rden(11);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
+	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
 	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
 	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
 	d_ff_desired_rden			<= all_periphs_rden(8);-- not used, just to keep form
@@ -1285,7 +1293,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	irq_ctrl_wren				<= all_periphs_wren(11);
+	irq_ctrl_wren				<= all_periphs_wren(12);
+	disp_7seg_DR_wren			<= all_periphs_wren(11);
 	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
 	filter_ctrl_status_wren	<= all_periphs_wren(9);
 	d_ff_desired_wren			<= all_periphs_wren(8);-- not used, just to keep form
@@ -1375,6 +1384,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			ISR_ADDR => ISR_ADDR,
 			output => irq_ctrl_Q -- output of register reading
 	);
+	
+	 --signals  for 7-segment register
+	 disp_7seg_DR_in <= ram_write_data;
+	 disp_7seg_DR: d_flip_flop
+	 port map(	D => disp_7seg_DR_in,
+					RST=> RST,--resets all previous history of filter output
+					ENA=> disp_7seg_DR_wren,
+					CLK=> ram_clk,--sampling clock, must be much faster than filter_CLK
+					Q=> disp_7seg_DR_out
+	);
+	disp_7seg_drive: for i in 0 to 7 generate
+		segments(i) <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_out(4*i+3 downto 4*i ))));
+	end generate disp_7seg_drive;
 	
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
