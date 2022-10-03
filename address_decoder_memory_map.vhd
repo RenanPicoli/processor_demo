@@ -54,7 +54,7 @@ end function;
 signal output: std_logic_vector(31 downto 0);-- data read
 begin
 	-- mux of data read
-	process(ADDR,RDEN,data_in)
+	process(ADDR,RDEN,WREN,data_in)
 		variable p: natural;
 		variable mask: std_logic_vector(N downto 0);
 		variable mask_length: natural;	
