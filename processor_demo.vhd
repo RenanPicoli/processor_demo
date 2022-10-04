@@ -677,7 +677,8 @@ signal disp_7seg_DR_wren: std_logic;
 signal disp_7seg_DR_rden: std_logic;
 signal disp_7seg_DR_cnt: std_logic_vector(2 downto 0);--counter for switching between nibbles (0 to 7)
 signal disp_7seg_DR_nibble: std_logic_vector(3 downto 0);--used if one nibble is displayed at a time
-signal disp_7seg_DR_code: std_logic_vector(6 downto 0);--used if one code is computed at a time
+--signal disp_7seg_DR_code: std_logic_vector(6 downto 0);--used if one code is computed at a time
+signal disp_7seg_DR_code: array7(7 downto 0);--used if one code is computed at a time
 
 
 --signals for vector transfers
@@ -1408,37 +1409,30 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					CLK=> ram_clk,--sampling clock, must be much faster than filter_CLK
 					Q=> disp_7seg_DR_out
 	);
-
-	--one nibble being translated at a time
-	--ROM containing the codes (commands) to each digit
-	mem_code_for_7seg_i : mem_code_for_7seg PORT MAP (
-		address	=> disp_7seg_DR_nibble,
-		clock		=> sram_CLK_n,
-		q			=> disp_7seg_DR_code
-	);
 	--disp_7seg_DR_code <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_nibble)));
-	process(sram_CLK,rst)
-	begin
-		if(rst='1')then
-			disp_7seg_DR_cnt <= (others => '0');
-		elsif(rising_edge(sram_CLK))then
-			disp_7seg_DR_cnt <= disp_7seg_DR_cnt + 1;
-		end if;
-	end process;
-	disp_7seg_DR_nibble <= disp_7seg_DR_out(4*to_integer(unsigned(disp_7seg_DR_cnt))+3 downto 4*to_integer(unsigned(disp_7seg_DR_cnt)) );
+--	process(sram_CLK,rst)
+--	begin
+--		if(rst='1')then
+--			disp_7seg_DR_cnt <= (others => '0');
+--		elsif(rising_edge(sram_CLK))then
+--			disp_7seg_DR_cnt <= disp_7seg_DR_cnt + 1;
+--		end if;
+--	end process;
+--	disp_7seg_DR_nibble <= disp_7seg_DR_out(4*to_integer(unsigned(disp_7seg_DR_cnt))+3 downto 4*to_integer(unsigned(disp_7seg_DR_cnt)) );
 		
 	disp_7seg_drive: for i in 0 to 7 generate
 		--the statement below consumes much logic because 8 muxes are inferred (16x7bit)
 		--segments(i) <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_out(4*i+3 downto 4*i ))));
 		
-		process(sram_CLK,rst)
-		begin
-			if(rst='1')then
-				segments(i) <= (others => '0');
-			elsif(falling_edge(sram_CLK) and (to_integer(unsigned(disp_7seg_DR_cnt)) = i))then
-				segments(i) <= not disp_7seg_DR_code;
-			end if;
-		end process;
+		--one nibble being translated at a time
+		--ROM containing the codes (commands) to each digit
+		mem_code_for_7seg_i : mem_code_for_7seg PORT MAP (
+			address	=> disp_7seg_DR_out(4*i+3 downto 4*i),
+			clock		=> sram_CLK_n,
+			q			=> disp_7seg_DR_code(i)
+		);
+
+		segments(i) <= not disp_7seg_DR_code(i);
 	end generate disp_7seg_drive;
 	
 	clk_dbg_uproc:	pll_dbg_uproc
