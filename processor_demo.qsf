@@ -611,4 +611,6 @@ set_global_assignment -name VHDL_FILE i2s_master_transmitter/dc_fifo.vhd
 set_global_assignment -name SDC_FILE sync_chain.sdc
 set_global_assignment -name QIP_FILE microprocessor/ram_2_port.qip
 set_global_assignment -name QIP_FILE microprocessor/ram_1_port.qip
+set_global_assignment -name QIP_FILE mem_code_for_7seg.qip
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to segments[7][6]
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

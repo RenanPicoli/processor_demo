@@ -1,0 +1,26 @@
+-- Memory Initialization File (.mif)
+
+WIDTH=7;
+DEPTH=16;
+
+ADDRESS_RADIX=HEX;
+DATA_RADIX=BIN;
+
+CONTENT BEGIN
+	0		:   0111111;	% digit "0" %
+	1		:	0000110; 	% digit "1" %
+	2		:	1011011;	% digit "2" %
+	3		:	1001111;	% digit "3" %
+	4		:	1100110;	% digit "4" %
+	5		:	1101101;	% digit "5" %
+	6		:	1111101;	% digit "6" %
+	7		:	0000111;	% digit "7" %
+	8		:	1111111;	% digit "8" %
+	9		:	1100111;	% digit "9" %
+	A		:	1110111;	% digit "A" %
+	B		:	1111100;	% digit "b" %
+	C		:	0111001;	% digit "C" %
+	D		:	1011110;	% digit "d" %
+	E		:	1011110;	% digit "E" %
+	F		:	1110001;	% digit "F" %
+END;
