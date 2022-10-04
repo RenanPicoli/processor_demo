@@ -1409,6 +1409,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					CLK=> ram_clk,--sampling clock, must be much faster than filter_CLK
 					Q=> disp_7seg_DR_out
 	);
+	
 	--disp_7seg_DR_code <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_nibble)));
 --	process(sram_CLK,rst)
 --	begin
@@ -1419,7 +1420,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --		end if;
 --	end process;
 --	disp_7seg_DR_nibble <= disp_7seg_DR_out(4*to_integer(unsigned(disp_7seg_DR_cnt))+3 downto 4*to_integer(unsigned(disp_7seg_DR_cnt)) );
-		
+
 	disp_7seg_drive: for i in 0 to 7 generate
 		--the statement below consumes much logic because 8 muxes are inferred (16x7bit)
 		--segments(i) <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_out(4*i+3 downto 4*i ))));
