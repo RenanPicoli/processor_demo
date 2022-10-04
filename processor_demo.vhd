@@ -423,6 +423,16 @@ port(	IO:	inout std_logic_vector(DATA_WIDTH-1 downto 0);--data bus
 
 end component;
 
+--rom for codes to drive the 7 segments display
+component mem_code_for_7seg
+	PORT
+	(
+		address		: IN STD_LOGIC_VECTOR (3 DOWNTO 0);
+		clock		: IN STD_LOGIC  := '1';
+		q		: OUT STD_LOGIC_VECTOR (6 DOWNTO 0)
+	);
+end component;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -1400,7 +1410,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);
 
 	--one nibble being translated at a time
-	disp_7seg_DR_code <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_nibble)));
+	--ROM containing the codes (commands) to each digit
+	mem_code_for_7seg_i : mem_code_for_7seg PORT MAP (
+		address	=> disp_7seg_DR_nibble,
+		clock		=> sram_CLK_n,
+		q			=> disp_7seg_DR_code
+	);
+	--disp_7seg_DR_code <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_nibble)));
 	process(sram_CLK,rst)
 	begin
 		if(rst='1')then
@@ -1419,8 +1435,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		begin
 			if(rst='1')then
 				segments(i) <= (others => '0');
-			elsif(falling_edge(sram_CLK))then
-				segments(i) <= disp_7seg_DR_code;
+			elsif(falling_edge(sram_CLK) and (to_integer(unsigned(disp_7seg_DR_cnt)) = i))then
+				segments(i) <= not disp_7seg_DR_code;
 			end if;
 		end process;
 	end generate disp_7seg_drive;
