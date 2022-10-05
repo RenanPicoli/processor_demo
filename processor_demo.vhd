@@ -985,6 +985,12 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 						vmac_vector_bus_A when (lvec='1' and lvec_src="101") else
 						vmac_vector_bus_B when (lvec='1' and lvec_src="110") else
 						(others=>(others => '0'));
+--	vector_bus <= 	coeffs_mem_vector_bus when (lvec='1' and lvec_src="000") else (others=>(others => 'Z'));
+--	vector_bus <= 	filter_xN_vector_bus when (lvec='1' and lvec_src="010") else (others=>(others => 'Z'));
+--	vector_bus <= 	inner_product_vector_bus_A when (lvec='1' and lvec_src="011") else (others=>(others => 'Z'));
+--	vector_bus <= 	inner_product_vector_bus_B when (lvec='1' and lvec_src="100") else (others=>(others => 'Z'));
+--	vector_bus <= 	vmac_vector_bus_A when (lvec='1' and lvec_src="101") else (others=>(others => 'Z'));
+--	vector_bus <= 	vmac_vector_bus_B when (lvec='1' and lvec_src="110") else (others=>(others => 'Z'));
 	-- index 1 was skipped because refers to filter internal coefficients
 --	vector_bus_inputs <= (	0=> coeffs_mem_vector_bus, 2 => filter_xN_vector_bus, 3 => inner_product_vector_bus_A,
 --									4=> inner_product_vector_bus_B, 5=> vmac_vector_bus_A, 6=> vmac_vector_bus_B,
