@@ -1203,44 +1203,46 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	port map (fp_in => fp_in,
 				 output=> fp32_to_int_out);
 				 
-	fp32_attenuation: fpu_divider
-	port map(A => filter_output_sync,
-				B => fpu_denominator,
-				overflow	=> fp32_ovf,
-				underflow=> fp32_undf,
-				divideByZero=> fp32_div0,
-				result=> fp_in				
-				);
+--	fp32_attenuation: fpu_divider
+--	port map(A => filter_output_sync,
+--				B => fpu_denominator,
+--				overflow	=> fp32_ovf,
+--				underflow=> fp32_undf,
+--				divideByZero=> fp32_div0,
+--				result=> fp_in				
+--				);
+	fp_in <= filter_output_sync;
 	
 	--Switches are used to select fp_in division (preventing saturation) and fp32_to_int_out gain
-	process(fp32_to_int_out_gain,fp32_to_int_out,SW)
-	begin
-		if(SW(1 downto 0)="00")then
-			fpu_denominator <= x"3F80_0000";-- +1.0, decreases by 0 dB
-			fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution => fp32_to_int_out(audio_resolution-1)) & fp32_to_int_out;--increases 0 dB, sign extension
-		elsif(SW(1 downto 0)="01")then
-			fpu_denominator <= x"4000_0000";-- +2.0, decreases by 6 dB
-			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(2,5));--increases 6 dB
-			--detection of overflow
-			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
-				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
-			end if;
-		elsif(SW(1 downto 0)="10")then
-			fpu_denominator <= x"4080_0000";-- +4.0, decreases by 12 dB
-			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(4,5));--increases 12 dB
-			--detection of overflow
-			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
-				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
-			end if;
-		else-- SW(1 downto 0)="11"
-			fpu_denominator <= x"4100_0000";-- +8.0, decreases by 18 dB
-			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(8,5));--increases 18 dB
-			--detection of overflow
-			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
-				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
-			end if;
-		end if;
-	end process;
+--	process(fp32_to_int_out_gain,fp32_to_int_out,SW)
+--	begin
+--		if(SW(1 downto 0)="00")then
+--			fpu_denominator <= x"3F80_0000";-- +1.0, decreases by 0 dB
+--			fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution => fp32_to_int_out(audio_resolution-1)) & fp32_to_int_out;--increases 0 dB, sign extension
+--		elsif(SW(1 downto 0)="01")then
+--			fpu_denominator <= x"4000_0000";-- +2.0, decreases by 6 dB
+--			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(2,5));--increases 6 dB
+--			--detection of overflow
+--			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
+--				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+--			end if;
+--		elsif(SW(1 downto 0)="10")then
+--			fpu_denominator <= x"4080_0000";-- +4.0, decreases by 12 dB
+--			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(4,5));--increases 12 dB
+--			--detection of overflow
+--			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
+--				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+--			end if;
+--		else-- SW(1 downto 0)="11"
+--			fpu_denominator <= x"4100_0000";-- +8.0, decreases by 18 dB
+--			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(8,5));--increases 18 dB
+--			--detection of overflow
+--			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
+--				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+--			end if;
+--		end if;
+--	end process;
+	fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution=> fp32_to_int_out(audio_resolution-1)) & fp32_to_int_out;
 
 	left_padded_fp32_to_int_out_gain <= (31 downto audio_resolution => '0') & fp32_to_int_out_gain(audio_resolution-1 downto 0);
 	converted_output: d_flip_flop

@@ -95,6 +95,7 @@ begin
 			else
 				RDEN_OUT(i) <='0';
 				WREN_OUT(i) <='0';
+--				output <= (others=>'Z');
 			end if;
 		end loop;
 	end process;
