@@ -433,6 +433,29 @@ component mem_code_for_7seg
 	);
 end component;
 
+--type vector_bus_t is array32 (0 to 7);
+--converts to open drain
+function open_drain(v: vector_bus_t) return vector_bus_t is
+	variable retval: vector_bus_t;
+	variable f: std_logic_vector(31 downto 0);
+	variable r: std_logic_vector(31 downto 0);
+begin
+	for j in 0 to 7 loop
+		f := v(j);
+		for i in 0 to 31 loop
+			if(f(i)='1' or (f(i)='H'))then
+				r(i) := 'H';
+			elsif(f(i) ='0')then
+				r(i) := '0';
+			else
+				r(i) := 'X';
+			end if;
+		end loop;
+		retval(j) := r;
+	end loop;
+	return retval;
+end function;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -978,19 +1001,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		
 	--vector_bus multiplexer
 	-- index 1 was skipped because refers to filter internal coefficients
-	vector_bus <= 	coeffs_mem_vector_bus when (lvec='1' and lvec_src="000") else
-						filter_xN_vector_bus when (lvec='1' and lvec_src="010") else
-						inner_product_vector_bus_A when (lvec='1' and lvec_src="011") else
-						inner_product_vector_bus_B when (lvec='1' and lvec_src="100") else
-						vmac_vector_bus_A when (lvec='1' and lvec_src="101") else
-						vmac_vector_bus_B when (lvec='1' and lvec_src="110") else
-						(others=>(others => '0'));
---	vector_bus <= 	coeffs_mem_vector_bus when (lvec='1' and lvec_src="000") else (others=>(others => 'Z'));
---	vector_bus <= 	filter_xN_vector_bus when (lvec='1' and lvec_src="010") else (others=>(others => 'Z'));
---	vector_bus <= 	inner_product_vector_bus_A when (lvec='1' and lvec_src="011") else (others=>(others => 'Z'));
---	vector_bus <= 	inner_product_vector_bus_B when (lvec='1' and lvec_src="100") else (others=>(others => 'Z'));
---	vector_bus <= 	vmac_vector_bus_A when (lvec='1' and lvec_src="101") else (others=>(others => 'Z'));
---	vector_bus <= 	vmac_vector_bus_B when (lvec='1' and lvec_src="110") else (others=>(others => 'Z'));
+--	vector_bus <= 	coeffs_mem_vector_bus when (lvec='1' and lvec_src="000") else
+--						filter_xN_vector_bus when (lvec='1' and lvec_src="010") else
+--						inner_product_vector_bus_A when (lvec='1' and lvec_src="011") else
+--						inner_product_vector_bus_B when (lvec='1' and lvec_src="100") else
+--						vmac_vector_bus_A when (lvec='1' and lvec_src="101") else
+--						vmac_vector_bus_B when (lvec='1' and lvec_src="110") else
+--						(others=>(others => '0'));
+	vector_bus <= 	open_drain(coeffs_mem_vector_bus) when (lvec='1' and lvec_src="000") else (others=>(others => 'Z'));
+	vector_bus <= 	open_drain(filter_xN_vector_bus) when (lvec='1' and lvec_src="010") else (others=>(others => 'Z'));
+	vector_bus <= 	open_drain(inner_product_vector_bus_A) when (lvec='1' and lvec_src="011") else (others=>(others => 'Z'));
+	vector_bus <= 	open_drain(inner_product_vector_bus_B) when (lvec='1' and lvec_src="100") else (others=>(others => 'Z'));
+	vector_bus <= 	open_drain(vmac_vector_bus_A) when (lvec='1' and lvec_src="101") else (others=>(others => 'Z'));
+	vector_bus <= 	open_drain(vmac_vector_bus_B) when (lvec='1' and lvec_src="110") else (others=>(others => 'Z'));
 	-- index 1 was skipped because refers to filter internal coefficients
 --	vector_bus_inputs <= (	0=> coeffs_mem_vector_bus, 2 => filter_xN_vector_bus, 3 => inner_product_vector_bus_A,
 --									4=> inner_product_vector_bus_B, 5=> vmac_vector_bus_A, 6=> vmac_vector_bus_B,
