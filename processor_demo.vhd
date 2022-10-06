@@ -66,6 +66,7 @@ port (CLK_IN: in std_logic;
 		iack: out std_logic;--interrupt acknowledgement
 		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
+		return_value: out std_logic_vector (31 downto 0);-- output of RV register
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to mini_rom)
@@ -435,26 +436,26 @@ end component;
 
 --type vector_bus_t is array32 (0 to 7);
 --converts to open drain
-function open_drain(v: vector_bus_t) return vector_bus_t is
-	variable retval: vector_bus_t;
-	variable f: std_logic_vector(31 downto 0);
-	variable r: std_logic_vector(31 downto 0);
-begin
-	for j in 0 to 7 loop
-		f := v(j);
-		for i in 0 to 31 loop
-			if(f(i)='1' or (f(i)='H'))then
-				r(i) := 'H';
-			elsif(f(i) ='0')then
-				r(i) := '0';
-			else
-				r(i) := 'X';
-			end if;
-		end loop;
-		retval(j) := r;
-	end loop;
-	return retval;
-end function;
+--function open_drain(v: vector_bus_t) return vector_bus_t is
+--	variable retval: vector_bus_t;
+--	variable f: std_logic_vector(31 downto 0);
+--	variable r: std_logic_vector(31 downto 0);
+--begin
+--	for j in 0 to 7 loop
+--		f := v(j);
+--		for i in 0 to 31 loop
+--			if(f(i)='1' or (f(i)='H'))then
+--				r(i) := 'H';
+--			elsif(f(i) ='0')then
+--				r(i) := '0';
+--			else
+--				r(i) := 'X';
+--			end if;
+--		end loop;
+--		retval(j) := r;
+--	end loop;
+--	return retval;
+--end function;
 
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
@@ -671,12 +672,12 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#71#,16#71#),--desired response
 											(16#72#,16#72#),--filter status
 											(16#73#,16#73#),--converted_out
-											(16#78#,16#7F#),--display 7 segments data register
+--											(16#78#,16#7F#),--display 7 segments data register
 											(16#80#,16#FF#)--interrupt controller
 											);
-signal all_periphs_output: array32 (12 downto 0);
-signal all_periphs_rden: std_logic_vector(12 downto 0);
-signal all_periphs_wren: std_logic_vector(12 downto 0);
+signal all_periphs_output: array32 (11 downto 0);
+signal all_periphs_rden: std_logic_vector(11 downto 0);
+signal all_periphs_wren: std_logic_vector(11 downto 0);
 
 signal filter_CLK: std_logic;
 signal filter_CLK_n: std_logic;--filter_CLK inverted
@@ -1319,14 +1320,16 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+--	all_periphs_output	<= (12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+--									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
+	all_periphs_output	<= (11 => irq_ctrl_Q, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
-	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(11);-- not used, just to keep form
+--	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
 	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
 	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
 	d_ff_desired_rden			<= all_periphs_rden(8);-- not used, just to keep form
@@ -1339,8 +1342,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	irq_ctrl_wren				<= all_periphs_wren(12);
-	disp_7seg_DR_wren			<= all_periphs_wren(11);
+	irq_ctrl_wren				<= all_periphs_wren(11);
+--	disp_7seg_DR_wren			<= all_periphs_wren(11);
 	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
 	filter_ctrl_status_wren	<= all_periphs_wren(9);
 	d_ff_desired_wren			<= all_periphs_wren(8);-- not used, just to keep form
@@ -1379,6 +1382,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		iack => iack,		
 		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		instruction_addr => open,
+		return_value => disp_7seg_DR_out,
 		ADDR_rom => instruction_memory_address,
 		cache_ready => cache_ready_sync,--synchronized to rising_edge(CLK)
 		CLK_rom => instruction_clk,
@@ -1432,14 +1436,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);
 	
 	 --signals  for 7-segment register
-	 disp_7seg_DR_in <= ram_write_data;
-	 disp_7seg_DR: d_flip_flop
-	 port map(	D => disp_7seg_DR_in,
-					RST=> RST,--resets all previous history of filter output
-					ENA=> disp_7seg_DR_wren,
-					CLK=> ram_clk,--sampling clock, must be much faster than filter_CLK
-					Q=> disp_7seg_DR_out
-	);
+--	 disp_7seg_DR_in <= ram_write_data;
+--	 disp_7seg_DR: d_flip_flop
+--	 port map(	D => disp_7seg_DR_in,
+--					RST=> RST,--resets all previous history of filter output
+--					ENA=> disp_7seg_DR_wren,
+--					CLK=> ram_clk,--sampling clock, must be much faster than filter_CLK
+--					Q=> disp_7seg_DR_out
+--	);
 	
 	--disp_7seg_DR_code <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_nibble)));
 --	process(sram_CLK,rst)
@@ -1452,7 +1456,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	end process;
 --	disp_7seg_DR_nibble <= disp_7seg_DR_out(4*to_integer(unsigned(disp_7seg_DR_cnt))+3 downto 4*to_integer(unsigned(disp_7seg_DR_cnt)) );
 
-	disp_7seg_drive: for i in 0 to 7 generate
+	disp_7seg_drive: for i in 0 to 3 generate
 		--the statement below consumes much logic because 8 muxes are inferred (16x7bit)
 		--segments(i) <= code_for_7seg(to_integer(unsigned(disp_7seg_DR_out(4*i+3 downto 4*i ))));
 		
@@ -1464,8 +1468,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			q			=> disp_7seg_DR_code(i)
 		);
 
-		segments(i) <= not disp_7seg_DR_code(i);
+--		segments(i) <= not disp_7seg_DR_code(i);
 	end generate disp_7seg_drive;
+--	segments(7 downto 4) <= (others=>(others=>'1'));
 	
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
