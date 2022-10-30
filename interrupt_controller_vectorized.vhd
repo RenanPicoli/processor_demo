@@ -29,6 +29,7 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write (vect
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
 		RDEN: in std_logic;-- input
+		REQ_READY: in  std_logic;--input
 		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines, sampled internally at rising_edge(CLK)
 		IRQ_OUT: buffer std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
@@ -132,7 +133,7 @@ begin
 			IRQ_pend(i)			<= fsm_state(i)(1);
 			IRQ_started(i)		<= fsm_state(i)(0);
 			
-			irq_pending: process(RST,preemption,IRQ_IN,IRQ_OUT,IACK_OUT,IRQ_active,CLK)
+			irq_pending: process(RST,preemption,IRQ_IN,IRQ_OUT,IACK_OUT,IRQ_active,CLK,REQ_READY)
 			begin
 				if(RST='1') then
 					--idle state
@@ -151,7 +152,7 @@ begin
 							fsm_state(i) <= "10";--enters in IRQ_pend state
 						end if;
 					-- IRQ_pend state
-					elsif(fsm_state(i)="10")then
+					elsif(fsm_state(i)="10" and REQ_READY='1')then
 						if (preemption(i)='0')then
 							fsm_state(i) <= "01";--enters in IRQ_started state
 						end if;

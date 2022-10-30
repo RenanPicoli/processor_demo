@@ -325,6 +325,7 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
 		RDEN: in std_logic;-- input
+		REQ_READY: in  std_logic;--input
 		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines
 		IRQ_OUT: out std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
@@ -1392,6 +1393,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
 			RDEN => irq_ctrl_rden,-- input
+			REQ_READY => cache_ready_sync,--synchronized to rising_edge(CLK)
 			IRQ_IN => all_irq,--input: all IRQ lines
 			IRQ_OUT => irq,--output: IRQ line to cpu
 			IACK_IN => iack,--input: IACK line coming from cpu
