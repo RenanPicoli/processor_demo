@@ -1,0 +1,23 @@
+{signal: [
+  {name: 'CLK_IN', wave: 'p....|..|..'},
+  {name: 'CLK (processor)', wave: 'p....|pl|.p'},
+  {name: 'RST', wave: '10...|..|..'},
+  {name: 'PC (pc_out)', wave: 'x2345|6.|.7', data: ['0x0', '0x4', '0x8', '0xC','n','isr_addr','isr_addr+4'], node: '..........j'},
+  {name: 'pc_in', wave: '23456|7.|.8', data: ['0x0', '0x4', '0x8', '0xC','0x10','isr_addr','isr_addr+4']},
+  {name: 'req_ready', wave: 'x1...|0.|1.', node:'.........h'},
+  {name: 'clk_enable', wave: 'h....|pl|nh'},
+  {name: 'instruction', wave: 'x2345|6.|.7', data: ['rom(0x0)', 'rom(0x1)', 'mem(0x2)', 'mem(0x3)'], node: '.abc'},
+  {name: 'reg_file', wave: 'x.234|5.|.6', node: '..def'},
+  {name: 'ALU_result', wave: 'x2345|6.|.7', node: '.mno'},
+  {name: 'FPU_result', wave: 'x2345|6.|.7', node: '.pqr'},
+  {name: 'RAM, FP, RV, program_stack', wave: 'x.234|5.|.6', node: '..stu'},
+  {name: 'IRQ', wave: '0....|1.|.0'},
+  {name: 'ISR_addr', wave: 'x....|7.|.x', data: ['isr_addr'], node:'..........i'},
+],
+  edge: ['a~d t0', 'b~e t1', 'c~f t2', 'h~i t3', 'h~j t4',
+		'a~m t0', 'b~n t1', 'c~o t2',
+		'a~p t0', 'b~q t1', 'c~r t2',
+		'a~s t0', 'b~t t1', 'c~u t2'
+	],
+ config: { hscale: 2}
+  }
