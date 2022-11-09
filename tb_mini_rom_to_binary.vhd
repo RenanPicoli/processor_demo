@@ -6,6 +6,7 @@
 --	addr[1]= 0x368F
 --	This file will fill completely DE2-115 SRAM as I move the assembly to that memory
 --	It will be downloaded using DE2 Control Panel
+-- MUST BE EXECUTED FROM LINUX (Windows inserts some CR characters in the middle of the file)
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -24,6 +25,13 @@ entity testbench is
 end testbench;
 
 architecture test of testbench is
+
+component mini_rom
+	port (--CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
+			Q:	out std_logic_vector(31 downto 0)
+			);
+end component;
 
 signal  	CLK_IN:std_logic;--50MHz
 signal	rst: std_logic;
@@ -45,7 +53,7 @@ constant N_INSTR: natural := 256; -- number of instructions
 
 begin
 
-	DUT: entity work.mini_rom
+	DUT: mini_rom
 	port map(ADDR 	=> instruction_addr,
 				Q	 	=> data_in
 	);

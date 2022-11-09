@@ -5,7 +5,6 @@ Setup for testing microprocessor repo (https://github.com/RenanPicoli/microproce
 
 ![processor_demo_timing](https://user-images.githubusercontent.com/19754679/198850892-ba2ec52a-6975-4611-bc4e-1ac79194e33d.svg)
 
-
 * This branch is intended to create a fifo with different clocks for reading and writing
 * For writing, new data should be pushed through a shift register
 * For reading, only a pointer should be updated.

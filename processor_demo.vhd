@@ -9,13 +9,14 @@ use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;--to_integer
 
 use work.my_types.all;
+use work.single_precision_type.all;--float
 
 -------------------------------------------------------------
 
 entity processor_demo is
 port (CLK_IN: in std_logic;--50MHz input
 		rst_n: in std_logic;--active low reset, connected to KEY3
-		--SWITCHES
+		--SWITCHES for runtime configuration
 		SW: in std_logic_vector(17 downto 0);
 		--I2C
 		I2C_SDAT: inout std_logic;--I2C SDA
@@ -25,7 +26,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
 		AUD_DACDAT: out std_logic;--DACDAT aka SD
 		AUD_DACLRCK: out std_logic;--DACLRCK aka WS
-		--FLASH
+		--FLASH (data samples)
 		flash_IO: in std_logic_vector(7 downto 0);--flash data; input because we'll only read
 		flash_ADDR: out std_logic_vector(22 downto 0);--ADDR for flash
 		flash_CE_n: out std_logic;--chip enable, active LOW
@@ -34,6 +35,16 @@ port (CLK_IN: in std_logic;--50MHz input
 		flash_RST_n: out std_logic;--reset, active LOW
 		flash_WP_n: out std_logic; --write protection, active LOW
 		flash_RY: in std_logic; --readiness flag, active HIGH, HIGH means busy (writing or erasing)
+		--SRAM (instructions)
+		sram_IO: inout std_logic_vector(15 downto 0);--sram data; input because we'll only read
+		sram_ADDR: buffer std_logic_vector(19 downto 0);--ADDR for SRAM
+		sram_CE_n: buffer std_logic;--chip enable, active LOW
+		sram_OE_n: buffer std_logic;--output enable, active LOW
+		sram_WE_n: buffer std_logic;--write enable, active LOW, HIGH enables reading
+		sram_UB_n: buffer std_logic;--upper IO byte access, active LOW
+		sram_LB_n: buffer std_logic; --lower	IO byte access, active LOW
+		-- 7 segments displays
+		segments: out array7(7 downto 0);
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -53,12 +64,14 @@ port (CLK_IN: in std_logic;
 		rst: in std_logic;
 		irq: in std_logic;--interrupt request
 		iack: out std_logic;--interrupt acknowledgement
+		return_value: out std_logic_vector (31 downto 0);--AKA read address
+		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to mini_rom)
 		Q_rom:	in std_logic_vector(31 downto 0);
-		cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid)
+		cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
@@ -73,11 +86,25 @@ port (CLK_IN: in std_logic;
 end component;
 
 component mini_rom
-	port (CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
-			RST: in std_logic;--asynchronous reset
+	port (--CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+--			RST: in std_logic;--asynchronous reset
 			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 			Q:	out std_logic_vector(31 downto 0)
 			);
+end component;
+
+component I_cache
+	generic (REQUESTED_SIZE: natural);--user requested cache size, in 32 bit words
+	port (
+			req_ADDR: in std_logic_vector(7 downto 0);--address of requested instruction
+			CLK: in std_logic;--processor clock for reading instructions
+			sram_IO: in std_logic_vector(15 downto 0);--data coming from SRAM for write
+			sram_CLK: in std_logic;--clock for reading SRAM
+			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+			sram_ADDR: out std_logic_vector(19 downto 0);--address for write
+			req_ready: out std_logic;--indicates that instruction already contains the requested instruction
+			instruction: out std_logic_vector(31 downto 0)--fetched instruction
+	);
 end component;
 
 component mini_ram
@@ -184,6 +211,7 @@ component pll_dbg_uproc
 		inclk0		: IN STD_LOGIC  := '0';
 		c0		: OUT STD_LOGIC ;
 		c1 	: OUT STD_LOGIC ;
+		c2 	: OUT STD_LOGIC ;
 		locked		: OUT STD_LOGIC 
 	);
 END component;
@@ -289,18 +317,20 @@ end component;
 
 ---------------------------------------------------
 
-component interrupt_controller
+component interrupt_controller_vectorized
 generic	(L: natural);--L: number of IRQ lines
 port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
-		ADDR: in std_logic_vector(1 downto 0);--address offset of registers relative to peripheral base address
+		ADDR: in std_logic_vector(6 downto 0);--address offset of registers relative to peripheral base address
 		CLK: in std_logic;-- input
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
 		RDEN: in std_logic;-- input
+		REQ_READY: in  std_logic;--input
 		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines
 		IRQ_OUT: out std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
 		IACK_OUT: buffer std_logic_vector(L-1 downto 0);--output: all IACK lines going to peripherals
+		ISR_ADDR: out std_logic_vector(31 downto 0);--address of ISR
 		output: out std_logic_vector(31 downto 0)-- output of register reading
 );
 
@@ -381,7 +411,31 @@ component mux
 			);
 end component;
 
+--simulates on-board SRAM
+component async_sram
+generic	(INIT: boolean; DATA_WIDTH: natural; ADDR_WIDTH: natural);--data/address widths in bits
+port(	IO:	inout std_logic_vector(DATA_WIDTH-1 downto 0);--data bus
+		ADDR:	in std_logic_vector(ADDR_WIDTH-1 downto 0);
+		WE_n:	in std_logic;--write enable, active low
+		OE_n:	in std_logic;--output enable, active low
+		CE_n: in std_logic;--chip enable, active LOW
+		UB_n: in std_logic;--upper IO byte access, active LOW
+		LB_n: in std_logic --lower IO byte access, active LOW
+);
+
+end component;
+
+component mem_code_for_7seg
+port(	address	: in std_logic_vector (3 downto 0);
+		clock		: in std_logic  := '1';
+		q			: out std_logic_vector (6 downto 0)
+);
+end component;
+
 signal rst: std_logic;--active high
+signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
+signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
+signal rst_n_sync_uproc: std_logic;--rst_n sync'd to rising_edge of uproc_CLK
 
 --0Y1: will read* byte Y (counting from 0 - LSB) of input vectors
 --0Y0: will read* byte Y (counting from 0 - LSB) of desired vectors
@@ -390,6 +444,25 @@ signal rst: std_logic;--active high
 -- * : on next rising edge of CLK, flash_ADDR will be updated, at next CLK falling edge IO will be latched
 signal flash_reading_state: std_logic_vector(3 downto 0);
 signal flash_count: std_logic_vector(19 downto 0);--counter: generates the address for FLASH, 1 bit must be added to obtain address
+
+-----------signals for sram_loader interfacing---------------------
+constant sram_loader: boolean := false;
+signal sram_filled: std_logic := '0';
+signal sram_loader_address: std_logic_vector(7 downto 0);--used to read mini_rom
+signal sram_loader_data: std_logic_vector(31 downto 0);--used to read mini_rom
+signal sram_loader_counter: std_logic_vector(19 downto 0);--counts from 0 to 1M-1 to generate write addresses
+
+--on next rising edge of CLK, sram_ADDR will be updated, at next CLK falling edge IO will be latched
+signal sram_ADDR_reading: std_logic_vector(19 downto 0);--ADDR for SRAM reading
+signal sram_ADDR_lower_half: std_logic_vector(19 downto 0);--address of lower half of next instruction
+signal sram_ADDR_upper_half: std_logic_vector(19 downto 0);--address of lower half of next instruction
+signal sram_reading_state: std_logic;--'0' means reading enabled, '1' means reading complete
+signal sram_CLK: std_logic;--clock for process reading instructions in SRAM, must be 8x CLK, delayed 1/8 CLK cycle
+signal sram_CLK_n: std_logic;--sram_CLK inverted
+signal count: std_logic_vector(17 downto 0);--counter: generates the address for SRAM, 1 bit must be added to obtain address
+signal sram_write_data: std_logic_vector(15 downto 0);--data to be writen in SRAM
+signal all_sram_write_data: array_of_std_logic_vector (3 downto 0)(15 downto 0);
+signal sram_write_data_sel: std_logic_vector(1 downto 0);
 
 signal sample_number: std_logic_vector(7 downto 0);--used to generate address for data_in_rom_ip and desired_rom_ip
 signal desired_sync: std_logic_vector(31 downto 0);--desired response  SYNCCHRONIZED TO ram_CLK
@@ -413,11 +486,16 @@ signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 -----------signals for ROM interfacing---------------------
 signal instruction_memory_output: std_logic_vector(31 downto 0);
 signal instruction_memory_address: std_logic_vector(7 downto 0);
+signal instruction_latched: std_logic;
+signal instruction_upper_half_latched: std_logic;
+signal instruction_lower_half_latched: std_logic;
+signal cache_ready: std_logic;
+signal cache_ready_sync: std_logic;--cache_ready synchronized to rising_edge(CLK)
 signal instruction_clk: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
-constant N: integer := 7;-- size in bits of data addresses (each address refers to a 32 bit word)
+constant N: integer := 8;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
 signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_rden: std_logic;
@@ -513,6 +591,7 @@ signal irq: std_logic;
 signal iack: std_logic;
 signal all_irq: std_logic_vector(3 downto 0);
 signal all_iack: std_logic_vector(3 downto 0);
+signal ISR_ADDR: std_logic_vector(31 downto 0);
 
 --signals for fp32_to_integer----------------------------------
 constant audio_resolution: natural := 16;
@@ -567,12 +646,15 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#70#,16#70#),--current filter output
 											(16#71#,16#71#),--desired response
 											(16#72#,16#72#),--filter status
-											(16#74#,16#77#),--interrupt controller
-											(16#78#,16#78#)--converted_out
+											(16#73#,16#73#),--converted_out
+											(16#74#,16#74#),-- 7-segments display DR
+											(16#80#,16#FF#)--interrupt controller
+--											(16#74#,16#77#),--interrupt controller
+--											(16#78#,16#78#)--converted_out
 											);
-signal all_periphs_output: array32 (11 downto 0);
-signal all_periphs_rden: std_logic_vector(11 downto 0);
-signal all_periphs_wren: std_logic_vector(11 downto 0);
+signal all_periphs_output: array32 (12 downto 0);
+signal all_periphs_rden: std_logic_vector(12 downto 0);
+signal all_periphs_wren: std_logic_vector(12 downto 0);
 
 signal filter_CLK: std_logic;
 signal filter_CLK_n: std_logic;--filter_CLK inverted
@@ -589,11 +671,22 @@ signal filter_iack_received_proc: std_logic_vector(1 downto 0);
 signal filter_iack_send_proc: std_logic_vector(1 downto 0);
 signal proc_filter_parallel_wren: std_logic;
 
+--signals  for 7-segment register
+signal disp_7seg_DR_in: std_logic_vector(31 downto 0);
+signal disp_7seg_DR_out: std_logic_vector(31 downto 0);
+signal disp_7seg_DR_wren: std_logic;
+signal disp_7seg_DR_rden: std_logic;
+signal disp_7seg_DR_cnt: std_logic_vector(2 downto 0);--counter for switching between nibbles (0 to 7)
+signal disp_7seg_DR_nibble: std_logic_vector(3 downto 0);--used if one nibble is displayed at a time
+--signal disp_7seg_DR_code: std_logic_vector(6 downto 0);--used if one code is computed at a time
+signal disp_7seg_DR_code: array7(7 downto 0);--used if one code is computed at a tim
+
 --signals for vector transfers
 signal lvec: std_logic;
 signal lvec_src: std_logic_vector(2 downto 0);
 signal lvec_dst_mask: std_logic_vector(6 downto 0);
 signal vector_bus: array32 (0 to 7);--shared data bus for parallel write of 8 fp32
+--signal vector_bus_inputs: array_of_std_logic_vector;--shared data bus for parallel write of 8 fp32
 
 signal filter_CLK_state: std_logic := '0';--starts in zero, changes to 1 when first rising edge of filter_CLK occurs
 signal send_cache_request: std_logic;
@@ -603,20 +696,25 @@ signal mmu_iack: std_logic;
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
-	rst <= not rst_n;
+	simple_reset_no_mini_rom: if not sram_loader generate
+		rst <= not rst_n_sync_uproc;
+	end generate;
+	extended_reset_mini_rom_enabled: if sram_loader generate
+		rst <= not rst_n_sync_uproc;--rst is deasserted synchronously with uproc_CLK
+		rom: mini_rom port map(
+										ADDR=> sram_loader_address,
+--										CLK=> ,
+--										RST=> ,
+										Q	 => sram_loader_data
+		);
+	end generate;
 	
 	--debug outputs
-	LEDR <= (17 downto 2 =>'0') & filter_rst & rst;
+	LEDR <= (17 downto 5 =>'0') & fp32_ovf & fp32_undf & fp32_div0 & filter_rst & rst;
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
 											filter_CLK & CLK & instruction_memory_address;
-											
-	rom: mini_rom port map(	CLK => instruction_clk,	
-									RST => rst,--asynchronous reset
-									ADDR=> instruction_memory_address,
-									Q	 => instruction_memory_output
-	);
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
@@ -702,7 +800,154 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		end if;
 	end process;
 --------------------------------------------------------
+-----------------SRAM interfacing---------------------
+	sram_CE_n <= '0';--chip always enabled
+	sram_OE_n <= '0';--output always enabled
+	sram_UB_n <= '0';--upper byte always enabled
+	sram_LB_n <= '0';--lower byte always enabled
 
+	sram_ADDR_lower_half <= (19 downto 9 => '0') & instruction_memory_address & '0';--address of lower half of instruction
+	sram_ADDR_upper_half <= (19 downto 9 => '0') & instruction_memory_address & '1';--address of upper	half of instruction
+
+	sram_no_loader: if not sram_loader generate
+		sram_WE_n <= '1';--reading always enabled
+		cache: I_cache
+			generic map (REQUESTED_SIZE => 128)--user requested cache size, in 32 bit words
+			port map (
+					req_ADDR => instruction_memory_address,--address of requested instruction
+					CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
+					sram_IO => sram_IO,--data coming from SRAM for write
+					sram_CLK => sram_CLK,--clock for reading SRAM
+					RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+					sram_ADDR => sram_ADDR,--address for write
+					req_ready => cache_ready,--indicates that instruction already contains the requested instruction
+					instruction => instruction_memory_output--fetched instruction
+			);
+		--synchronized asynchronous reset
+		--asserted asynchronously
+		--deasserted synchronously to the rising_edge of uproc_CLK
+--		sync_async_reset_cache_ready: sync_chain
+--		generic map (N => 1,--bus width in bits
+--					L => 2)--number of registers in the chain
+--		port map (
+--				data_in(0) => '1',--data generated at another clock domain
+--				CLK => CLK,--clock of new clock domain				
+--				RST => not cache_ready,--asynchronous reset (asserted at rising_edge(sram_CLK), deasserted at rising_edge(CLK))
+--				data_out(0) => cache_ready_sync --data synchronized in CLK domain
+--		);
+	cache_ready_sync <= cache_ready;
+	
+		--synchronized asynchronous reset
+		--asserted asynchronously
+		--deasserted synchronously to the rising_edge of uproc_CLK
+		sync_async_reset_uproc: sync_chain
+		generic map (N => 1,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in(0) => '1',--data generated at another clock domain
+				CLK => CLK,--clock of new clock domain				
+				RST => not rst_n,--asynchronous reset
+				data_out(0) => rst_n_sync_uproc --data synchronized in CLK domain
+		);
+	end generate;
+	
+	sram_with_loader: if sram_loader generate
+	
+		cache: I_cache
+			generic map (REQUESTED_SIZE => 16)--user requested cache size, in 32 bit words
+			port map (
+					req_ADDR => instruction_memory_address,--address of requested instruction
+					CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
+					sram_IO => sram_IO,--data coming from SRAM for write
+					sram_CLK => sram_CLK,--clock for reading SRAM
+					RST => not sram_filled,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+					sram_ADDR => sram_ADDR_reading,--address for write
+					req_ready => cache_ready,--indicates that instruction already contains the requested instruction
+					instruction => instruction_memory_output--fetched instruction
+			);
+		--synchronized asynchronous reset
+		--asserted asynchronously
+		--deasserted synchronously to the rising_edge of uproc_CLK
+--		sync_async_reset_cache_ready: sync_chain
+--		generic map (N => 1,--bus width in bits
+--					L => 2)--number of registers in the chain
+--		port map (
+--				data_in(0) => '1',--data generated at another clock domain
+--				CLK => CLK,--clock of new clock domain				
+--				RST => not cache_ready,--asynchronous reset (asserted at rising_edge(sram_CLK), deasserted at rising_edge(CLK))
+--				data_out(0) => cache_ready_sync --data synchronized in CLK domain
+--		);
+		cache_ready_sync <= cache_ready;
+		
+		sram_WE_n <= '0' when sram_filled='0' else '1';--when sram is not filled, write is enabled, after that, reading is enabled
+		--process for reading/writing instructions at SRAM
+		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,rst_n_sync_uproc,sram_filled,sram_ADDR_reading,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
+		begin
+			if(sram_filled='0')then--reset is extended to store instructions in SRAM 
+				sram_ADDR <= sram_loader_counter;
+			else
+				sram_ADDR <= sram_ADDR_reading;
+			end if;
+		end process;
+		
+--		sram_write_data <=sram_loader_data(15 downto 0) when (sram_filled='0' and sram_loader_counter(0)='0' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
+--								sram_loader_data(31 downto 16) when (sram_filled='0' and sram_loader_counter(0)='1' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
+--								(15 downto 0=>'0') when (sram_filled='0' and sram_loader_counter(19 downto 9) /= (19 downto 9=>'0'));
+		all_sram_write_data <= (3 => (15 downto 0=>'0'),2=> (15 downto 0=>'0'),
+										1=> sram_loader_data(31 downto 16),0=> sram_loader_data(15 downto 0));
+		sram_write_data_sel(1) <= '1' when sram_loader_counter(19 downto 9) /= (19 downto 9=>'0') else '0';
+		sram_write_data_sel(0) <= sram_loader_counter(0);
+		sram_write_data_mux: mux
+									generic map (N_BITS_SEL => 2)
+									port map(A => all_sram_write_data,
+												sel => sram_write_data_sel,
+												Q => sram_write_data);
+		sram_IO <= sram_write_data when sram_filled='0' else (others=>'Z');
+		sram_loader_address <= sram_loader_counter(8 downto 1);--address for mini_rom
+		
+		write_loop: process(rst_n_sync_sram_CLK,sram_CLK)
+			begin
+				if(rst_n_sync_sram_CLK='0')then--using synchronous reset to ensure no problems with reset removal
+					sram_loader_counter <= (others=>'0');
+					sram_filled <= '0';
+				elsif(falling_edge(sram_CLK))then--period is 31.25 ns, enough for writes
+					if(sram_loader_counter /= (8 downto 0 =>'1'))then
+						sram_loader_counter <= sram_loader_counter + 1;
+					else
+						sram_filled <= '1';--when sram_loader_counter = xFFFFF
+					end if;
+				end if;
+		end process;
+		
+		--synchronized asynchronous reset
+		--asserted asynchronously
+		--deasserted synchronously to the rising_edge of uproc_CLK
+		sync_async_reset_uproc: sync_chain
+		generic map (N => 1,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in(0) => '1',--data generated at another clock domain
+				CLK => CLK,--clock of new clock domain				
+				RST => not sram_filled,--asynchronous reset
+				data_out(0) => rst_n_sync_uproc --data synchronized in CLK domain
+		);
+		--synchronized asynchronous reset
+		--asserted asynchronously
+		--deasserted synchronously to the falling_edge of sram_CLK
+		sync_async_reset_sram_CLK: sync_chain
+		generic map (N => 1,--bus width in bits
+					L => 2)--number of registers in the chain
+		port map (
+				data_in(0) => '1',--data generated at another clock domain
+				CLK => sram_CLK_n,--clock of new clock domain				
+				RST => not rst_n,--asynchronous reset
+				data_out(0) => rst_n_sync_sram_CLK --data synchronized in CLK domain
+		);
+		sram_CLK_n <= not sram_CLK;
+	end generate;
+	
+	instruction_latched <= instruction_lower_half_latched and instruction_upper_half_latched;
+--------------------------------------------------------
 	filter_CLK_n <= not filter_CLK;
 	
 	-- synchronizes desired to rising_edge of CLK, because:
@@ -732,6 +977,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);
 		
 	--vector_bus multiplexer
+	-- index 1 was skipped because refers to filter internal coefficients
 	vector_bus <= 	coeffs_mem_vector_bus when (lvec='1' and lvec_src="000") else
 						filter_xN_vector_bus when (lvec='1' and lvec_src="010") else
 						inner_product_vector_bus_A when (lvec='1' and lvec_src="011") else
@@ -739,8 +985,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 						vmac_vector_bus_A when (lvec='1' and lvec_src="101") else
 						vmac_vector_bus_B when (lvec='1' and lvec_src="110") else
 						(others=>(others => '0'));
-						
-						
+	-- index 1 was skipped because refers to filter internal coefficients
+--	vector_bus_inputs <= (	0=> coeffs_mem_vector_bus, 2 => filter_xN_vector_bus, 3 => inner_product_vector_bus_A,
+--									4=> inner_product_vector_bus_B, 5=> vmac_vector_bus_A, 6=> vmac_vector_bus_B,
+--									others=> (others=>(others => '0')));
+--	vector_bus_mux: mux
+--						generic map (N_BITS_SEL => 4)
+--						port map(A => vector_bus_inputs,
+--									sel => ((not lvec) & lvec_src),
+--									Q => vector_bus);
 	
 --	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
 	coeffs_mem_parallel_wren <= lvec_dst_mask(0);
@@ -1035,14 +1288,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (11 => converted_out_Q, 10 => irq_ctrl_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	converted_out_rden		<= all_periphs_rden(11);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden(10);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
+	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
+	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
 	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
 	d_ff_desired_rden			<= all_periphs_rden(8);-- not used, just to keep form
 	filter_out_rden			<= all_periphs_rden(7);-- not used, just to keep form
@@ -1054,8 +1308,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	converted_out_wren		<= all_periphs_wren(11);-- not used, just to keep form
-	irq_ctrl_wren				<= all_periphs_wren(10);
+	irq_ctrl_wren				<= all_periphs_wren(12);
+	disp_7seg_DR_wren			<= all_periphs_wren(11);
+	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
 	filter_ctrl_status_wren	<= all_periphs_wren(9);
 	d_ff_desired_wren			<= all_periphs_wren(8);-- not used, just to keep form
 	filter_out_wren			<= all_periphs_wren(7);-- not used, just to keep form
@@ -1091,11 +1346,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		rst => rst,
 		irq => irq,
 		iack => iack,
+		return_value => open,
+		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		instruction_addr => open,
 		ADDR_rom => instruction_memory_address,
+		cache_ready => cache_ready_sync,--synchronized to rising_edge(CLK)
 		CLK_rom => instruction_clk,
 		Q_rom => instruction_memory_output,
-		cache_ready => '1',
 		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
 		rden_ram => ram_rden,
@@ -1128,20 +1385,47 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	i2s_iack	<= all_iack(2);										 
 	i2c_iack	<= all_iack(1);
 	filter_iack	<= all_iack(3) & all_iack(0);
-	irq_ctrl: interrupt_controller
+	irq_ctrl: interrupt_controller_vectorized
 	generic map (L => 4)--L: number of IRQ lines
 	port map (	D => ram_write_data,-- input: data to register write
-			ADDR => ram_addr(1 downto 0),
+			ADDR => ram_addr(6 downto 0),
 			CLK => ram_clk,-- input
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
 			RDEN => irq_ctrl_rden,-- input
+			REQ_READY => cache_ready_sync,--synchronized to rising_edge(CLK)
 			IRQ_IN => all_irq,--input: all IRQ lines
 			IRQ_OUT => irq,--output: IRQ line to cpu
 			IACK_IN => iack,--input: IACK line coming from cpu
 			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
+			ISR_ADDR => ISR_ADDR,
 			output => irq_ctrl_Q -- output of register reading
 	);
+	
+	disp_7seg_DR_in <= ram_write_data;
+	disp_7seg_DR: d_flip_flop port map(
+		D => disp_7seg_DR_in,
+		CLK => ram_clk,
+		RST => RST,
+		ENA => disp_7seg_DR_wren,
+		Q => disp_7seg_DR_out
+	);
+	
+		disp_7seg_drive: for i in 0 to 7 generate
+		--the statement below consumes much logic because 8 muxes are inferred (16x7bit)
+--		segments(i) <= not code_for_7seg(to_integer(unsigned(disp_7seg_DR_out(4*i+3 downto 4*i ))));
+		
+		--one nibble being translated at a time
+		--ROM containing the codes (commands) to each digit
+		mem_code_for_7seg_i : mem_code_for_7seg port map (
+			address	=> disp_7seg_DR_out(4*i+3 downto 4*i),
+			clock		=> ram_clk,
+			q			=> disp_7seg_DR_code(i)
+		);
+
+		segments(i) <= not disp_7seg_DR_code(i);
+--		segments(i) <= (6 downto 4 => '1') & disp_7seg_DR_out(4*i+3 downto 4*i);
+	end generate disp_7seg_drive;
 	
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
@@ -1150,6 +1434,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		inclk0=> CLK_IN,
 		c0		=> CLK_dbg,--produces 48MHz for debugging
 		c1		=> CLK,--produces CLK=4MHz for processor
+		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
 		locked=> open
 	);
 
@@ -1171,4 +1456,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	c2 => CLK_fs_dbg,--10x fs
 	locked => i2s_SCK_IN_PLL_LOCKED
 	);
+	
+	-- this instruction ROM is meant to be used only in simulation
+	-- synthesis translate_off
+	rom: async_sram
+	generic map (INIT => true, DATA_WIDTH => 16, ADDR_WIDTH => 20)
+	port map(
+		IO => sram_IO,
+		ADDR=> sram_ADDR,
+		CE_n=> sram_CE_n,
+		OE_n=> sram_OE_n,
+		WE_n=> sram_WE_n,
+		UB_n=> sram_UB_n,
+		LB_n=> sram_LB_n
+	);
+	-- synthesis translate_on
 end setup;

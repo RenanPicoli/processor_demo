@@ -12,6 +12,7 @@ use ieee.std_logic_unsigned.all;
 
 use ieee.numeric_std.all;--to_integer
 use work.my_types.all;--boundaries, tuple
+--use std.textio.all;--for to_string()
 
 ---------------------------------------------------
 
@@ -35,38 +36,70 @@ end address_decoder_memory_map;
 ---------------------------------------------------
 
 architecture behv of address_decoder_memory_map is
+
+--decompose n in m * 2^p, with n,m,p natural
+--returns p, greatest dividing exponent of  n (see: https://mathworld.wolfram.com/GreatestDividingExponent.html)
+--n_width is the width in bits of the representantion of n (in this case, address width)
+function gde(n: natural; n_width:natural) return natural is
+begin
+	if(n=0)then
+		return n_width;
+	elsif(n mod 2 = 0)then
+		return (1 + gde(n/2,n_width));
+	else
+		return 0;
+	end if;
+end function;
+
 signal output: std_logic_vector(31 downto 0);-- data read
 begin
 	-- mux of data read
-	process(ADDR,RDEN,data_in)
+	process(ADDR,RDEN,WREN,data_in)
+		variable p: natural;
+		variable mask: std_logic_vector(N downto 0);
+		variable mask_length: natural;	
+		variable upper_lim_slv: std_logic_vector(N-1 downto 0);
+		variable lower_lim_slv: std_logic_vector(N-1 downto 0);
 	begin
 		output <= (others=>'0');
 		-- i-th element of data_in is associated with address i
 		for i in data_in'range loop
-			if ((B(i)(0) <= to_integer(unsigned(ADDR))) and (to_integer(unsigned(ADDR)) <= B(i)(1))) then
+			--decompose B(i)(0) in m * 2^p, m,p natural
+			--returns p, greatest dividing exponent of  B(i)(0) (see: https://mathworld.wolfram.com/GreatestDividingExponent.html)
+			p := gde(B(i)(0),N);
+			report "Range: [" & integer'image(B(i)(0)) & ", " & integer'image(B(i)(1)) & "]; p = " & integer'image(p);
+			
+			assert (B(i)(0) <= B(i)(1)) report "Range must be ascending!" severity error;
+			if(i > 0)then
+				assert (B(i-1)(1) < B(i)(0)) report "Ranges overlap!" severity error;
+			end if;
+			assert (B(i)(1) < B(i)(0) + 2**p) report "Unaligned range:[" & integer'image(B(i)(0)) & ", " & integer'image(B(i)(1)) & "]" severity error;
+			mask(N):='1';
+			upper_lim_slv := std_logic_vector(to_unsigned(B(i)(1),N));
+			lower_lim_slv := std_logic_vector(to_unsigned(B(i)(0),N));
+			for j in N-1 downto 0 loop
+				if(upper_lim_slv(j)=lower_lim_slv(j) and mask(j+1)='1')then
+					mask(j) := '1';
+				else
+					mask(j) :='0';
+				end if;
+			end loop;
+			report "mask=" & integer'image(to_integer(unsigned(mask(N-1 downto 0))));
+			mask_length := N - gde(to_integer(unsigned(mask(N-1 downto 0))),N);--address width minus number of zeros in mask
+			
+			--if ((B(i)(0) <= to_integer(unsigned(ADDR))) and (to_integer(unsigned(ADDR)) <= B(i)(1))) then
+			if (ADDR(N-1 downto N-mask_length) = lower_lim_slv(N-1 downto N-mask_length)) then
 				RDEN_OUT(i) <= RDEN;
+				WREN_OUT(i) <= WREN;
 				output <= data_in(i);
 			else
 				RDEN_OUT(i) <='0';
+				WREN_OUT(i) <='0';
 			end if;
 		end loop;
 	end process;
 	
 	data_out <= output;
-
-	--demux of WREN
-	process(ADDR,WREN)
-	begin
-		-- i-th element of WREN_OUT is associated with element i of boundaries B
-		for i in data_in'range loop
-			--B(i)(0) is the start address and B(i)(1) is the end address of i-th peripheral
-			if ((B(i)(0) <= to_integer(unsigned(ADDR))) and (to_integer(unsigned(ADDR)) <= B(i)(1))) then
-				WREN_OUT(i) <= WREN;
-			else
-				WREN_OUT(i) <='0';
-			end if;
-		end loop;
-	end process;
 end behv;
 
 ---------------------------------------------------------------------------------------------
