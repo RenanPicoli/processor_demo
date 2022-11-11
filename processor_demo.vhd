@@ -86,8 +86,8 @@ port (CLK_IN: in std_logic;
 end component;
 
 component mini_rom
-	port (--CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
---			RST: in std_logic;--asynchronous reset
+	port (CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+			RST: in std_logic;--asynchronous reset
 			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 			Q:	out std_logic_vector(31 downto 0)
 			);
@@ -696,18 +696,7 @@ signal mmu_iack: std_logic;
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
-	simple_reset_no_mini_rom: if not sram_loader generate
-		rst <= not rst_n_sync_uproc;
-	end generate;
-	extended_reset_mini_rom_enabled: if sram_loader generate
-		rst <= not rst_n_sync_uproc;--rst is deasserted synchronously with uproc_CLK
-		rom: mini_rom port map(
-										ADDR=> sram_loader_address,
---										CLK=> ,
---										RST=> ,
-										Q	 => sram_loader_data
-		);
-	end generate;
+	rst <= not rst_n;
 	
 	--debug outputs
 	LEDR <= (17 downto 5 =>'0') & fp32_ovf & fp32_undf & fp32_div0 & filter_rst & rst;
@@ -715,6 +704,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
 											filter_CLK & CLK & instruction_memory_address;
+										
+	rom: mini_rom port map(	CLK => instruction_clk,	
+									RST => rst,--asynchronous reset
+									ADDR=> instruction_memory_address,
+									Q	 => instruction_memory_output
+	);
+	cache_ready_sync <= '1';
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
@@ -799,154 +795,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			end if;
 		end if;
 	end process;
---------------------------------------------------------
------------------SRAM interfacing---------------------
-	sram_CE_n <= '0';--chip always enabled
-	sram_OE_n <= '0';--output always enabled
-	sram_UB_n <= '0';--upper byte always enabled
-	sram_LB_n <= '0';--lower byte always enabled
 
-	sram_ADDR_lower_half <= (19 downto 9 => '0') & instruction_memory_address & '0';--address of lower half of instruction
-	sram_ADDR_upper_half <= (19 downto 9 => '0') & instruction_memory_address & '1';--address of upper	half of instruction
-
-	sram_no_loader: if not sram_loader generate
-		sram_WE_n <= '1';--reading always enabled
-		cache: I_cache
-			generic map (REQUESTED_SIZE => 128)--user requested cache size, in 32 bit words
-			port map (
-					req_ADDR => instruction_memory_address,--address of requested instruction
-					CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
-					sram_IO => sram_IO,--data coming from SRAM for write
-					sram_CLK => sram_CLK,--clock for reading SRAM
-					RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
-					sram_ADDR => sram_ADDR,--address for write
-					req_ready => cache_ready,--indicates that instruction already contains the requested instruction
-					instruction => instruction_memory_output--fetched instruction
-			);
-		--synchronized asynchronous reset
-		--asserted asynchronously
-		--deasserted synchronously to the rising_edge of uproc_CLK
---		sync_async_reset_cache_ready: sync_chain
---		generic map (N => 1,--bus width in bits
---					L => 2)--number of registers in the chain
---		port map (
---				data_in(0) => '1',--data generated at another clock domain
---				CLK => CLK,--clock of new clock domain				
---				RST => not cache_ready,--asynchronous reset (asserted at rising_edge(sram_CLK), deasserted at rising_edge(CLK))
---				data_out(0) => cache_ready_sync --data synchronized in CLK domain
---		);
-	cache_ready_sync <= cache_ready;
-	
-		--synchronized asynchronous reset
-		--asserted asynchronously
-		--deasserted synchronously to the rising_edge of uproc_CLK
-		sync_async_reset_uproc: sync_chain
-		generic map (N => 1,--bus width in bits
-					L => 2)--number of registers in the chain
-		port map (
-				data_in(0) => '1',--data generated at another clock domain
-				CLK => CLK,--clock of new clock domain				
-				RST => not rst_n,--asynchronous reset
-				data_out(0) => rst_n_sync_uproc --data synchronized in CLK domain
-		);
-	end generate;
-	
-	sram_with_loader: if sram_loader generate
-	
-		cache: I_cache
-			generic map (REQUESTED_SIZE => 16)--user requested cache size, in 32 bit words
-			port map (
-					req_ADDR => instruction_memory_address,--address of requested instruction
-					CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
-					sram_IO => sram_IO,--data coming from SRAM for write
-					sram_CLK => sram_CLK,--clock for reading SRAM
-					RST => not sram_filled,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
-					sram_ADDR => sram_ADDR_reading,--address for write
-					req_ready => cache_ready,--indicates that instruction already contains the requested instruction
-					instruction => instruction_memory_output--fetched instruction
-			);
-		--synchronized asynchronous reset
-		--asserted asynchronously
-		--deasserted synchronously to the rising_edge of uproc_CLK
---		sync_async_reset_cache_ready: sync_chain
---		generic map (N => 1,--bus width in bits
---					L => 2)--number of registers in the chain
---		port map (
---				data_in(0) => '1',--data generated at another clock domain
---				CLK => CLK,--clock of new clock domain				
---				RST => not cache_ready,--asynchronous reset (asserted at rising_edge(sram_CLK), deasserted at rising_edge(CLK))
---				data_out(0) => cache_ready_sync --data synchronized in CLK domain
---		);
-		cache_ready_sync <= cache_ready;
-		
-		sram_WE_n <= '0' when sram_filled='0' else '1';--when sram is not filled, write is enabled, after that, reading is enabled
-		--process for reading/writing instructions at SRAM
-		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,rst_n_sync_uproc,sram_filled,sram_ADDR_reading,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
-		begin
-			if(sram_filled='0')then--reset is extended to store instructions in SRAM 
-				sram_ADDR <= sram_loader_counter;
-			else
-				sram_ADDR <= sram_ADDR_reading;
-			end if;
-		end process;
-		
---		sram_write_data <=sram_loader_data(15 downto 0) when (sram_filled='0' and sram_loader_counter(0)='0' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
---								sram_loader_data(31 downto 16) when (sram_filled='0' and sram_loader_counter(0)='1' and sram_loader_counter(19 downto 9) = (19 downto 9=>'0')) else
---								(15 downto 0=>'0') when (sram_filled='0' and sram_loader_counter(19 downto 9) /= (19 downto 9=>'0'));
-		all_sram_write_data <= (3 => (15 downto 0=>'0'),2=> (15 downto 0=>'0'),
-										1=> sram_loader_data(31 downto 16),0=> sram_loader_data(15 downto 0));
-		sram_write_data_sel(1) <= '1' when sram_loader_counter(19 downto 9) /= (19 downto 9=>'0') else '0';
-		sram_write_data_sel(0) <= sram_loader_counter(0);
-		sram_write_data_mux: mux
-									generic map (N_BITS_SEL => 2)
-									port map(A => all_sram_write_data,
-												sel => sram_write_data_sel,
-												Q => sram_write_data);
-		sram_IO <= sram_write_data when sram_filled='0' else (others=>'Z');
-		sram_loader_address <= sram_loader_counter(8 downto 1);--address for mini_rom
-		
-		write_loop: process(rst_n_sync_sram_CLK,sram_CLK)
-			begin
-				if(rst_n_sync_sram_CLK='0')then--using synchronous reset to ensure no problems with reset removal
-					sram_loader_counter <= (others=>'0');
-					sram_filled <= '0';
-				elsif(falling_edge(sram_CLK))then--period is 31.25 ns, enough for writes
-					if(sram_loader_counter /= (8 downto 0 =>'1'))then
-						sram_loader_counter <= sram_loader_counter + 1;
-					else
-						sram_filled <= '1';--when sram_loader_counter = xFFFFF
-					end if;
-				end if;
-		end process;
-		
-		--synchronized asynchronous reset
-		--asserted asynchronously
-		--deasserted synchronously to the rising_edge of uproc_CLK
-		sync_async_reset_uproc: sync_chain
-		generic map (N => 1,--bus width in bits
-					L => 2)--number of registers in the chain
-		port map (
-				data_in(0) => '1',--data generated at another clock domain
-				CLK => CLK,--clock of new clock domain				
-				RST => not sram_filled,--asynchronous reset
-				data_out(0) => rst_n_sync_uproc --data synchronized in CLK domain
-		);
-		--synchronized asynchronous reset
-		--asserted asynchronously
-		--deasserted synchronously to the falling_edge of sram_CLK
-		sync_async_reset_sram_CLK: sync_chain
-		generic map (N => 1,--bus width in bits
-					L => 2)--number of registers in the chain
-		port map (
-				data_in(0) => '1',--data generated at another clock domain
-				CLK => sram_CLK_n,--clock of new clock domain				
-				RST => not rst_n,--asynchronous reset
-				data_out(0) => rst_n_sync_sram_CLK --data synchronized in CLK domain
-		);
-		sram_CLK_n <= not sram_CLK;
-	end generate;
-	
-	instruction_latched <= instruction_lower_half_latched and instruction_upper_half_latched;
 --------------------------------------------------------
 	filter_CLK_n <= not filter_CLK;
 	
