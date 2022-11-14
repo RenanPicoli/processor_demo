@@ -88,8 +88,14 @@ end component;
 component mini_rom
 	port (CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
 			RST: in std_logic;--asynchronous reset
-			ADDR: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
-			Q:	out std_logic_vector(31 downto 0)
+			--interface de instrução (read-only)
+			ADDR_A: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
+			Q_A:	out std_logic_vector(31 downto 0);
+			--interface de dados (read-write)
+			D_B:	in std_logic_vector(31 downto 0);
+			ADDR_B: in std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
+			WREN_B: std_logic;
+			Q_B:	out std_logic_vector(31 downto 0)
 			);
 end component;
 
@@ -492,10 +498,13 @@ signal instruction_lower_half_latched: std_logic;
 signal cache_ready: std_logic;
 signal cache_ready_sync: std_logic;--cache_ready synchronized to rising_edge(CLK)
 signal instruction_clk: std_logic;
+signal instruction_memory_Q: std_logic_vector(31 downto 0);
+signal instruction_memory_wren: std_logic;
+signal instruction_memory_rden: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
-constant N: integer := 8;-- size in bits of data addresses (each address refers to a 32 bit word)
+constant N: integer := 9;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
 signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_rden: std_logic;
@@ -648,13 +657,12 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#72#,16#72#),--filter status
 											(16#73#,16#73#),--converted_out
 											(16#74#,16#74#),-- 7-segments display DR
-											(16#80#,16#FF#)--interrupt controller
---											(16#74#,16#77#),--interrupt controller
---											(16#78#,16#78#)--converted_out
+											(16#80#,16#FF#),--interrupt controller
+											(16#100#,16#1FF#)--instruction memory
 											);
-signal all_periphs_output: array32 (12 downto 0);
-signal all_periphs_rden: std_logic_vector(12 downto 0);
-signal all_periphs_wren: std_logic_vector(12 downto 0);
+signal all_periphs_output: array32 (ranges'length-1 downto 0);
+signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_wren: std_logic_vector(ranges'length-1 downto 0);
 
 signal filter_CLK: std_logic;
 signal filter_CLK_n: std_logic;--filter_CLK inverted
@@ -705,10 +713,16 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
 											filter_CLK & CLK & instruction_memory_address;
 										
-	rom: mini_rom port map(	CLK => instruction_clk,	
-									RST => rst,--asynchronous reset
-									ADDR=> instruction_memory_address,
-									Q	 => instruction_memory_output
+	rom: mini_rom port map(	CLK	=> instruction_clk,	
+									RST	=> rst,--asynchronous reset
+									--instruction interface (read-only)
+									ADDR_A=> instruction_memory_address,
+									Q_A	=> instruction_memory_output,
+									--data interface (read-write)
+									D_B	=> ram_write_data,
+									ADDR_B=> ram_addr(7 downto 0),
+									WREN_B=> instruction_memory_wren,
+									Q_B	=> instruction_memory_Q
 	);
 	cache_ready_sync <= '1';
 	
@@ -1137,12 +1151,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (13=> instruction_memory_Q, 12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
+	instruction_memory_rden <= all_periphs_rden(13);-- not used, just to keep form
 	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
 	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
 	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
@@ -1157,6 +1172,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
+	instruction_memory_wren <= all_periphs_wren(13);
 	irq_ctrl_wren				<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
 	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
