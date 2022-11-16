@@ -99,15 +99,15 @@ component mini_rom
 			);
 end component;
 
-component I_cache
-	generic (REQUESTED_SIZE: natural);--user requested cache size, in 32 bit words
+component i_cache
+	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
 	port (
 			req_ADDR: in std_logic_vector(7 downto 0);--address of requested instruction
-			CLK: in std_logic;--processor clock for reading instructions
-			sram_IO: in std_logic_vector(15 downto 0);--data coming from SRAM for write
-			sram_CLK: in std_logic;--clock for reading SRAM
-			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
-			sram_ADDR: out std_logic_vector(19 downto 0);--address for write
+			CLK: in std_logic;--processor clock for reading instructions, must run even if cache is not ready
+			mem_IO: in std_logic_vector(31 downto 0);--data coming from embedded RAM for write
+			mem_CLK: in std_logic;--clock for reading embedded RAM
+			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to mem_CLK)
+			mem_ADDR: out std_logic_vector(7 downto 0);--address for write
 			req_ready: out std_logic;--indicates that instruction already contains the requested instruction
 			instruction: out std_logic_vector(31 downto 0)--fetched instruction
 	);
@@ -490,6 +490,10 @@ signal CLK20MHz: std_logic;-- 20MHz clock (for I2S peripheral)
 signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
 
 -----------signals for ROM interfacing---------------------
+signal rom_clk: std_logic;
+signal rom_output: std_logic_vector(31 downto 0);
+signal rom_ADDR: std_logic_vector(7 downto 0);
+
 signal instruction_memory_output: std_logic_vector(31 downto 0);
 signal instruction_memory_address: std_logic_vector(7 downto 0);
 signal instruction_latched: std_logic;
@@ -712,23 +716,38 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
 											filter_CLK & CLK & instruction_memory_address;
-										
-	rom: mini_rom port map(	CLK	=> instruction_clk,	
+
+	rom_clk <= CLK;
+	program_memory: mini_rom port map(	CLK	=> rom_clk,	
 									RST	=> rst,--asynchronous reset
 									--instruction interface (read-only)
-									ADDR_A=> instruction_memory_address,
-									Q_A	=> instruction_memory_output,
+									ADDR_A=> rom_ADDR,
+									Q_A	=> rom_output,
 									--data interface (read-write)
 									D_B	=> ram_write_data,
 									ADDR_B=> ram_addr(7 downto 0),
 									WREN_B=> instruction_memory_wren,
 									Q_B	=> instruction_memory_Q
 	);
-	cache_ready_sync <= '1';
+	
+	cache: i_cache
+		generic map (REQUESTED_SIZE => 128, MEM_LATENCY=> 1)--user requested cache size, in 32 bit words
+		port map (
+				req_ADDR => instruction_memory_address,--address of requested instruction
+				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
+				mem_IO => rom_output,--data coming from SRAM for write
+				mem_CLK => rom_clk,--clock for reading embedded RAM
+				RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+				mem_ADDR => rom_ADDR,--address for write
+				req_ready => cache_ready,--indicates that instruction already contains the requested instruction
+				instruction => instruction_memory_output--fetched instruction
+		);
+		
+	cache_ready_sync <= cache_ready;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
-	cache: mini_ram 	generic map (N => 3)
+	d_cache: mini_ram 	generic map (N => 3)
 							port map(CLK	=> ram_clk,
 										ADDR	=> ram_addr(2 downto 0),
 										write_data => ram_write_data,
@@ -1324,7 +1343,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	-- this instruction ROM is meant to be used only in simulation
 	-- synthesis translate_off
-	rom: async_sram
+	sram_sim: async_sram
 	generic map (INIT => true, DATA_WIDTH => 16, ADDR_WIDTH => 20)
 	port map(
 		IO => sram_IO,
