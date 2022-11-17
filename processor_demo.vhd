@@ -717,7 +717,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
 											filter_CLK & CLK & instruction_memory_address;
 
-	rom_clk <= CLK;
+	rom_clk <= CLK_IN;
 	program_memory: mini_rom port map(	CLK	=> rom_clk,	
 									RST	=> rst,--asynchronous reset
 									--instruction interface (read-only)
