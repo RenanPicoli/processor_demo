@@ -71,12 +71,13 @@ port (CLK_IN: in std_logic;
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to mini_rom)
 		Q_rom:	in std_logic_vector(31 downto 0);
-		cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
+		i_cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
 		-----RAM-----------
 		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
 		rden_ram: out std_logic;--enables read on ram
 		wren_ram: out std_logic;--enables write on ram
+		d_cache_ready: in std_logic;--indicates d_cache is ready (Q_ram is valid)
 		wren_lvec: out std_logic;--enables load vector: loads vector of 8 std_logic_vector in parallel
 		lvec_src: out std_logic_vector(2 downto 0);--a single source address for lvec
 		lvec_dst_mask: out std_logic_vector(6 downto 0);--mask for destination(s) address(es) for lvec
@@ -99,17 +100,18 @@ component mini_rom
 			);
 end component;
 
-component i_cache
+component cache
 	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
 	port (
 			req_ADDR: in std_logic_vector(7 downto 0);--address of requested instruction
+			req_rden: in std_logic;--read requested
 			CLK: in std_logic;--processor clock for reading instructions, must run even if cache is not ready
 			mem_IO: in std_logic_vector(31 downto 0);--data coming from embedded RAM for write
 			mem_CLK: in std_logic;--clock for reading embedded RAM
 			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to mem_CLK)
 			mem_ADDR: out std_logic_vector(7 downto 0);--address for write
 			req_ready: out std_logic;--indicates that instruction already contains the requested instruction
-			instruction: out std_logic_vector(31 downto 0)--fetched instruction
+			data: out std_logic_vector(31 downto 0)--fetched data or instruction
 	);
 end component;
 
@@ -255,11 +257,12 @@ port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
 		RDEN: in std_logic;-- input
 		WREN: in std_logic;-- input
 		data_in: in array32;-- input: outputs of all peripheral/registers
+		ready_in: in std_logic_vector;-- input: ready signals of all peripheral
 		RDEN_OUT: out std_logic_vector;-- output
 		WREN_OUT: out std_logic_vector;-- output
+		ready_out: out std_logic;-- output
 		data_out: out std_logic_vector(31 downto 0)-- data read
 );
-
 end component;
 
 ---------------------------------------------------
@@ -499,12 +502,19 @@ signal instruction_memory_address: std_logic_vector(7 downto 0);
 signal instruction_latched: std_logic;
 signal instruction_upper_half_latched: std_logic;
 signal instruction_lower_half_latched: std_logic;
-signal cache_ready: std_logic;
-signal cache_ready_sync: std_logic;--cache_ready synchronized to rising_edge(CLK)
+signal i_cache_ready: std_logic;
+signal i_cache_ready_sync: std_logic;--i_cache_ready synchronized to rising_edge(CLK)
 signal instruction_clk: std_logic;
+signal instruction_memory_addr: std_logic_vector(7 downto 0);
 signal instruction_memory_Q: std_logic_vector(31 downto 0);
 signal instruction_memory_wren: std_logic;
 signal instruction_memory_rden: std_logic;
+
+-----------signals for d_cache interfacing---------------------
+signal program_data_Q: std_logic_vector(31 downto 0);
+signal program_data_wren: std_logic;
+signal program_data_rden: std_logic;
+signal program_data_ready: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
@@ -514,6 +524,8 @@ signal ram_addr: std_logic_vector(N-1 downto 0);
 signal ram_rden: std_logic;
 signal ram_wren: std_logic;
 signal ram_write_data: std_logic_vector(31 downto 0);
+signal d_cache_ready: std_logic;
+signal d_cache_ready_sync: std_logic;--d_cache_ready synchronized to rising_edge(CLK)
 --signal ram_Q: std_logic_vector(31 downto 0);
 signal ram_Q_buffer_in: std_logic_vector(31 downto 0);
 signal ram_Q_buffer_out: std_logic_vector(31 downto 0);
@@ -667,6 +679,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_wren: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_ready: std_logic_vector(ranges'length-1 downto 0);
 
 signal filter_CLK: std_logic;
 signal filter_CLK_n: std_logic;--filter_CLK inverted
@@ -725,29 +738,44 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 									Q_A	=> rom_output,
 									--data interface (read-write)
 									D_B	=> ram_write_data,
-									ADDR_B=> ram_addr(7 downto 0),
+									ADDR_B=> instruction_memory_addr,
 									WREN_B=> instruction_memory_wren,
 									Q_B	=> instruction_memory_Q
 	);
 	
-	cache: i_cache
+	i_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_LATENCY=> 1)--user requested cache size, in 32 bit words
 		port map (
 				req_ADDR => instruction_memory_address,--address of requested instruction
+				req_rden => '1',
 				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
 				mem_IO => rom_output,--data coming from SRAM for write
 				mem_CLK => rom_clk,--clock for reading embedded RAM
 				RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
 				mem_ADDR => rom_ADDR,--address for write
-				req_ready => cache_ready,--indicates that instruction already contains the requested instruction
-				instruction => instruction_memory_output--fetched instruction
+				req_ready => i_cache_ready,--indicates that instruction already contains the requested instruction
+				data => instruction_memory_output--fetched instruction
 		);
 		
-	cache_ready_sync <= cache_ready;
+	i_cache_ready_sync <= i_cache_ready;
+	
+	d_cache: cache
+		generic map (REQUESTED_SIZE => 128, MEM_LATENCY=> 1)--user requested cache size, in 32 bit words
+		port map (
+				req_ADDR => ram_addr(7 downto 0),--address of requested data/instruction
+				req_rden => program_data_rden,
+				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
+				mem_IO => instruction_memory_Q,--data coming from SRAM for write
+				mem_CLK => rom_clk,--clock for reading embedded RAM
+				RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+				mem_ADDR => instruction_memory_addr,--address for write
+				req_ready => program_data_ready,--indicates that instruction already contains the requested instruction
+				data => program_data_Q--fetched data
+		);
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
-	d_cache: mini_ram 	generic map (N => 3)
+	mini_ram_cache: mini_ram 	generic map (N => 3)
 							port map(CLK	=> ram_clk,
 										ADDR	=> ram_addr(2 downto 0),
 										write_data => ram_write_data,
@@ -1170,13 +1198,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 
-	all_periphs_output	<= (13=> instruction_memory_Q, 12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready		<= (13=> program_data_ready, others=>'1');
+	all_periphs_output	<= (13=> program_data_Q, 12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	instruction_memory_rden <= all_periphs_rden(13);-- not used, just to keep form
+	program_data_rden			<= all_periphs_rden(13);-- not used, just to keep form
 	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
 	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
 	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
@@ -1191,7 +1220,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	instruction_memory_wren <= all_periphs_wren(13);
+	program_data_wren			<= all_periphs_wren(13);
 	irq_ctrl_wren				<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
 	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
@@ -1216,10 +1245,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RDEN => ram_rden,-- input
 			WREN => ram_wren,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
+			ready_in => all_periphs_ready,
 			RDEN_OUT => all_periphs_rden,-- output
 			WREN_OUT => all_periphs_wren,-- output
+			ready_out => d_cache_ready,
 			data_out => ram_Q_buffer_in-- data read
 	);
+	d_cache_ready_sync <= d_cache_ready;
 	
 	ram_Q_buffer_out <= ram_Q_buffer_in;
 	
@@ -1234,13 +1266,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		instruction_addr => open,
 		ADDR_rom => instruction_memory_address,
-		cache_ready => cache_ready_sync,--synchronized to rising_edge(CLK)
+		i_cache_ready => i_cache_ready_sync,--synchronized to rising_edge(CLK)
 		CLK_rom => instruction_clk,
 		Q_rom => instruction_memory_output,
 		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
 		rden_ram => ram_rden,
 		wren_ram => ram_wren,
+		d_cache_ready => d_cache_ready_sync,
 		vmac_en => vmac_en,
 		wren_lvec => lvec,
 		lvec_src => lvec_src,
@@ -1277,7 +1310,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
 			RDEN => irq_ctrl_rden,-- input
-			REQ_READY => cache_ready_sync,--synchronized to rising_edge(CLK)
+			REQ_READY => i_cache_ready_sync,--synchronized to rising_edge(CLK)
 			IRQ_IN => all_irq,--input: all IRQ lines
 			IRQ_OUT => irq,--output: IRQ line to cpu
 			IACK_IN => iack,--input: IACK line coming from cpu
