@@ -1,9 +1,9 @@
 --------------------------------------------------
---instruction cache
+--cache for data or instruction
 --by Renan Picoli de Souza
 --reads from DE2-115 embedded RAM
 --input is 32 bit wide
---output is 32 bit instruction
+--output is 32 bit data
 --------------------------------------------------
 
 library ieee;
@@ -13,21 +13,22 @@ use ieee.numeric_std.all;--to_integer, unsigned
 use work.my_types.all;--array32
 use ieee.math_real.all;--ceil and log2
 
-entity i_cache is
+entity cache is
 	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural := 0);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
 	port (
-			req_ADDR: in std_logic_vector(7 downto 0);--address of requested instruction
-			CLK: in std_logic;--processor clock for reading instructions, must run even if cache is not ready
+			req_ADDR: in std_logic_vector(7 downto 0);--address of requested data
+			req_rden: in std_logic;--read requested
+			CLK: in std_logic;--processor clock for reading datas, must run even if cache is not ready
 			mem_IO: in std_logic_vector(31 downto 0);--data coming from embedded RAM for write
 			mem_CLK: in std_logic;--clock for reading embedded RAM
 			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to mem_CLK)
 			mem_ADDR: out std_logic_vector(7 downto 0);--address for write
-			req_ready: out std_logic;--indicates that instruction already contains the requested instruction
-			instruction: out std_logic_vector(31 downto 0)--fetched instruction
+			req_ready: out std_logic;--indicates that data already contains the requested data
+			data: out std_logic_vector(31 downto 0)--fetched data
 	);
-end i_cache;
+end cache;
 
-architecture structure of i_cache is
+architecture structure of cache is
 
 component sdp_ram
 	generic (N: natural; L: natural);--N: data width in bits; L: address width in bits
@@ -66,7 +67,7 @@ signal lower_WREN: std_logic;--WREN for the lower half cache
 signal upper_WREN: std_logic;--WREN for the upper half cache
 
 begin
-	--cache for the lower half of instruction
+	--cache for the lower half of data
 	cache_lower: sdp_ram
 		generic map (N => 32, L=> D)
 		port map(RST => RST,
@@ -76,10 +77,10 @@ begin
 					WREN	=> lower_WREN,
 					RCLK	=> CLK,
 					RADDR	=> raddr,
-					RDAT	=> instruction(31 downto 0)
+					RDAT	=> data(31 downto 0)
 		);
 		
---	--cache for the lower half of instruction
+--	--cache for the lower half of data
 --	cache_lower: sdp_ram
 --		generic map (N => 16, L=> D)
 --		port map(RST => RST,
@@ -89,10 +90,10 @@ begin
 --					WREN	=> lower_WREN,
 --					RCLK	=> CLK,
 --					RADDR	=> raddr,
---					RDAT	=> instruction(15 downto 0)
+--					RDAT	=> data(15 downto 0)
 --		);
 		
-	--cache for the upper half of instruction
+	--cache for the upper half of data
 --	cache_upper: sdp_ram
 --		generic map (N => 16, L=> D)
 --		port map(RST => RST,
@@ -102,7 +103,7 @@ begin
 --					WREN	=> upper_WREN,
 --					RCLK	=> CLK,
 --					RADDR	=> raddr,
---					RDAT	=> instruction(31 downto 16)
+--					RDAT	=> data(31 downto 16)
 --		);
 		
 	--bit 0 is used to select between upper and lower half
@@ -147,7 +148,7 @@ begin
 		if(RST='1')then
 			previous_offset <= (others=>'0');
 			req_ADDR_reg <= (others=>'0');
-		elsif(rising_edge(CLK)) then
+		elsif(rising_edge(CLK) and req_rden='1') then
 			previous_offset <= offset;
 			if(req_ready='1')then
 				req_ADDR_reg <= req_ADDR;
