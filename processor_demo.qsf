@@ -591,12 +591,12 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to segments[7][4]
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to segments[7][5]
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to segments[7][6]
 
+set_global_assignment -name VHDL_FILE cache.vhd
 set_global_assignment -name VHDL_FILE microprocessor/mini_rom.vhd
 set_global_assignment -name VHDL_FILE microprocessor/pure_stack.vhd
 set_global_assignment -name VHDL_FILE microprocessor/tdp_ram.vhd
 set_global_assignment -name VHDL_FILE microprocessor/memory_mapped_stack.vhd
 set_global_assignment -name VHDL_FILE sdp_ram.vhd
-set_global_assignment -name VHDL_FILE i_cache.vhd
 set_global_assignment -name VHDL_FILE interrupt_controller_vectorized.vhd
 set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_sign_1bit.vhd
 set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_geq_zero.vhd
