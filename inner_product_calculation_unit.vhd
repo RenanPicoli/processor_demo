@@ -48,9 +48,11 @@ architecture behv of inner_product_calculation_unit is
 	port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
 			RDEN: in std_logic;-- input
 			WREN: in std_logic;-- input
-			data_in: in array32;-- input: outputs of all peripheral/registers
+			data_in: in array32;-- input: outputs of all peripheral
+			ready_in: in std_logic_vector(B'length-1 downto 0);-- input: ready signals of all peripheral
 			RDEN_OUT: out std_logic_vector;-- output
 			WREN_OUT: out std_logic_vector;-- output
+			ready_out: out std_logic;-- output
 			data_out: out std_logic_vector(31 downto 0)-- data read
 	);
 
@@ -138,6 +140,7 @@ begin
 			RDEN => RDEN,-- input
 			WREN => WREN,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
+			ready_in => (others=>'1'),
 			RDEN_OUT => all_periphs_rden,-- output
 			WREN_OUT => all_periphs_wren,-- output
 			data_out => output-- data read

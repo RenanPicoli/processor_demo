@@ -26,8 +26,10 @@ port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
 		RDEN: in std_logic;-- input
 		WREN: in std_logic;-- input
 		data_in: in array32;-- input: outputs of all peripheral
+		ready_in: in std_logic_vector(B'length-1 downto 0);-- input: ready signals of all peripheral
 		RDEN_OUT: out std_logic_vector;-- output
 		WREN_OUT: out std_logic_vector;-- output
+		ready_out: out std_logic;-- output
 		data_out: out std_logic_vector(31 downto 0)-- data read
 );
 
@@ -92,6 +94,7 @@ begin
 				RDEN_OUT(i) <= RDEN;
 				WREN_OUT(i) <= WREN;
 				output <= data_in(i);
+				ready_out <= ready_in(i);
 			else
 				RDEN_OUT(i) <='0';
 				WREN_OUT(i) <='0';
