@@ -932,7 +932,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 											WREN => filter_parallel_wren,--enables updating all coefficients at once
 											CLK => filter_CLK,--sampling clock
 											coeffs => coefficients,-- todos os coeficientes são lidos de uma vez
-											iack => filter_iack_received,
+--											iack => filter_iack_received, --necessary complex mechanism to synchronize to filter_CLK (indeed, CLK_fs_dbg), sucetible to failure
+											iack => filter_iack,--simpler, but produces CDC
 											irq => filter_irq,
 											output => filter_output											
 											);
