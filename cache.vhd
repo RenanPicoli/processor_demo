@@ -61,7 +61,7 @@ signal hit: std_logic;--cache hit
 signal miss: std_logic;--cache miss
 signal offset: std_logic_vector(7 downto D);--aka (current) page address
 signal previous_offset: std_logic_vector(7 downto D);--offset during previous RCLK cycle
-signal req_ADDR_reg: std_logic_vector(7 downto 0);
+signal req_ADDR_reg: std_logic_vector(7 downto 0);--address of current instruction/data a RDAT
 
 signal lower_WREN: std_logic;--WREN for the lower half cache
 signal upper_WREN: std_logic;--WREN for the upper half cache
@@ -116,7 +116,7 @@ begin
 	begin
 		if(miss='1' or RST='1')then
 			waddr <= (others=>'0');
-		elsif(rising_edge(mem_CLK) and full='0') then
+		elsif(rising_edge(mem_CLK) and waddr /= ('1' & (D-1 downto 0=>'0'))) then
 			waddr <= waddr + '1';
 		end if;
 	end process;
@@ -137,9 +137,9 @@ begin
 	
 	offset <= req_ADDR_reg(7 downto D);--current offset (aka page address)
 	
-	mem_ADDR <= (7 downto 8 => '0') & offset & waddr(D-1 downto 0);--bit 0 must be included
+	mem_ADDR <= (7 downto 8 => '0') & offset & waddr(D-1 downto 0);--NOT delayed because this address will be used to read to RAM, bit 0 must be included
 	
-	full <= '1' when waddr=('1' & (D-1 downto 0=>'0')) else '0';--next position to write exceeds ram limits
+	full <= '1' when waddr_delayed=('1' & (D-1 downto 0=>'0')) else '0';--next position to write exceeds ram limits
 	
 	--previous_offset generation
 	--registers address for correct operation of flag req_ready
