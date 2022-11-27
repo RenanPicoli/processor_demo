@@ -14,17 +14,21 @@ use work.my_types.all;--array32
 use ieee.math_real.all;--ceil and log2
 
 entity cache is
-	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural := 0);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
+	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
 	port (
 			req_ADDR: in std_logic_vector(7 downto 0);--address of requested data
 			req_rden: in std_logic;--read requested
-			CLK: in std_logic;--processor clock for reading datas, must run even if cache is not ready
-			mem_IO: in std_logic_vector(31 downto 0);--data coming from embedded RAM for write
+			req_wren: in std_logic:='0';--write requested
+			req_data_in: in std_logic_vector(31 downto 0):=(others=>'0');--data for write request
+			CLK: in std_logic;--processor clock for reading/writing data, must run even if cache is not ready
+			mem_I: in std_logic_vector(31 downto 0);--data coming from embedded RAM
 			mem_CLK: in std_logic;--clock for reading embedded RAM
 			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to mem_CLK)
-			mem_ADDR: out std_logic_vector(7 downto 0);--address for write
+			mem_ADDR: out std_logic_vector(7 downto 0);--address for memory read/write
+			mem_WREN: out std_logic:='0';
 			req_ready: out std_logic;--indicates that data already contains the requested data
-			data: out std_logic_vector(31 downto 0)--fetched data
+			mem_O: out std_logic_vector(31 downto 0);--data to be written in embedded RAM
+			data: buffer std_logic_vector(31 downto 0)--fetched data
 	);
 end cache;
 
@@ -43,20 +47,52 @@ component sdp_ram
 	);
 end component;
 
+component tdp_ram
+	generic (N: natural; L: natural);--N: data width in bits; L: address width in bits
+	port (CLK_A: in std_logic;
+			WDAT_A: in std_logic_vector(N-1 downto 0);--data for write
+			ADDR_A: in std_logic_vector(L-1 downto 0);--address for read/write
+			WREN_A: in std_logic;--enables write on port A
+			Q_A: out std_logic_vector(N-1 downto 0);
+			CLK_B: in std_logic;
+			WDAT_B: in std_logic_vector(N-1 downto 0);--data for write
+			ADDR_B: in std_logic_vector(L-1 downto 0);--address for read/write
+			WREN_B: in std_logic;--enables write on port B
+			Q_B: out std_logic_vector(N-1 downto 0)
+	);
+end component;
+
+component dc_fifo
+	generic (N: natural; REQUESTED_FIFO_DEPTH: natural);--REQUESTED_FIFO_DEPTH does NOT need to be power of TWO
+	port (
+			DATA_IN: in std_logic_vector(N-1 downto 0);--for register write
+			WCLK: in std_logic;--processor clock for writes
+			RCLK: in std_logic;--processor clock for reading
+			RST: in std_logic;--asynchronous reset
+			WREN: in std_logic;--enables software write
+			POP: in std_logic;--aka RDEN
+			FULL: buffer std_logic;--'1' indicates that fifo is (almost) full
+			EMPTY: buffer std_logic;--'1' indicates that fifo is (almost) empty
+			OVF: out std_logic;--'1' indicates that fifo is overflowing (and dropping data)
+			DATA_OUT: out std_logic_vector(N-1 downto 0)--oldest data
+	);
+end component;
+
 constant D: natural := natural(ceil(log2(real(REQUESTED_SIZE))));--number of bits needed to select all cache locations
 constant SIZE: natural := 2**D;--real cache size in words SHOULD BE A POWER OF 2 to prevent errors;
 
-signal raddr: std_logic_vector(D-1 downto 0);--read address for the sdp_ram
+signal raddr: std_logic_vector(D-1 downto 0);--read address for the tdp_ram
 signal waddr: std_logic_vector(D downto 0);--write address for the sdp_ram, 2 bit wider than raddr
 														-- because bit 0 is used to select between upper and lower half
 														-- and 1 bit (overflow) is used to detect full
+signal mem_write_ADDR: std_logic_vector(D-1 downto 0);--write address coming from fifo
 														
 type waddr_sr_t is array (natural range <>) of std_logic_vector(D downto 0);
 signal waddr_sr: waddr_sr_t (MEM_LATENCY+1 downto 0);--waddr passes through a shift register to account for memory latency
 signal waddr_delayed: std_logic_vector(D downto 0);--waddr delayed to account for memory latency
 
-signal full: std_logic;--sdp is full
-signal empty: std_logic;--sdp is empty
+signal full: std_logic;--tdp_ram is full
+signal empty: std_logic;--tdp_ram is empty
 signal hit: std_logic;--cache hit
 signal miss: std_logic;--cache miss
 signal offset: std_logic_vector(7 downto D);--aka (current) page address
@@ -66,19 +102,57 @@ signal req_ADDR_reg: std_logic_vector(7 downto 0);--address of current instructi
 signal lower_WREN: std_logic;--WREN for the lower half cache
 signal upper_WREN: std_logic;--WREN for the upper half cache
 
+signal dc_fifo_empty:	std_logic;
+signal dc_fifo_full:		std_logic;
+signal dc_fifo_pop:		std_logic;
+signal dc_fifo_ovf:		std_logic;
+signal dc_fifo_data_out:std_logic_vector(32+D-1 downto 0);
+
 begin
 	--cache for the lower half of data
-	cache_lower: sdp_ram
+--	cache_to_proc: sdp_ram
+--		generic map (N => 32, L=> D)
+--		port map(RST => RST,
+--					WDAT	=> mem_IO,
+--					WCLK	=> mem_CLK,
+--					WADDR	=> waddr_delayed(D-1 downto 0),
+--					WREN	=> lower_WREN,
+--					RCLK	=> CLK,
+--					RADDR	=> raddr,
+--					RDAT	=> data(31 downto 0)
+--		);
+		
+	cache_to_proc: tdp_ram
 		generic map (N => 32, L=> D)
-		port map(RST => RST,
-					WDAT	=> mem_IO,
-					WCLK	=> mem_CLK,
-					WADDR	=> waddr_delayed(D-1 downto 0),
-					WREN	=> lower_WREN,
-					RCLK	=> CLK,
-					RADDR	=> raddr,
-					RDAT	=> data(31 downto 0)
+		port map(CLK_A	=> mem_CLK,
+					WDAT_A=> mem_I,
+					ADDR_A=> waddr_delayed(D-1 downto 0),
+					WREN_A=> lower_WREN,
+					Q_A	=> OPEN,
+					CLK_B	=> CLK,
+					WDAT_B=> req_data_in,
+					ADDR_B=> raddr,
+					WREN_B=> req_wren,
+					Q_B	=> data(31 downto 0)
 		);
+	
+	-- stores the writes made to cache
+	fifo: dc_fifo	generic map (N=> D+32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
+						port map(DATA_IN => raddr & data,
+									RST => RST,
+									WCLK => CLK,
+									WREN => req_wren,
+									FULL => dc_fifo_full,
+									EMPTY => dc_fifo_empty,
+									OVF => dc_fifo_ovf,
+									RCLK => mem_CLK,
+									POP => dc_fifo_pop,
+									DATA_OUT => dc_fifo_data_out);
+									
+	mem_write_ADDR <= dc_fifo_data_out(32+D-1 downto 32); 
+	mem_O <= dc_fifo_data_out(31 downto 0); 
+	dc_fifo_pop <= (not dc_fifo_empty);
+	mem_WREN <= dc_fifo_pop;
 		
 --	--cache for the lower half of data
 --	cache_lower: sdp_ram
@@ -107,16 +181,16 @@ begin
 --		);
 		
 	--bit 0 is used to select between upper and lower half
-	lower_WREN <= not full;
+	lower_WREN <= not full and dc_fifo_empty;
 --	lower_WREN <= (not full) and (not waddr(0));--even address in SRAM refers to lower half
 --	upper_WREN <= (not full) and waddr(0);--odd address in SRAM refers to upper half
 		
 	--cache write address generation
-	process(mem_CLK,full,WADDR,miss,RST)
+	process(mem_CLK,full,WADDR,miss,dc_fifo_empty,RST)
 	begin
 		if(miss='1' or RST='1')then
 			waddr <= (others=>'0');
-		elsif(rising_edge(mem_CLK) and waddr /= ('1' & (D-1 downto 0=>'0'))) then
+		elsif(rising_edge(mem_CLK) and waddr /= ('1' & (D-1 downto 0=>'0')) and dc_fifo_empty='1') then
 			waddr <= waddr + '1';
 		end if;
 	end process;
@@ -137,8 +211,8 @@ begin
 	
 	offset <= req_ADDR_reg(7 downto D);--current offset (aka page address)
 	
-	mem_ADDR <= (7 downto 8 => '0') & offset & waddr(D-1 downto 0);--NOT delayed because this address will be used to read to RAM, bit 0 must be included
-	
+	mem_ADDR <= (7 downto 8 => '0') & offset & waddr(D-1 downto 0) when full='0' else --NOT delayed because this address will be used to read to RAM, bit 0 must be included
+					(7 downto 8 => '0') & offset & mem_write_ADDR;
 	full <= '1' when waddr_delayed=('1' & (D-1 downto 0=>'0')) else '0';--next position to write exceeds ram limits
 	
 	--previous_offset generation
@@ -161,7 +235,7 @@ begin
 	
 	process(RST,CLK,waddr,raddr,miss)
 	begin
-		if(miss='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
+		if(miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
 			req_ready<='0';
 		elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
 			req_ready <= '1';

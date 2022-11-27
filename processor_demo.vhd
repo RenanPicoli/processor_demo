@@ -101,17 +101,21 @@ component mini_rom
 end component;
 
 component cache
-	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
+	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
 	port (
-			req_ADDR: in std_logic_vector(7 downto 0);--address of requested instruction
+			req_ADDR: in std_logic_vector(7 downto 0);--address of requested data
 			req_rden: in std_logic;--read requested
-			CLK: in std_logic;--processor clock for reading instructions, must run even if cache is not ready
-			mem_IO: in std_logic_vector(31 downto 0);--data coming from embedded RAM for write
+			req_wren: in std_logic:='0';--write requested
+			req_data_in: in std_logic_vector(31 downto 0):=(others=>'0');--data for write request
+			CLK: in std_logic;--processor clock for reading/writing data, must run even if cache is not ready
+			mem_I: in std_logic_vector(31 downto 0);--data coming from embedded RAM
 			mem_CLK: in std_logic;--clock for reading embedded RAM
 			RST: in std_logic;--reset to prevent reading while sram is written (must be synchronous to mem_CLK)
-			mem_ADDR: out std_logic_vector(7 downto 0);--address for write
-			req_ready: out std_logic;--indicates that instruction already contains the requested instruction
-			data: out std_logic_vector(31 downto 0)--fetched data or instruction
+			mem_ADDR: out std_logic_vector(7 downto 0);--address for memory read/write
+			mem_WREN: out std_logic:='0';
+			req_ready: out std_logic;--indicates that data already contains the requested data
+			mem_O: out std_logic_vector(31 downto 0);--data to be written in embedded RAM
+			data: out std_logic_vector(31 downto 0)--fetched data
 	);
 end component;
 
@@ -509,6 +513,7 @@ signal instruction_memory_addr: std_logic_vector(7 downto 0);
 signal instruction_memory_Q: std_logic_vector(31 downto 0);
 signal instruction_memory_wren: std_logic;
 signal instruction_memory_rden: std_logic;
+signal instruction_memory_write_data: std_logic_vector(31 downto 0);
 
 -----------signals for d_cache interfacing---------------------
 signal program_data_Q: std_logic_vector(31 downto 0);
@@ -737,7 +742,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 									ADDR_A=> rom_ADDR,
 									Q_A	=> rom_output,
 									--data interface (read-write)
-									D_B	=> ram_write_data,
+									D_B	=> instruction_memory_write_data,
 									ADDR_B=> instruction_memory_addr,
 									WREN_B=> instruction_memory_wren,
 									Q_B	=> instruction_memory_Q
@@ -749,7 +754,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				req_ADDR => instruction_memory_address,--address of requested instruction
 				req_rden => '1',
 				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
-				mem_IO => rom_output,--data coming from SRAM for write
+				mem_I => rom_output,--data coming from SRAM for write
 				mem_CLK => rom_clk,--clock for reading embedded RAM
 				RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
 				mem_ADDR => rom_ADDR,--address for write
@@ -764,12 +769,16 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		port map (
 				req_ADDR => ram_addr(7 downto 0),--address of requested data/instruction
 				req_rden => program_data_rden,
+				req_wren => program_data_wren,
+				req_data_in => ram_write_data,
 				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
-				mem_IO => instruction_memory_Q,--data coming from SRAM for write
+				mem_I => instruction_memory_Q,--data coming from SRAM for write
 				mem_CLK => rom_clk,--clock for reading embedded RAM
 				RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
 				mem_ADDR => instruction_memory_addr,--address for write
 				req_ready => program_data_ready,--indicates that instruction already contains the requested instruction
+				mem_WREN => instruction_memory_wren,
+				mem_O		=> instruction_memory_write_data,
 				data => program_data_Q--fetched data
 		);
 	
