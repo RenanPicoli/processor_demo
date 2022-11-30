@@ -756,7 +756,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
 				mem_I => rom_output,--data coming from SRAM for write
 				mem_CLK => rom_clk,--clock for reading embedded RAM
-				RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+				RST => rst,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
 				mem_ADDR => rom_ADDR,--address for write
 				req_ready => i_cache_ready,--indicates that instruction already contains the requested instruction
 				data => instruction_memory_output--fetched instruction
@@ -774,7 +774,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
 				mem_I => instruction_memory_Q,--data coming from SRAM for write
 				mem_CLK => rom_clk,--clock for reading embedded RAM
-				RST => '0',--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
+				RST => rst,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
 				mem_ADDR => instruction_memory_addr,--address for write
 				req_ready => program_data_ready,--indicates that instruction already contains the requested instruction
 				mem_WREN => instruction_memory_wren,

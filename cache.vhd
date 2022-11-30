@@ -235,7 +235,7 @@ begin
 	
 	process(RST,CLK,waddr,raddr,miss)
 	begin
-		if(miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
+		if(RST='1' or miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
 			req_ready<='0';
 		elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
 			req_ready <= '1';
