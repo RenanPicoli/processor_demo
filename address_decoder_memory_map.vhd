@@ -54,6 +54,7 @@ begin
 end function;
 
 signal output: std_logic_vector(31 downto 0);-- data read
+signal sel_periph_index: natural;
 begin
 	-- mux of data read
 	process(ADDR,RDEN,WREN,data_in)
@@ -64,6 +65,7 @@ begin
 		variable lower_lim_slv: std_logic_vector(N-1 downto 0);
 	begin
 		output <= (others=>'0');
+		sel_periph_index <= 0;
 		-- i-th element of data_in is associated with address i
 		for i in data_in'range loop
 			--decompose B(i)(0) in m * 2^p, m,p natural
@@ -91,16 +93,19 @@ begin
 			
 			--if ((B(i)(0) <= to_integer(unsigned(ADDR))) and (to_integer(unsigned(ADDR)) <= B(i)(1))) then
 			if (ADDR(N-1 downto N-mask_length) = lower_lim_slv(N-1 downto N-mask_length)) then
+				sel_periph_index <= i;
 				RDEN_OUT(i) <= RDEN;
 				WREN_OUT(i) <= WREN;
 				output <= data_in(i);
-				ready_out <= ready_in(i);
+--				ready_out <= ready_in(i);
 			else
 				RDEN_OUT(i) <='0';
 				WREN_OUT(i) <='0';
 			end if;
 		end loop;
 	end process;
+	
+	ready_out <= ready_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
 	
 	data_out <= output;
 end behv;
