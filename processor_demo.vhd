@@ -69,7 +69,7 @@ port (CLK_IN: in std_logic;
 		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
-		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to mini_rom)
+		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to i_cache)
 		Q_rom:	in std_logic_vector(31 downto 0);
 		i_cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
 		-----RAM-----------
@@ -753,7 +753,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		port map (
 				req_ADDR => instruction_memory_address,--address of requested instruction
 				req_rden => '1',
-				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
+				CLK => instruction_clk,--processor clock for reading instructions, must run even if i_cache is not ready
 				mem_I => rom_output,--data coming from SRAM for write
 				mem_CLK => rom_clk,--clock for reading embedded RAM
 				RST => rst,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
