@@ -222,7 +222,7 @@ begin
 		if(RST='1')then
 			previous_offset <= (others=>'0');
 			req_ADDR_reg <= (others=>'0');
-		elsif(rising_edge(CLK) and req_rden='1') then
+		elsif(rising_edge(CLK) and (req_rden='1' or req_wren='1')) then
 			previous_offset <= offset;
 			if(req_ready='1')then
 				req_ADDR_reg <= req_ADDR;
