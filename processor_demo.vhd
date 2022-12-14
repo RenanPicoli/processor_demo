@@ -508,6 +508,7 @@ signal instruction_upper_half_latched: std_logic;
 signal instruction_lower_half_latched: std_logic;
 signal i_cache_ready: std_logic;
 signal i_cache_ready_sync: std_logic;--i_cache_ready synchronized to rising_edge(CLK)
+signal all_ready: std_logic;--synchronized to rising_edge(CLK)
 signal instruction_clk: std_logic;
 signal instruction_memory_addr: std_logic_vector(7 downto 0);
 signal instruction_memory_Q: std_logic_vector(31 downto 0);
@@ -781,6 +782,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				mem_O		=> instruction_memory_write_data,
 				data => program_data_Q--fetched data
 		);
+		
+		all_ready <= ( i_cache_ready) and ( program_data_ready);
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
@@ -1320,7 +1323,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
 			RDEN => irq_ctrl_rden,-- input
-			REQ_READY => i_cache_ready_sync,--synchronized to rising_edge(CLK)
+			REQ_READY => all_ready,--synchronized to rising_edge(CLK)
 			IRQ_IN => all_irq,--input: all IRQ lines
 			IRQ_OUT => irq,--output: IRQ line to cpu
 			IACK_IN => iack,--input: IACK line coming from cpu
