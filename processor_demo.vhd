@@ -783,7 +783,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				data => program_data_Q--fetched data
 		);
 		
-		all_ready <= ( i_cache_ready) and ( program_data_ready);
+		all_ready <= ( i_cache_ready) and ( d_cache_ready_sync);
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
