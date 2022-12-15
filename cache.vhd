@@ -101,6 +101,7 @@ signal req_ADDR_reg: std_logic_vector(7 downto 0);--address of current instructi
 
 signal lower_WREN: std_logic;--WREN for the lower half cache
 signal upper_WREN: std_logic;--WREN for the upper half cache
+signal CLK_n: std_logic;--oposite polarity of processor clock, req_ADDR,req_wren are generated at positive edge of CLK, data must be ready before next rising edge
 
 signal dc_fifo_empty:	std_logic;
 signal dc_fifo_full:		std_logic;
@@ -121,7 +122,8 @@ begin
 --					RADDR	=> raddr,
 --					RDAT	=> data(31 downto 0)
 --		);
-		
+	
+	CLK_n <= not CLK;
 	cache_to_proc: tdp_ram
 		generic map (N => 32, L=> D)
 		port map(CLK_A	=> mem_CLK,
@@ -129,7 +131,7 @@ begin
 					ADDR_A=> waddr_delayed(D-1 downto 0),
 					WREN_A=> lower_WREN,
 					Q_A	=> OPEN,
-					CLK_B	=> CLK,
+					CLK_B	=> CLK_n,
 					WDAT_B=> req_data_in,
 					ADDR_B=> raddr,
 					WREN_B=> req_wren,
@@ -140,7 +142,7 @@ begin
 	fifo: dc_fifo	generic map (N=> D+32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
 						port map(DATA_IN => raddr & data,
 									RST => RST,
-									WCLK => CLK,
+									WCLK => CLK_n,
 									WREN => req_wren,
 									FULL => dc_fifo_full,
 									EMPTY => dc_fifo_empty,
@@ -209,7 +211,7 @@ begin
 	--cache read address generation
 	raddr <= req_ADDR(D-1 downto 0) when req_ready='1' else req_ADDR_reg(D-1 downto 0);--not registered here, but raddr is "registered" inside sdp_ram
 	
-	offset <= req_ADDR_reg(7 downto D);--current offset (aka page address)
+	offset <= req_ADDR(7 downto D);--current offset (aka page address)
 	
 	mem_ADDR <= (7 downto 8 => '0') & offset & waddr(D-1 downto 0) when full='0' else --NOT delayed because this address will be used to read to RAM, bit 0 must be included
 					(7 downto 8 => '0') & offset & mem_write_ADDR;
