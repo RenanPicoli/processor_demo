@@ -101,7 +101,7 @@ component mini_rom
 end component;
 
 component cache
-	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
+	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4; REGISTER_ADDR: boolean);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
 	port (
 			req_ADDR: in std_logic_vector(7 downto 0);--address of requested data
 			req_rden: in std_logic;--read requested
@@ -489,7 +489,8 @@ signal error_flag: std_logic;-- '1' if expected_output is different from actual 
 
 -------------------clocks---------------------------------
 --signal rising_CLK_occur: std_logic;--rising edge of CLK occurred after filter_CLK falling edge
-signal CLK: std_logic;--clock for processor and cache (50MHz)
+signal CLK: std_logic;--clock for processor and cache
+signal CLK_n: std_logic;--negated CLK
 signal CLK_dbg: std_logic;--clock for debug, check timing analyzer or the pll_dbg wizard
 signal CLK_fs: std_logic;-- 11.029kHz clock
 signal CLK_fs_dbg: std_logic;-- 110.29kHz clock (10fs)
@@ -750,7 +751,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);
 	
 	i_cache: cache
-		generic map (REQUESTED_SIZE => 128, MEM_LATENCY=> 1)--user requested cache size, in 32 bit words
+		generic map (REQUESTED_SIZE => 128, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 		port map (
 				req_ADDR => instruction_memory_address,--address of requested instruction
 				req_rden => '1',
@@ -765,14 +766,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		
 	i_cache_ready_sync <= i_cache_ready;
 	
+	CLK_n <= not CLK;
 	d_cache: cache
-		generic map (REQUESTED_SIZE => 128, MEM_LATENCY=> 1)--user requested cache size, in 32 bit words
+		generic map (REQUESTED_SIZE => 128, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
 				req_ADDR => ram_addr(7 downto 0),--address of requested data/instruction
 				req_rden => program_data_rden,
 				req_wren => program_data_wren,
 				req_data_in => ram_write_data,
-				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
+				CLK => CLK_n,--processor clock for reading instructions, must run even if cache is not ready
 				mem_I => instruction_memory_Q,--data coming from SRAM for write
 				mem_CLK => rom_clk,--clock for reading embedded RAM
 				RST => rst,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
