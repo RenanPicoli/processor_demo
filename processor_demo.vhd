@@ -77,7 +77,7 @@ port (CLK_IN: in std_logic;
 		write_data_ram: out std_logic_vector(31 downto 0);
 		rden_ram: out std_logic;--enables read on ram
 		wren_ram: out std_logic;--enables write on ram
-		d_cache_ready: in std_logic;--indicates d_cache is ready (Q_ram is valid)
+		d_cache_ready: in std_logic;--indicates d_cache is ready (Q_ram is valid), synchronous to falling_edge(CLK_IN)
 		wren_lvec: out std_logic;--enables load vector: loads vector of 8 std_logic_vector in parallel
 		lvec_src: out std_logic_vector(2 downto 0);--a single source address for lvec
 		lvec_dst_mask: out std_logic_vector(6 downto 0);--mask for destination(s) address(es) for lvec
@@ -784,8 +784,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				mem_O		=> instruction_memory_write_data,
 				data => program_data_Q--fetched data
 		);
-		
-		all_ready <= ( i_cache_ready) and ( d_cache_ready_sync);
+	process(i_cache_ready,d_cache_ready,CLK)
+	begin
+		if(RST='1')then
+			all_ready <= '1';
+		elsif(falling_edge(CLK))then--reprocuces delay in clk_enable
+			all_ready <= i_cache_ready and d_cache_ready_sync;
+		end if;
+	end process;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
