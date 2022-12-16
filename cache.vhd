@@ -14,7 +14,7 @@ use work.my_types.all;--array32
 use ieee.math_real.all;--ceil and log2
 
 entity cache is
-	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
+	generic (REQUESTED_SIZE: natural; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4; REGISTER_ADDR: boolean);--REQUESTED_SIZE: user requested cache size, in 32 bit words; MEM_LATENCY: latency of program memory in MEM_CLK cycles
 	port (
 			req_ADDR: in std_logic_vector(7 downto 0);--address of requested data
 			req_rden: in std_logic;--read requested
@@ -131,7 +131,7 @@ begin
 					ADDR_A=> waddr_delayed(D-1 downto 0),
 					WREN_A=> lower_WREN,
 					Q_A	=> OPEN,
-					CLK_B	=> CLK_n,
+					CLK_B	=> CLK,
 					WDAT_B=> req_data_in,
 					ADDR_B=> raddr,
 					WREN_B=> req_wren,
@@ -142,7 +142,7 @@ begin
 	fifo: dc_fifo	generic map (N=> D+32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
 						port map(DATA_IN => raddr & data,
 									RST => RST,
-									WCLK => CLK_n,
+									WCLK => CLK,
 									WREN => req_wren,
 									FULL => dc_fifo_full,
 									EMPTY => dc_fifo_empty,
@@ -211,7 +211,13 @@ begin
 	--cache read address generation
 	raddr <= req_ADDR(D-1 downto 0) when req_ready='1' else req_ADDR_reg(D-1 downto 0);--not registered here, but raddr is "registered" inside sdp_ram
 	
-	offset <= req_ADDR(7 downto D);--current offset (aka page address)
+	registered_offset: if REGISTER_ADDR generate--when req_ADDR is the NEXT address 
+		offset <= req_ADDR_reg(7 downto D);--current offset (aka page address)
+	end generate;
+	
+	unregistered_offset: if not REGISTER_ADDR generate--when req_ADDR is the CURRENT address 
+		offset <= req_ADDR(7 downto D);--current offset (aka page address)
+	end generate;
 	
 	mem_ADDR <= (7 downto 8 => '0') & offset & waddr(D-1 downto 0) when full='0' else --NOT delayed because this address will be used to read to RAM, bit 0 must be included
 					(7 downto 8 => '0') & offset & mem_write_ADDR;
