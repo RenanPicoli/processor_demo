@@ -157,7 +157,7 @@ begin
 							fsm_state(i) <= "01";--enters in IRQ_started state
 						end if;
 					--IRQ_started state
-					elsif(fsm_state(i)="01")then
+					elsif(fsm_state(i)="01" and REQ_READY='1')then
 						if(IACK_IN='1' and IRQ_active(i)='1')then-- its ISR finished, cpu sent IACK
 							fsm_state(i) <= "00";--enters in idle state
 						end if;
@@ -201,12 +201,12 @@ begin
 				tmp(i) <= tmp(i-1) or tmp_IRQ_out(i);
 			end generate tmp_i;
 			
-			process(RST,IRQ_IN,CLK,IRQ_started,IRQ_pend,preemption)
+			process(RST,IRQ_IN,CLK,IRQ_started,IRQ_pend,preemption,REQ_READY)
 			begin
 				if(RST='1')then
 					tmp_IRQ_out(i) <= '0';
 				elsif(rising_edge(CLK))then
-					if(IRQ_started(i)='1')then
+					if(IRQ_started(i)='1' and REQ_READY='1')then
 						tmp_IRQ_out(i) <='0';
 					elsif(IRQ_pend(i)='1' and preemption(i)='0')then
 						tmp_IRQ_out(i) <='1';
