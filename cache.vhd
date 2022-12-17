@@ -238,14 +238,14 @@ begin
 		end if;
 	end process;
 	
-	hit <= '1' when offset=previous_offset else '0';
+	hit <= '1' when offset=previous_offset and (req_wren='1' or req_rden='1') else '0';
 	miss <= not hit;
 	
-	process(RST,CLK,waddr,raddr,miss)
+	process(RST,CLK,waddr,raddr,miss,req_rden,req_wren)
 	begin
 		if(RST='1' or miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
 			req_ready<='0';
-		elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
+		elsif(rising_edge(CLK) and (req_wren='1' or req_rden='1'))then--this is to allow time for current requested address to be read in rising_edge
 			req_ready <= '1';
 		end if;
 	end process;	
