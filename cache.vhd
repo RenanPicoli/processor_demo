@@ -98,7 +98,9 @@ signal miss: std_logic;--cache miss
 signal offset: std_logic_vector(7 downto D);--aka (current) page address
 signal previous_offset: std_logic_vector(7 downto D);--offset during previous RCLK cycle
 signal req_ADDR_reg: std_logic_vector(7 downto 0);--address of current instruction/data a RDAT
+signal req_ready_sr: std_logic_vector(1 downto 0);
 
+signal req_wren_ready: std_logic;-- so that cache is written only when ready
 signal lower_WREN: std_logic;--WREN for the lower half cache
 signal upper_WREN: std_logic;--WREN for the upper half cache
 signal CLK_n: std_logic;--oposite polarity of processor clock, req_ADDR,req_wren are generated at positive edge of CLK, data must be ready before next rising edge
@@ -124,6 +126,7 @@ begin
 --		);
 	
 	CLK_n <= not CLK;
+	
 	cache_to_proc: tdp_ram
 		generic map (N => 32, L=> D)
 		port map(CLK_A	=> mem_CLK,
@@ -134,9 +137,10 @@ begin
 					CLK_B	=> CLK,
 					WDAT_B=> req_data_in,
 					ADDR_B=> raddr,
-					WREN_B=> req_wren,
+					WREN_B=> req_wren_ready,
 					Q_B	=> data(31 downto 0)
 		);
+	req_wren_ready <= req_wren and req_ready;
 	
 	-- stores the writes made to cache
 	fifo: dc_fifo	generic map (N=> D+32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
@@ -209,7 +213,23 @@ begin
 	waddr_delayed <= waddr_sr(MEM_LATENCY);-- waddr was delayed MEM_LATENCY clocks (of mem_CLK)
 	
 	--cache read address generation
-	raddr <= req_ADDR(D-1 downto 0) when req_ready='1' else req_ADDR_reg(D-1 downto 0);--not registered here, but raddr is "registered" inside sdp_ram
+--	process(CLK,req_ready)
+--	begin
+--		if(falling_edge(CLK))then
+--			if(req_ready='1')then
+--				raddr <= req_ADDR(D-1 downto 0);
+--			else
+--				raddr <= req_ADDR_reg(D-1 downto 0);
+--			end if;
+--		end if;
+--	end process;
+	registered_raddr: if REGISTER_ADDR generate--when req_ADDR is the NEXT address
+		raddr <= req_ADDR(D-1 downto 0) when (req_ready='1') else req_ADDR_reg(D-1 downto 0);
+	end generate;
+	
+	unregistered_raddr: if not REGISTER_ADDR generate--when req_ADDR is the CURRENT address
+		raddr <= req_ADDR(D-1 downto 0);
+	end generate;
 	
 	registered_offset: if REGISTER_ADDR generate--when req_ADDR is the NEXT address 
 		offset <= req_ADDR_reg(7 downto D);--current offset (aka page address)
@@ -223,30 +243,82 @@ begin
 					(7 downto 8 => '0') & offset & mem_write_ADDR;
 	full <= '1' when waddr_delayed=('1' & (D-1 downto 0=>'0')) else '0';--next position to write exceeds ram limits
 	
-	--previous_offset generation
-	--registers address for correct operation of flag req_ready
-	process(CLK,offset,req_ready,RST)
-	begin
-		if(RST='1')then
-			previous_offset <= (others=>'0');
-			req_ADDR_reg <= (others=>'0');
-		elsif(rising_edge(CLK) and (req_rden='1' or req_wren='1')) then
-			previous_offset <= offset;
-			if(req_ready='1')then
-				req_ADDR_reg <= req_ADDR;
+	registered_previous_offset: if REGISTER_ADDR generate
+		--previous_offset generation
+		--registers address for correct operation of flag req_ready
+		process(CLK,offset,req_ready,RST)
+		begin
+			if(RST='1')then
+				previous_offset <= (others=>'0');
+				req_ADDR_reg <= (others=>'0');
+			elsif(rising_edge(CLK) and (req_rden='1' or req_wren='1')) then
+				previous_offset <= offset;
+				if(req_ready='1')then
+					req_ADDR_reg <= req_ADDR;
+				end if;
 			end if;
+		end process;
+	end generate;
+	
+	unregistered_previous_offset: if not REGISTER_ADDR generate
+		--previous_offset generation
+		--registers address for correct operation of flag req_ready
+		process(CLK,offset,req_ready,miss,RST)
+		begin
+			if(RST='1')then
+				previous_offset <= (others=>'0');
+				req_ADDR_reg <= (others=>'0');
+			elsif(rising_edge(CLK) and (req_rden='1' or req_wren='1')) then
+				if(miss='1') then
+					previous_offset <= offset;
+				end if;
+				if(req_ready='1')then
+					req_ADDR_reg <= req_ADDR;
+				end if;
+			end if;
+		end process;
+	end generate;
+	
+	process(req_rden,req_wren,offset,previous_offset)
+	begin
+		if (req_wren='1' or req_rden='1') then
+			if (offset=previous_offset) then
+				hit <= '1';
+			else
+				hit <= '0';
+			end if;
+		else
+			hit <= '1';
 		end if;
 	end process;
-	
-	hit <= '1' when offset=previous_offset and (req_wren='1' or req_rden='1') else '0';
 	miss <= not hit;
 	
-	process(RST,CLK,waddr,raddr,miss,req_rden,req_wren)
-	begin
-		if(RST='1' or miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
-			req_ready<='0';
-		elsif(rising_edge(CLK) and (req_wren='1' or req_rden='1'))then--this is to allow time for current requested address to be read in rising_edge
-			req_ready <= '1';
-		end if;
-	end process;	
+	registered_ready: if REGISTER_ADDR generate--when req_ADDR is the NEXT address	
+		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren)
+		begin
+			if(RST='1' or miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
+				req_ready <= '0';
+			elsif(rising_edge(CLK) and (req_wren='1' or req_rden='1'))then--this is to allow time for current requested address to be read in rising_edge
+				req_ready <= '1';
+			end if;
+		end process;
+	end generate;
+	
+	unregistered_ready: if not REGISTER_ADDR generate--when req_ADDR is the NEXT address	
+		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren)
+		begin
+			if(RST='1' or miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
+				req_ready_sr <= "01";
+			elsif(rising_edge(CLK) and (req_wren='1' or req_rden='1'))then--this is to allow time for current requested address to be read in rising_edge
+				if(req_rden='1' and req_ready_sr = "01")then--at the first cycle of a read request, data isn't valid
+					req_ready_sr <= "10";
+				elsif(req_rden='1')then
+					req_ready_sr <= "11";
+				else--request for write
+					req_ready_sr <= (others=>'1');
+				end if;
+			end if;
+		end process;
+		req_ready <= '1' when (req_ready_sr="11") else '0';
+	end generate;
 end structure;

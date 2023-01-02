@@ -77,7 +77,7 @@ port (CLK_IN: in std_logic;
 		write_data_ram: out std_logic_vector(31 downto 0);
 		rden_ram: out std_logic;--enables read on ram
 		wren_ram: out std_logic;--enables write on ram
-		d_cache_ready: in std_logic;--indicates d_cache is ready (Q_ram is valid), synchronous to falling_edge(CLK_IN)
+		d_cache_ready: in std_logic;--indicates d_cache is ready (Q_ram is valid), synchronous to rising_edge(CLK_IN)
 		wren_lvec: out std_logic;--enables load vector: loads vector of 8 std_logic_vector in parallel
 		lvec_src: out std_logic_vector(2 downto 0);--a single source address for lvec
 		lvec_dst_mask: out std_logic_vector(6 downto 0);--mask for destination(s) address(es) for lvec
@@ -774,7 +774,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				req_rden => program_data_rden,
 				req_wren => program_data_wren,
 				req_data_in => ram_write_data,
-				CLK => CLK_n,--processor clock for reading instructions, must run even if cache is not ready
+				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
 				mem_I => instruction_memory_Q,--data coming from SRAM for write
 				mem_CLK => rom_clk,--clock for reading embedded RAM
 				RST => rst,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
