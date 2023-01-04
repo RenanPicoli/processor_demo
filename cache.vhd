@@ -194,10 +194,14 @@ begin
 	--cache write address generation
 	process(mem_CLK,full,WADDR,miss,dc_fifo_empty,RST)
 	begin
-		if(miss='1' or RST='1')then
+		if(RST='1')then
 			waddr <= (others=>'0');
-		elsif(rising_edge(mem_CLK) and waddr /= ('1' & (D-1 downto 0=>'0')) and dc_fifo_empty='1') then
-			waddr <= waddr + '1';
+		elsif(rising_edge(mem_CLK)) then
+			if(miss='1')then
+				waddr <= (others=>'0');
+			elsif(waddr /= ('1' & (D-1 downto 0=>'0')) and dc_fifo_empty='1')then
+				waddr <= waddr + '1';
+			end if;
 		end if;
 	end process;
 	
@@ -279,6 +283,7 @@ begin
 		end process;
 	end generate;
 	
+	--glitches may happen
 	process(req_rden,req_wren,offset,previous_offset)
 	begin
 		if (req_wren='1' or req_rden='1') then
@@ -291,15 +296,19 @@ begin
 			hit <= '1';
 		end if;
 	end process;
-	miss <= not hit;
+	miss <= not hit;--glitches may happen
 	
 	registered_ready: if REGISTER_ADDR generate--when req_ADDR is the NEXT address	
 		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren)
 		begin
-			if(RST='1' or miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
+			if(RST='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
 				req_ready <= '0';
 			elsif(rising_edge(CLK) and (req_wren='1' or req_rden='1'))then--this is to allow time for current requested address to be read in rising_edge
-				req_ready <= '1';
+				if(miss='1')then
+					req_ready <= '0';
+				else
+					req_ready <= '1';
+				end if;
 			end if;
 		end process;
 	end generate;
