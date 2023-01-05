@@ -316,12 +316,10 @@ begin
 	unregistered_ready: if not REGISTER_ADDR generate--when req_ADDR is the NEXT address	
 		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren)
 		begin
-			if(RST='1' or miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
+			if(RST='1' or miss='1' or (req_rden='1' and req_ready_sr="11") or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
 				req_ready_sr <= "01";
 			elsif(rising_edge(CLK) and (req_wren='1' or req_rden='1'))then--this is to allow time for current requested address to be read in rising_edge
-				if(req_rden='1' and req_ready_sr = "01")then--at the first cycle of a read request, data isn't valid
-					req_ready_sr <= "10";
-				elsif(req_rden='1')then
+				if(req_rden='1')then
 					req_ready_sr <= "11";
 				else--request for write
 					req_ready_sr <= (others=>'1');
