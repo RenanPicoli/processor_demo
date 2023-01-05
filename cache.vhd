@@ -325,7 +325,7 @@ begin
 					req_ready_sr <= "11";
 				elsif(req_rden='1' and req_ready_sr="01" and (waddr_sr(MEM_LATENCY+1)(D downto 0) >= raddr(D-1 downto 0)))then--a miss occurred
 					req_ready_sr <= "11";
-				elsif(req_rden='1' and  req_ready="11")then
+				elsif(req_rden='1' and  req_ready_sr="11")then
 					req_ready_sr <= "00";--idle state => req_ready='1'
 				else--request for write
 					req_ready_sr <= (others=>'1');
