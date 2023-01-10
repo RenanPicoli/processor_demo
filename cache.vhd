@@ -318,24 +318,18 @@ begin
 		begin
 			if(RST='1')then
 				req_ready_sr <= "00";
-			elsif(req_wren='1')then
-				req_ready_sr <= "11";--writes force req_ready='1'
-			elsif(miss='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
+			elsif((req_wren='1' or req_rden='1') and req_ready_sr="00")then
 				req_ready_sr <= "01";
-			elsif(req_rden='1' and req_ready_sr="00")then--when a read request occurs (no miss), req_ready will be deasserted
-				req_ready_sr <= "10";
-			elsif(rising_edge(CLK) and req_rden='1')then--this is to allow time for current requested address to be read in rising_edge
-				if(req_ready_sr="10")then--only a read request, with miss
+			elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
+				if(req_ready_sr="01" and hit='1')then
+					req_ready_sr <= "00";
+				elsif(req_ready_sr="01" and miss='1')then
 					req_ready_sr <= "11";
-				elsif(req_ready_sr="01" and (waddr_sr(MEM_LATENCY+1)(D downto 0) >= raddr(D-1 downto 0)))then--a miss occurred
-					req_ready_sr <= "11";
-				elsif(req_ready_sr="11")then
-					req_ready_sr <= "00";--idle state => req_ready='1'
-				else--request for write
-					req_ready_sr <= (others=>'1');
+				elsif(req_ready_sr="11" and (waddr_sr(MEM_LATENCY+1)(D downto 0) >= raddr(D-1 downto 0)))then--a miss occurred
+					req_ready_sr <= "00";
 				end if;
 			end if;
 		end process;
-		req_ready <= '1' when (req_ready_sr="11" or req_ready_sr="00") else '0';
+		req_ready <= '1' when (req_ready_sr="00") else '0';
 	end generate;
 end structure;
