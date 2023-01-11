@@ -298,7 +298,7 @@ begin
 	end process;
 	miss <= not hit;--glitches may happen
 	
-	registered_ready: if REGISTER_ADDR generate--when req_ADDR is the NEXT address	
+	registered_ready: if REGISTER_ADDR generate--when req_ADDR is the NEXT address
 		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren)
 		begin
 			if(RST='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(D downto 0) <= raddr(D-1 downto 0)))then
@@ -313,23 +313,25 @@ begin
 		end process;
 	end generate;
 	
-	unregistered_ready: if not REGISTER_ADDR generate--when req_ADDR is the NEXT address	
+	unregistered_ready: if not REGISTER_ADDR generate--when req_ADDR is the the CURRENT address	
 		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren)
 		begin
 			if(RST='1')then
 				req_ready_sr <= "00";
 			elsif((req_wren='1' or req_rden='1') and req_ready_sr="00")then
-				req_ready_sr <= "01";
+				req_ready_sr <= "01";--forces req_ready<= '0'
 			elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
 				if(req_ready_sr="01" and hit='1')then
 					req_ready_sr <= "00";
 				elsif(req_ready_sr="01" and miss='1')then
 					req_ready_sr <= "11";
-				elsif(req_ready_sr="11" and (waddr_sr(MEM_LATENCY+1)(D downto 0) >= raddr(D-1 downto 0)))then--a miss occurred
+				elsif(req_ready_sr="11" and (waddr_sr(MEM_LATENCY+1)(D downto 0) >= raddr(D-1 downto 0)))then--recovered from a miss
+					req_ready_sr <= "10";
+				elsif(req_ready_sr="10")then
 					req_ready_sr <= "00";
 				end if;
 			end if;
 		end process;
-		req_ready <= '1' when (req_ready_sr="00") else '0';
+		req_ready <= '1' when (req_ready_sr="00" or req_ready_sr="10") else '0';
 	end generate;
 end structure;
