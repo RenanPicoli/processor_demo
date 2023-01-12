@@ -73,10 +73,10 @@ begin
 				data => program_data_Q--fetched data
 		);
 		
-		ram_addr(7 downto 0) <= x"00", x"F3" after TIME_RST+20 ns, x"32" after 53020 ns, x"F6" after 54770 ns, x"32" after 57770 ns, x"00" after 61270 ns;
+		ram_addr(7 downto 0) <= x"00", x"F3" after TIME_RST+20 ns, x"32" after 53020 ns, x"F6" after 54770 ns, x"32" after 57770 ns, x"00" after 60020 ns;
 		ram_addr(8) <= '1' when (program_data_rden='1' or program_data_wren='1') else '0';
 		program_data_wren <= '0', '1' after 57770 ns, '0' after 59520 ns;
-		program_data_rden <= '0','1' after TIME_RST+20 ns,'0' after 57770 ns, '1' after 59520 ns, '0' after 61270 ns;
+		program_data_rden <= '0','1' after TIME_RST+20 ns,'0' after 57770 ns, '1' after 59520 ns, '0' after 60020 ns;
 		ram_write_data <= (others => '0'), x"00005827" after 57770 ns, (others => 'X') after 59520 ns;
 	
 	rom_clk <= CLK_IN;
