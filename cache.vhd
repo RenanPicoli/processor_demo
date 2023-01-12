@@ -322,7 +322,7 @@ begin
 				req_ready_sr <= "01";--forces req_ready<= '0'
 			elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
 				if(req_ready_sr="01" and hit='1')then
-					req_ready_sr <= "00";
+					req_ready_sr <= "10";
 				elsif(req_ready_sr="01" and miss='1')then
 					req_ready_sr <= "11";
 				elsif(req_ready_sr="11" and (waddr_sr(MEM_LATENCY+1)(D downto 0) >= raddr(D-1 downto 0)))then--recovered from a miss
