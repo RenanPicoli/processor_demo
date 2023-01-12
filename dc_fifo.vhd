@@ -60,7 +60,10 @@ constant FIFO_DEPTH: natural := 2**log2_FIFO_DEPTH;--real fifo depth SHOULD BE A
 
 --pop: tells the fifo that data at head was read and can be discarded
 --signal head: std_logic_vector(3 downto 0);--points to the position where oldest data should be read, MSB is a overflow bit
-signal fifo: array_of_std_logic_vector(0 to FIFO_DEPTH-1)(N-1 downto 0);
+--type fifo_word_t is std_logic_vector(N-1 downto 0);
+type fifo_t is array (natural range <>) of std_logic_vector(N-1 downto 0);
+signal fifo: fifo_t(0 to FIFO_DEPTH-1);
+--signal fifo: array_of_std_logic_vector(0 to FIFO_DEPTH-1)(N-1 downto 0);
 --signal difference: std_logic_vector(31 downto 0);-- writes - readings
 signal write_addr: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- NEXT position to write on
 signal read_addr: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- CURRENT position read
@@ -180,13 +183,13 @@ begin
 --		end if;
 --	end process;
 
-	--DATA_OUT <= fifo(to_integer(unsigned(read_addr)));
+	DATA_OUT <= fifo(to_integer(unsigned(read_addr)));
 	--using theses muxes only to make a better view in RTL netlist viewer
-	data_out_mux: mux
-					generic map (N_BITS_SEL => log2_FIFO_DEPTH)
-					port map(A => fifo,
-								sel => read_addr,
-								Q => DATA_OUT);
+--	data_out_mux: mux
+--					generic map (N_BITS_SEL => log2_FIFO_DEPTH)
+--					port map(A => fifo,
+--								sel => read_addr,
+--								Q => DATA_OUT);
 	
 --	process (RST,head)
 --	begin
