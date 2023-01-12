@@ -144,10 +144,10 @@ begin
 	
 	-- stores the writes made to cache
 	fifo: dc_fifo	generic map (N=> D+32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
-						port map(DATA_IN => raddr & data,
+						port map(DATA_IN => raddr & req_data_in,
 									RST => RST,
 									WCLK => CLK,
-									WREN => req_wren,
+									WREN => req_wren_ready,
 									FULL => dc_fifo_full,
 									EMPTY => dc_fifo_empty,
 									OVF => dc_fifo_ovf,
