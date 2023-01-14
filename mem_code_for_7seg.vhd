@@ -136,9 +136,4 @@ END SYN;
 -- Retrieval info: CONNECT: @address_a 0 0 4 0 address 0 0 4 0
 -- Retrieval info: CONNECT: @clock0 0 0 0 0 clock 0 0 0 0
 -- Retrieval info: CONNECT: q 0 0 7 0 @q_a 0 0 7 0
--- Retrieval info: GEN_FILE: TYPE_NORMAL mem_code_for_7seg.vhd TRUE
--- Retrieval info: GEN_FILE: TYPE_NORMAL mem_code_for_7seg.inc FALSE
--- Retrieval info: GEN_FILE: TYPE_NORMAL mem_code_for_7seg.cmp TRUE
--- Retrieval info: GEN_FILE: TYPE_NORMAL mem_code_for_7seg.bsf FALSE
--- Retrieval info: GEN_FILE: TYPE_NORMAL mem_code_for_7seg_inst.vhd TRUE
 -- Retrieval info: LIB_FILE: altera_mf

@@ -1,6 +1,10 @@
 # processor_demo
 Setup for testing microprocessor repo (https://github.com/RenanPicoli/microprocessor) and IIR system identification in Altera DE2-115 board
 
+![processor_demo_diagram](https://user-images.githubusercontent.com/19754679/198846484-a853597a-c4ff-4d01-ac0f-c87a9736f753.svg)
+
+![processor_demo_timing](https://user-images.githubusercontent.com/19754679/198850892-ba2ec52a-6975-4611-bc4e-1ac79194e33d.svg)
+
 * This branch is intended to create a fifo with different clocks for reading and writing
 * For writing, new data should be pushed through a shift register
 * For reading, only a pointer should be updated.
