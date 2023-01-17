@@ -84,7 +84,7 @@ architecture behv of async_sram is
 	signal sram: mem(0 to 2**ADDR_WIDTH_implemented-1)(DATA_WIDTH-1 downto 0) := initial_value;
 
 	signal sram_IO_instantaneous:	std_logic_vector(DATA_WIDTH-1 downto 0);--sram data; without delay
-	constant	sram_delay: time:= 10 ns;
+	constant	sram_delay: time:= 11 ns;
 	signal ADDR_uint: natural;
 	
 begin
@@ -97,15 +97,15 @@ begin
 		end if;
 	end process;
 	
---	sram_IO_instantaneous <= sram(to_integer(unsigned(ADDR))) when (WE_n ='1') else
---									 (others=>'Z');
---	IO <= transport sram_IO_instantaneous after sram_delay;--emulates delay in sram response (less than 10 ns)
+	sram_IO_instantaneous <= sram(ADDR_uint) when (WE_n ='1') else
+									 (others=>'Z');
+	IO <= transport sram_IO_instantaneous after sram_delay;--emulates delay in sram response (less than 10 ns)
 --	process(WE_n,sram,ADDR,initial_value)
 --	begin
 --		if (WE_n ='1') then
 ----			IO <= transport sram(to_integer(unsigned(ADDR))) after sram_delay;--emulates delay in sram response (less than 10 ns)
 			ADDR_uint <= to_integer(unsigned(ADDR(ADDR_WIDTH_implemented-1 downto 0)));
-			IO <= sram(ADDR_uint);-- when (WE_n ='1') else (others=>'Z');--no delay
+--			IO <= sram(ADDR_uint);-- when (WE_n ='1') else (others=>'Z');--no delay
 --		else
 --			IO <= (others=>'Z');
 --		end if;
