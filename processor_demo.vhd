@@ -759,7 +759,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	CLK_n <= not CLK;
 	d_cache: cache
-		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 0, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
+		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
 				req_ADDR => ram_addr(7 downto 0),--address of requested data/instruction
 				req_rden => program_data_rden,
@@ -882,7 +882,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 							'0' when instruction_memory_wren='1' else-- enables software to update content
 							'1';--reading always enabled
 		i_cache: cache
-			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 0, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
+			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 			port map (
 					req_ADDR => instruction_memory_address,--address of requested instruction
 					req_rden => '1',
@@ -928,7 +928,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	sram_with_loader: if sram_loader generate
 		i_cache: cache
-			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 0, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
+			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 			port map (
 					req_ADDR => instruction_memory_address,--address of requested instruction
 					req_rden => '1',
@@ -1467,7 +1467,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--filter_irq_sync is synchronized to ram_clk rising_edge by a sync chain in this level
 	--i2s_irq is synchronized to ram_clk rising_edge inside I2S peripheral
 	--aparently, i2c_irq is synchronized to ram_clk rising_edge because I2C clocks are created dividing ram_clk
-	all_irq	<= (3 => filter_irq_sync(1), 2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq_sync(0));
+--	all_irq	<= (3 => filter_irq_sync(1), 2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq_sync(0));
+	all_irq	<= (3 => filter_irq_sync(1), 2 => '0', 1 => i2c_irq, 0 => filter_irq_sync(0));
 	i2s_iack	<= all_iack(2);										 
 	i2c_iack	<= all_iack(1);
 	filter_iack	<= all_iack(3) & all_iack(0);
