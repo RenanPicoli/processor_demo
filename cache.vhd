@@ -90,6 +90,7 @@ signal offset: std_logic_vector(MEM_ADDR'length-1 downto D);--aka (current) page
 signal previous_offset: std_logic_vector(MEM_ADDR'length-1 downto D);--offset during previous RCLK cycle
 signal req_ADDR_reg: std_logic_vector(7 downto 0);--address of current instruction/data a RDAT
 signal req_ready_sr: std_logic_vector(1 downto 0);
+signal previous_req_ready_sr: std_logic_vector(1 downto 0);--req_ready_sr from previous cycle
 
 signal req_wren_ready: std_logic;-- so that cache is written only when ready
 signal WREN: std_logic_vector(2**W-1 downto 0);--WREN for the subword caches
@@ -143,37 +144,66 @@ begin
 									
 	mem_write_ADDR <= dc_fifo_data_out(32+D-1 downto 32) & std_logic_vector(to_unsigned(word_idx,W)); 
 	mem_O <= dc_fifo_data_out((word_idx+1)*MEM_WIDTH-1 downto word_idx*MEM_WIDTH);
-	dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1)) else '0';
-	mem_WREN <= not dc_fifo_empty;
+	dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1) and full='1') else '0';
+	process(RST,mem_CLK,dc_fifo_pop,word_idx)
+	begin
+		if(RST='1')then
+			mem_WREN <= '0';
+		elsif(rising_edge(mem_CLK))then
+			if(dc_fifo_pop='1')then
+				mem_WREN <= '1';
+			elsif(word_idx=2**W-1 and dc_fifo_pop='0')then
+				mem_WREN <= '0';
+			end if;
+		end if;
+	end process;
 	
-	process(RST,mem_CLK)
+	process(RST,mem_CLK,mem_WREN,dc_fifo_pop)
 	begin
 		if(RST='1')then
 			word_idx <= 2**W-1;
-		elsif(rising_edge(mem_CLK) and mem_WREN='1')then
+		elsif(rising_edge(mem_CLK) and (mem_WREN='1' or dc_fifo_pop='1'))then
 			if(word_idx /= 2**W-1)then
 				word_idx <= word_idx + 1;
-			else
+			elsif(word_idx = 2**W-1 and dc_fifo_empty='0')then
 				word_idx <= 0;
 			end if;
 		end if;
 	end process;
 		
-	--cache write address generation
-	process(mem_CLK,WADDR,miss,dc_fifo_empty,RST)
-	begin
-		if(RST='1')then
-			waddr <= (others=>'0');
-		elsif(rising_edge(mem_CLK)) then
-			if(miss='1')then
+	registered_waddr: if REGISTER_ADDR generate--when req_ADDR is the NEXT address 
+		--cache write address generation
+		process(mem_CLK,WADDR,miss,dc_fifo_empty,RST)
+		begin
+			if(RST='1')then
 				waddr <= (others=>'0');
-			elsif(waddr /= ('1' & (W+D-1 downto 0=>'0')) and dc_fifo_empty='1')then
-				waddr <= waddr + '1';
+			elsif(rising_edge(mem_CLK)) then
+				if(miss='1')then
+					waddr <= (others=>'0');
+				elsif(waddr /= ('1' & (W+D-1 downto 0=>'0')) and dc_fifo_empty='1')then
+					waddr <= waddr + '1';
+				end if;
 			end if;
-		end if;
-	end process;
+		end process;
+	end generate;
+		
+	unregistered_waddr: if not REGISTER_ADDR generate--when req_ADDR is the CURRENT address
+		--cache write address generation
+		process(mem_CLK,WADDR,miss,req_ready_sr,dc_fifo_empty,RST)
+		begin
+			if(RST='1')then
+				waddr <= (others=>'0');
+			elsif(rising_edge(mem_CLK)) then
+				if(req_ready_sr="00" and miss='1')then--condition to start filling cache
+					waddr <= (others=>'0');
+				elsif(waddr /= ('1' & (W+D-1 downto 0=>'0')) and dc_fifo_empty='1')then
+					waddr <= waddr + '1';
+				end if;
+			end if;
+		end process;
+	end generate;
 	
-	process(mem_CLK,WADDR,miss,RST)
+	process(mem_CLK,WADDR,RST)
 	begin
 		if(RST='1')then
 			waddr_sr(MEM_LATENCY+1 downto 1) <= (others=>(others=>'0'));
@@ -272,25 +302,38 @@ begin
 	end generate;
 	
 	unregistered_ready: if not REGISTER_ADDR generate--when req_ADDR is the the CURRENT address	
-		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren,full)
+		process(RST,CLK,waddr,raddr,miss,hit,req_rden,req_wren,full)
 		begin
 			if(RST='1')then
 				req_ready_sr <= "00";
-			elsif((req_wren='1' or req_rden='1') and req_ready_sr="00")then
-				req_ready_sr <= "01";--forces req_ready<= '0'
+				previous_req_ready_sr <= "00";
 			elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
-				if(req_ready_sr="01" and hit='1')then
-					req_ready_sr <= "10";
-				elsif(req_ready_sr="01" and miss='1')then
+				previous_req_ready_sr <= req_ready_sr;
+				if(req_ready_sr="00" and (req_wren='1' or req_rden='1') and miss='1')then
+					req_ready_sr <= "01";
+				elsif(req_ready_sr="00" and req_rden='1' and hit='1')then
 					req_ready_sr <= "11";
---				elsif(req_ready_sr="11" and (waddr_sr(MEM_LATENCY+1)(W+D downto W) >= raddr(D-1 downto 0)))then--recovered from a miss
-				elsif(req_ready_sr="11" and full='1')then--recovered from a miss
+				elsif(req_ready_sr="01" and full='1')then--recovered from a miss
+					req_ready_sr <= "11";
+				elsif(req_ready_sr="11")then
 					req_ready_sr <= "10";
 				elsif(req_ready_sr="10")then
 					req_ready_sr <= "00";
 				end if;
 			end if;
 		end process;
-		req_ready <= '1' when (req_ready_sr="00" or req_ready_sr="10") else '0';
+--		req_ready <= '1' when (req_ready_sr="00" or req_ready_sr="10") else '0';
+		req_ready_p: process(req_ready_sr,RST,CLK,req_rden,req_wren,full,miss)
+		begin
+			if(RST='1')then--req_ready_sr="01" or req_ready_sr="11"
+				req_ready <= '1';
+			elsif(falling_edge(CLK))then
+				if(req_ready_sr="00" and (((req_rden='1' or req_wren='1') and miss='1') or (req_rden='1' and hit='1')))then
+					req_ready <= '0';
+				elsif((req_ready_sr="11" and full='1') )then
+					req_ready <= '1';
+				end if;
+			end if;
+		end process;
 	end generate;
 end structure;
