@@ -103,8 +103,8 @@ begin
 	end process;
 	
 --	difference <= c_writes - c_readings - 1;
-	write_addr_gray <= write_addr xor std_logic_vector(unsigned(write_addr) sll 1);
-	read_addr_gray  <= read_addr xor std_logic_vector(unsigned(read_addr) sll 1);
+	write_addr_gray <= write_addr xor std_logic_vector(unsigned(write_addr) srl 1);
+	read_addr_gray  <= read_addr xor std_logic_vector(unsigned(read_addr) srl 1);
 
 	-- converting from gray code to binary
 	wr_read_addr(log2_FIFO_DEPTH-1) <= wr_read_addr_gray(log2_FIFO_DEPTH-1);
