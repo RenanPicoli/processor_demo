@@ -127,7 +127,14 @@ begin
 		);
 		WREN(i) <= '1' when (full='0' and dc_fifo_empty='1' and waddr_delayed(W-1 downto 0)=i) else '0';
 	end generate;
-	req_wren_ready <= req_wren and req_ready;
+	
+	registered_req_wren_ready: if REGISTER_ADDR generate--when req_ADDR is the NEXT address 
+		req_wren_ready <= req_wren and req_ready;
+	end generate;
+	
+	unregistered_req_wren_ready: if not REGISTER_ADDR generate--when req_ADDR is the CURRENT address
+		req_wren_ready <= '1' when (req_wren='1' and req_ready='1' and (req_ready_sr="00" or req_ready_sr="11")) else '0';
+	end generate;
 	
 	-- stores the writes made to cache
 	fifo: dc_fifo	generic map (N=> D+32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
