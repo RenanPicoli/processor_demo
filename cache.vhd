@@ -102,7 +102,9 @@ signal dc_fifo_pop:		std_logic;
 signal dc_fifo_ovf:		std_logic;
 signal dc_fifo_data_out:std_logic_vector(32+D-1 downto 0);
 
-signal word_idx: natural;--index of the word being written to program memory (0,1,...,2**W-1)
+--signal word_idx: natural;--index of the word being written to program memory (0,1,...,2**W-1)
+subtype word_idx_t is natural range 0 to 2**W-1;
+signal word_idx: word_idx_t;--index of the word being written to program memory
 
 begin
 
