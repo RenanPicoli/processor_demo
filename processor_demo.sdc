@@ -48,12 +48,12 @@ create_clock -name {clk_in} -period 20.000 -waveform { 0.000 10.000 } [get_ports
 
 create_generated_clock -name {clk_12M} -source [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 12 -divide_by 50 -master_clock {clk_in} [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|clk[0]}] 
 create_generated_clock -name {uproc_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 25 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[1]}] 
-create_generated_clock -name {sram_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 1 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[2]}]
+create_generated_clock -name {sram_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 8 -divide_by 5 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[2]}]
 create_generated_clock -name {clk_fs} -source [get_pins {clk_fs_sckin|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 1 -divide_by 544 -master_clock {clk_12M} [get_pins { clk_fs_sckin|altpll_component|auto_generated|pll1|clk[0] }] 
 create_generated_clock -name {clk_fs_dbg} -source [get_pins {clk_fs_sckin|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 5 -divide_by 272 -master_clock {clk_12M} [get_pins { clk_fs_sckin|altpll_component|auto_generated|pll1|clk[2] }] 
 
-# clk_dbg: 100MHz
-create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 4 -divide_by 1 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
+# clk_dbg: 160MHz
+create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 16 -divide_by 5 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
 
 create_generated_clock -name {i2s_WS} -source [get_pins {i2s|i2s|ws_gen|count[0]|clk}] -divide_by 64 -master_clock {i2s_sckin} [get_pins {i2s|i2s|ws_gen|CLK|q}] 
 create_generated_clock -name {i2s_sckin} -source [get_pins {clk_fs_sckin|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 5 -divide_by 3 -master_clock {clk_12M} [get_pins { clk_fs_sckin|altpll_component|auto_generated|pll1|clk[1] }] 
