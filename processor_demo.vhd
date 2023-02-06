@@ -464,9 +464,11 @@ signal flash_count: std_logic_vector(19 downto 0);--counter: generates the addre
 -----------signals for sram_loader interfacing---------------------
 constant sram_loader: boolean := false;
 signal sram_filled: std_logic := '0';
+signal sram_filled_delayed: std_logic := '0';
 signal sram_loader_address: std_logic_vector(7 downto 0);--used to read mini_rom
 signal sram_loader_data: std_logic_vector(31 downto 0);--used to read mini_rom
 signal sram_loader_counter: std_logic_vector(19 downto 0);--counts from 0 to 1M-1 to generate write addresses
+signal sram_loader_counter_delayed: std_logic_vector(19 downto 0);--counts from 0 to 1M-1 to generate write addresses
 
 --on next rising edge of CLK, sram_ADDR will be updated, at next CLK falling edge IO will be latched
 signal sram_ADDR_reading: std_logic_vector(19 downto 0);--ADDR for SRAM reading
@@ -731,24 +733,7 @@ signal mmu_iack: std_logic;
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
-	simple_reset_no_mini_rom: if not sram_loader generate
-		rst <= not rst_n_sync_uproc;
-	end generate;
-	extended_reset_mini_rom_enabled: if sram_loader generate
-		rst <= not rst_n_sync_uproc;--rst is deasserted synchronously with uproc_CLK
-		rom_clk <= CLK_IN;
-		program_memory: mini_rom port map(	CLK	=> rom_clk,	
-										RST	=> rst,--asynchronous reset
-										--instruction interface (read-only)
-										ADDR_A=> sram_loader_address,
-										Q_A	=> sram_loader_data,
-										--data interface (read-write)
-										D_B	=> (others=>'0'),
-										ADDR_B=> (others=>'0'),
-										WREN_B=> '0',
-										Q_B	=> open
-		);
-	end generate;
+	rst <= not rst_n_sync_uproc;
 	
 	--debug outputs
 	LEDR <= (17 downto 5 =>'0') & fp32_ovf & fp32_undf & fp32_div0 & filter_rst & rst;
@@ -927,6 +912,18 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	end generate;
 	
 	sram_with_loader: if sram_loader generate
+		program_memory: mini_rom port map(	CLK	=> sram_CLK,	
+										RST	=> rst,--asynchronous reset
+										--instruction interface (read-only)
+										ADDR_A=> sram_loader_address,
+										Q_A	=> sram_loader_data,--delayed from sram_loader_address by 1 sram_CLK cycle
+										--data interface (read-write)
+										D_B	=> (others=>'0'),
+										ADDR_B=> (others=>'0'),
+										WREN_B=> '0',
+										Q_B	=> open
+		);
+		
 		i_cache: cache
 			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 			port map (
@@ -942,15 +939,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			);
 		i_cache_ready_sync <= i_cache_ready;
 		
-		sram_WE_n <= 	'0' when sram_filled='0' else -- after reset, SRAM must be filled before usage
+		sram_WE_n <= 	'0' when sram_filled_delayed='0' else -- after reset, SRAM must be filled before usage
 							'1' when i_cache_ready='0' else -- instruction fetching has priority over read/write access
 							'0' when instruction_memory_wren='1' else-- enables software to update content
 							'1';--reading always enabled
 		--process for reading/writing instructions at SRAM
-		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,rst_n_sync_uproc,sram_filled,sram_ADDR_reading,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
+		sram_reading: process(sram_CLK,sram_IO,CLK,rst_n_sync_sram_CLK,rst_n_sync_uproc,sram_filled_delayed,sram_ADDR_reading,sram_reading_state,instruction_latched,instruction_lower_half_latched,instruction_upper_half_latched,sram_loader_counter,sram_ADDR_lower_half,sram_ADDR_upper_half)
 		begin
-			if(sram_filled='0')then--reset is extended to store instructions in SRAM 
-				sram_ADDR <= sram_loader_counter;
+			if(sram_filled_delayed='0')then--reset is extended to store instructions in SRAM 
+				sram_ADDR <= sram_loader_counter_delayed;
 			elsif(i_cache_ready='0')then
 				sram_ADDR <= sram_ADDR_reading;-- address for i_cache loading
 			else
@@ -963,29 +960,42 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --								(15 downto 0=>'0') when (sram_filled='0' and sram_loader_counter(19 downto 9) /= (19 downto 9=>'0'));
 		all_sram_write_data <= (3 => (15 downto 0=>'0'),2=> (15 downto 0=>'0'),
 										1=> sram_loader_data(31 downto 16),0=> sram_loader_data(15 downto 0));
-		sram_write_data_sel(1) <= '1' when sram_loader_counter(19 downto 9) /= (19 downto 9=>'0') else '0';
-		sram_write_data_sel(0) <= sram_loader_counter(0);
+		process(sram_CLK,sram_loader_counter)
+		begin
+			if(rising_edge(sram_CLK))then--delays the sel signal to account for mini_rom latency
+				if sram_loader_counter(19 downto 9) /= (19 downto 9=>'0') then
+					sram_write_data_sel(1) <= '1';
+				else
+					sram_write_data_sel(1) <= '0';
+				end if;
+				sram_write_data_sel(0) <= sram_loader_counter(0);
+			end if;
+		end process;
 		sram_write_data_mux: mux
 									generic map (N_BITS_SEL => 2)
 									port map(A => all_sram_write_data,
 												sel => sram_write_data_sel,
 												Q => sram_write_data);
-		sram_IO <=	sram_write_data when sram_filled='0' else
+		sram_IO <=	sram_write_data when sram_filled_delayed='0' else
 						instruction_memory_write_data when sram_WE_n='0' else
 						(others=>'Z');
 		sram_loader_address <= sram_loader_counter(8 downto 1);--address for mini_rom
 		
-		write_loop: process(rst_n_sync_sram_CLK,sram_CLK)
+		write_loop: process(rst_n_sync_sram_CLK,sram_CLK,sram_loader_counter)
 			begin
 				if(rst_n_sync_sram_CLK='0')then--using synchronous reset to ensure no problems with reset removal
 					sram_loader_counter <= (others=>'0');
+					sram_loader_counter_delayed <= (others=>'0');
 					sram_filled <= '0';
-				elsif(falling_edge(sram_CLK))then--period is 31.25 ns, enough for writes
+					sram_filled_delayed <= '0';
+				elsif(rising_edge(sram_CLK))then--period is 12.5 ns, enough for writes
 					if(sram_loader_counter /= (8 downto 0 =>'1'))then
 						sram_loader_counter <= sram_loader_counter + 1;
 					else
 						sram_filled <= '1';--when sram_loader_counter = xFFFFF
 					end if;
+					sram_filled_delayed <= sram_filled;
+					sram_loader_counter_delayed <= sram_loader_counter;
 				end if;
 		end process;
 		
