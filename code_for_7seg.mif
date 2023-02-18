@@ -21,6 +21,6 @@ CONTENT BEGIN
 	B		:	1111100;	% digit "b" %
 	C		:	0111001;	% digit "C" %
 	D		:	1011110;	% digit "d" %
-	E		:	1011110;	% digit "E" %
+	E		:	1111001;	% digit "E" %
 	F		:	1110001;	% digit "F" %
 END;
