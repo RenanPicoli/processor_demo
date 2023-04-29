@@ -19,7 +19,7 @@ entity cache is
 --MEM_WIDTH: data width of program memory in bits
 	generic (REQUESTED_SIZE: natural; MEM_WIDTH: natural :=32; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4; REGISTER_ADDR: boolean);
 	port (
-			req_ADDR: in std_logic_vector(7 downto 0);--address of requested data
+			req_ADDR: in std_logic_vector;--address of requested data
 			req_rden: in std_logic;--read requested
 			req_wren: in std_logic:='0';--write requested
 			req_data_in: in std_logic_vector(31 downto 0):=(others=>'0');--data for write request
@@ -86,9 +86,9 @@ signal full: std_logic;--tdp_ram is full
 signal empty: std_logic;--tdp_ram is empty
 signal hit: std_logic;--cache hit
 signal miss: std_logic;--cache miss
-signal offset: std_logic_vector(MEM_ADDR'length-1 downto D);--aka (current) page address
-signal previous_offset: std_logic_vector(MEM_ADDR'length-1 downto D);--offset during previous RCLK cycle
-signal req_ADDR_reg: std_logic_vector(7 downto 0);--address of current instruction/data a RDAT
+signal offset: std_logic_vector(mem_ADDR'length-1 downto D);--aka (current) page address
+signal previous_offset: std_logic_vector(mem_ADDR'length-1 downto D);--offset during previous RCLK cycle
+signal req_ADDR_reg: std_logic_vector(req_ADDR'length-1 downto 0);--address of current instruction/data a RDAT
 signal req_ready_sr: std_logic_vector(1 downto 0);
 signal previous_req_ready_sr: std_logic_vector(1 downto 0);--req_ready_sr from previous cycle
 
@@ -232,11 +232,11 @@ begin
 	end generate;
 	
 	registered_offset: if REGISTER_ADDR generate--when req_ADDR is the NEXT address 
-		offset <= (MEM_ADDR'length-1 downto 8 => '0') & req_ADDR_reg(7 downto D);--current offset (aka page address)
+		offset <= (MEM_ADDR'length-1 downto req_ADDR'length => '0') & req_ADDR_reg(req_ADDR'length-1 downto D);--current offset (aka page address)
 	end generate;
 	
 	unregistered_offset: if not REGISTER_ADDR generate--when req_ADDR is the CURRENT address 
-		offset <= (MEM_ADDR'length-1 downto 8 => '0') & req_ADDR(7 downto D);--current offset (aka page address)
+		offset <= (MEM_ADDR'length-1 downto req_ADDR'length => '0') & req_ADDR(req_ADDR'length-1 downto D);--current offset (aka page address)
 	end generate;
 	
 	mem_ADDR <= offset(MEM_ADDR'length-1-W downto D) & waddr(W+D-1 downto 0) when full='0' else --NOT delayed because this address will be used to read to RAM, bit 0 must be included
