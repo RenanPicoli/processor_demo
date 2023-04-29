@@ -65,10 +65,9 @@ port (CLK_IN: in std_logic;
 		irq: in std_logic;--interrupt request
 		iack: out std_logic;--interrupt acknowledgement
 		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
-		instruction_addr: out std_logic_vector (31 downto 0);--AKA read address
 		return_value: out std_logic_vector (31 downto 0);-- output of RV register
 		-----ROM----------
-		ADDR_rom: out std_logic_vector(7 downto 0);--addr é endereço de byte, mas os Lsb são 00
+		ADDR_rom: out std_logic_vector(31 downto 0);--addr é endereço de word
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to i_cache)
 		Q_rom:	in std_logic_vector(31 downto 0);
 		i_cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
@@ -106,7 +105,7 @@ component cache
 --MEM_WIDTH: data width of program memory in bits
 	generic (REQUESTED_SIZE: natural; MEM_WIDTH: natural :=32; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4; REGISTER_ADDR: boolean);
 	port (
-			req_ADDR: in std_logic_vector(7 downto 0);--address of requested data
+			req_ADDR: in std_logic_vector;--address of requested data
 			req_rden: in std_logic;--read requested
 			req_wren: in std_logic:='0';--write requested
 			req_data_in: in std_logic_vector(31 downto 0):=(others=>'0');--data for write request
@@ -508,7 +507,7 @@ signal rom_output: std_logic_vector(31 downto 0);
 signal rom_ADDR: std_logic_vector(19 downto 0);
 
 signal instruction_memory_output: std_logic_vector(31 downto 0);
-signal instruction_memory_address: std_logic_vector(7 downto 0);
+signal instruction_memory_address: std_logic_vector(31 downto 0);
 signal instruction_latched: std_logic;
 signal instruction_upper_half_latched: std_logic;
 signal instruction_lower_half_latched: std_logic;
@@ -740,7 +739,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
-											filter_CLK & CLK & instruction_memory_address;
+											filter_CLK & CLK & instruction_memory_address(7 downto 0);
 	
 	CLK_n <= not CLK;
 	d_cache: cache
@@ -859,8 +858,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	sram_UB_n <= '0';--upper byte always enabled
 	sram_LB_n <= '0';--lower byte always enabled
 
-	sram_ADDR_lower_half <= (19 downto 9 => '0') & instruction_memory_address & '0';--address of lower half of instruction
-	sram_ADDR_upper_half <= (19 downto 9 => '0') & instruction_memory_address & '1';--address of upper	half of instruction
+	sram_ADDR_lower_half <= instruction_memory_address(18 downto 0) & '0';--address of lower half of instruction
+	sram_ADDR_upper_half <= instruction_memory_address(18 downto 0) & '1';--address of upper	half of instruction
 
 	sram_no_loader: if not sram_loader generate
 		sram_WE_n <= 	'1' when i_cache_ready='0' else -- instruction fetching has priority over read/write access
@@ -869,7 +868,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		i_cache: cache
 			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 			port map (
-					req_ADDR => instruction_memory_address,--address of requested instruction
+					req_ADDR => instruction_memory_address(18 downto 0),--address of requested instruction
 					req_rden => '1',
 					CLK => instruction_clk,--processor clock for reading instructions, must run even if i_cache is not ready
 					mem_I => sram_IO,--data coming from SRAM for write
@@ -927,7 +926,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		i_cache: cache
 			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 			port map (
-					req_ADDR => instruction_memory_address,--address of requested instruction
+					req_ADDR => instruction_memory_address(18 downto 0),--address of requested instruction
 					req_rden => '1',
 					CLK => instruction_clk,--processor clock for reading instructions, must run even if i_cache is not ready
 					mem_I => sram_IO,--data coming from SRAM for write
@@ -1443,7 +1442,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		iack => iack,
 		return_value => open,
 		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
-		instruction_addr => open,
 		ADDR_rom => instruction_memory_address,
 		i_cache_ready => i_cache_ready_sync,--synchronized to rising_edge(CLK)
 		CLK_rom => instruction_clk,
