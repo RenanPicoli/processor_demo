@@ -59,20 +59,19 @@ end entity;
 architecture setup of processor_demo is
 
 component microprocessor
-generic (N: integer);--size in bits of data addresses 
 port (CLK_IN: in std_logic;
 		rst: in std_logic;
 		irq: in std_logic;--interrupt request
 		iack: out std_logic;--interrupt acknowledgement
-		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		return_value: out std_logic_vector (31 downto 0);-- output of RV register
+		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(31 downto 0);--addr é endereço de word
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to i_cache)
 		Q_rom:	in std_logic_vector(31 downto 0);
-		i_cache_ready: in std_logic;--indicates cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
+		i_cache_ready: in std_logic;--indicates i_cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
 		-----RAM-----------
-		ADDR_ram: out std_logic_vector(N-1 downto 0);--addr é endereço de byte, mas os Lsb são 00
+		ADDR_ram: out std_logic_vector(31 downto 0);--addr é endereço de byte, mas os Lsb são 00
 		write_data_ram: out std_logic_vector(31 downto 0);
 		rden_ram: out std_logic;--enables read on ram
 		wren_ram: out std_logic;--enables write on ram
@@ -523,6 +522,7 @@ signal instruction_memory_write_data: std_logic_vector(15 downto 0);
 
 -----------signals for d_cache interfacing---------------------
 signal program_data_Q: std_logic_vector(31 downto 0);
+signal program_data_address: std_logic_vector(18 downto 0);--ram address translated to instruction address
 signal program_data_wren: std_logic;
 signal program_data_rden: std_logic;
 signal program_data_ready: std_logic;
@@ -531,7 +531,7 @@ signal program_data_ready: std_logic;
 ---processor sees all memory-mapped I/O as part of RAM-----
 constant N: integer := 9;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
-signal ram_addr: std_logic_vector(N-1 downto 0);
+signal ram_addr: std_logic_vector(31 downto 0);
 signal ram_rden: std_logic;
 signal ram_wren: std_logic;
 signal ram_write_data: std_logic_vector(31 downto 0);
@@ -685,7 +685,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#73#,16#73#),--converted_out
 											(16#74#,16#74#),-- 7-segments display DR
 											(16#80#,16#FF#),--interrupt controller
-											(16#100#,16#1FF#)--instruction memory
+											(16#400#,16#7FF#)--instruction memory
 											);
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
@@ -742,10 +742,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 											filter_CLK & CLK & instruction_memory_address(7 downto 0);
 	
 	CLK_n <= not CLK;
+	
+	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
+	--to an instruction address (starting at 0)
+	program_data_address <= ram_addr(18 downto 0) - ranges(13)(0);
 	d_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
-				req_ADDR => ram_addr(7 downto 0),--address of requested data/instruction
+				req_ADDR => program_data_address,--address of requested data/instruction
 				req_rden => program_data_rden,
 				req_wren => program_data_wren,
 				req_data_in => ram_write_data,
@@ -866,7 +870,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 							'0' when instruction_memory_wren='1' else-- enables software to update content
 							'1';--reading always enabled
 		i_cache: cache
-			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
+			generic map (REQUESTED_SIZE => 1024, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 			port map (
 					req_ADDR => instruction_memory_address(18 downto 0),--address of requested instruction
 					req_rden => '1',
@@ -924,7 +928,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);
 		
 		i_cache: cache
-			generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
+			generic map (REQUESTED_SIZE => 1024, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 			port map (
 					req_ADDR => instruction_memory_address(18 downto 0),--address of requested instruction
 					req_rden => '1',
@@ -1418,8 +1422,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
 	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
-	generic map (N => N, B => ranges)
-	port map (	ADDR => ram_addr,-- input, it is a word address
+	generic map (N => 11, B => ranges)
+	port map (	ADDR => ram_addr(10 downto 0),-- input, it is a word address
 			RDEN => ram_rden,-- input
 			WREN => ram_wren,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
@@ -1434,7 +1438,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	ram_Q_buffer_out <= ram_Q_buffer_in;
 	
 	processor: microprocessor
-	generic map (N => N)
 	port map (
 		CLK_IN => CLK,
 		rst => rst,
