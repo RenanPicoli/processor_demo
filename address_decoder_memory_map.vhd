@@ -77,7 +77,7 @@ begin
 			if(i > 0)then
 				assert (B(i-1)(1) < B(i)(0)) report "Ranges overlap!" severity error;
 			end if;
-			assert (B(i)(1) < B(i)(0) + 2**p) report "Unaligned range:[" & integer'image(B(i)(0)) & ", " & integer'image(B(i)(1)) & "]" severity error;
+			assert ((B(i)(1) < B(i)(0) + 2**p) or p=32) report "Unaligned range:[" & integer'image(B(i)(0)) & ", " & integer'image(B(i)(1)) & "]" severity error;
 			mask(N):='1';
 			upper_lim_slv := std_logic_vector(to_unsigned(B(i)(1),N));
 			lower_lim_slv := std_logic_vector(to_unsigned(B(i)(0),N));
@@ -90,6 +90,7 @@ begin
 			end loop;
 			report "mask=" & integer'image(to_integer(unsigned(mask(N-1 downto 0))));
 			mask_length := N - gde(to_integer(unsigned(mask(N-1 downto 0))),N);--address width minus number of zeros in mask
+			report "mask_length=" & integer'image(mask_length);
 			
 			--if ((B(i)(0) <= to_integer(unsigned(ADDR))) and (to_integer(unsigned(ADDR)) <= B(i)(1))) then
 			if (ADDR(N-1 downto N-mask_length) = lower_lim_slv(N-1 downto N-mask_length)) then
