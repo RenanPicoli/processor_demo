@@ -106,6 +106,7 @@ architecture behv of inner_product_calculation_unit is
 	signal A_output: std_logic_vector(31 downto 0);
 	signal B_output: std_logic_vector(31 downto 0);
 	signal reg_result_out: std_logic_vector(31 downto 0);--result of inner product will be read here
+	signal CLK_n: std_logic;
 	
 	-----------signals for memory map interfacing----------------
 	constant ranges: boundaries := 	(--notation: base#value#
@@ -191,10 +192,11 @@ begin
 				
 ---------------------------------- result register ---------------------------------------------
 ------------------(READ-ONLY, always WRITTEN by fpu_inner_product)------------------------------
+	CLK_n <= not CLK;
 	d_ff_result: d_flip_flop port map(	D => result,
 													RST=> RST,--resets all previous history of input signal
 													ENA=> '1',
-													CLK=> CLK,--sampling clock
+													CLK=> CLK_n,--sampling clock
 													Q=> reg_result_out
 													);
 ---------------------------------------------------------------------------------------------
