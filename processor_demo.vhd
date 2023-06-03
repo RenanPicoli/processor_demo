@@ -246,6 +246,7 @@ port(	D: in std_logic_vector(31 downto 0);
 --		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
 		parallel_read_data_A: out array32 (0 to 2**(N-2)-1);
 		parallel_read_data_B: out array32 (0 to 2**(N-2)-1);
+		ready: out std_logic;--synchronous to rising_edge(CLK)
 		output: out std_logic_vector(31 downto 0)-- output
 );
 end component;
@@ -575,6 +576,7 @@ signal coeffs_mem_vector_bus: array32 (0 to 7);--data bus for parallel write of 
 signal inner_product_result: std_logic_vector(31 downto 0);
 signal inner_product_rden: std_logic;
 signal inner_product_wren: std_logic;
+signal inner_product_ready:std_logic;
 --signal inner_product_parallel_rden_A: std_logic;
 signal inner_product_parallel_wren_A: std_logic;
 --signal inner_product_parallel_rden_B: std_logic;
@@ -1259,6 +1261,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				-------NEED ADD FLAGS (overflow, underflow, etc)
 				--overflow:		out std_logic,
 				--underflow:		out std_logic,
+				ready => inner_product_ready,--synchronous to rising_edge(CLK)
 				output => inner_product_result
 				);
 				
@@ -1380,7 +1383,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (13=> program_data_ready, others=>'1');
+	all_periphs_ready		<= (13=> program_data_ready, 3=> inner_product_ready, others=>'1');
 	all_periphs_output	<= (13=> program_data_Q, 12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
