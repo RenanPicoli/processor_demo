@@ -138,7 +138,7 @@ begin
 		process(CLK,RST,req)
 		begin
 			if(RST='1')then
-				req(i) <= '0';
+				req(i) <= '1';
 			elsif(rising_edge(CLK))then
 				req(i) <= req(i-1);
 			end if;

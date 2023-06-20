@@ -129,10 +129,12 @@ architecture behv of inner_product_calculation_unit is
 	signal all_periphs_output: array32 (3 downto 0);
 	signal all_periphs_rden: std_logic_vector(3 downto 0);
 	signal all_periphs_wren: std_logic_vector(3 downto 0);
+	signal all_periphs_ready_in: std_logic_vector(3 downto 0);
 
 begin
 
 	all_periphs_output <= (0 => A_output, 1 => B_output, 2=> reg_result_out, 3=> ctrl_out);
+	all_periphs_ready_in <= (2=> result_ready, others=>'1');
 	
 	A_rden <= all_periphs_rden(0);
 	B_rden <= all_periphs_rden(1);
@@ -155,7 +157,7 @@ begin
 			RDEN => RDEN,-- input
 			WREN => WREN,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
-			ready_in => (2=> result_ready, others=>'1'),
+			ready_in => all_periphs_ready_in,
 			RDEN_OUT => all_periphs_rden,-- output
 			WREN_OUT => all_periphs_wren,-- output
 			ready_out => ready,
@@ -232,12 +234,16 @@ begin
 												
 ---------------------------------------------------------------------------------------------
 	--I wanted a latch, but latches are bad for timing analysis
-	process(CLK,ctrl_out,result_ready,fpu_inner_product_ready)
+	process(CLK,RST,ctrl_out,result_ready,fpu_inner_product_ready)
 	begin
-		if(ctrl_out(0)='1')then
-			result_ready <= '0';
-		elsif(rising_edge(CLK) and result_ready='0')then
-			result_ready <= fpu_inner_product_ready;
+		if(RST='1')then
+			result_ready <= '1';
+		elsif(rising_edge(CLK))then
+			if(ctrl_in(0)='1')then
+				result_ready <= '0';
+			elsif(fpu_inner_product_ready='1')then
+				result_ready <= '1';
+			end if;
 		end if;
 	end process;
 
