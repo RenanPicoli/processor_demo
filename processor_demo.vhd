@@ -71,7 +71,7 @@ port (CLK_IN: in std_logic;
 		Q_rom:	in std_logic_vector(31 downto 0);
 		i_cache_ready: in std_logic;--indicates i_cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
 		-----RAM-----------
-		ADDR_ram: out std_logic_vector(31 downto 0);--addr é endereço de byte, mas os Lsb são 00
+		ADDR_ram: out std_logic_vector(31 downto 0);--WORD ADDRESS
 		write_data_ram: out std_logic_vector(31 downto 0);
 		rden_ram: out std_logic;--enables read on ram
 		wren_ram: out std_logic;--enables write on ram
