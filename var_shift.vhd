@@ -16,6 +16,7 @@ entity var_shift is
 generic	(N: natural; O: natural; S: natural);--N: number of bits in input, O in output; S: number of bits in shift
 port(	input:in std_logic_vector(N-1 downto 0);--input vector that will be shifted
 		shift:in std_logic_vector(S-1 downto 0);--signed integer: number of shifts to left (if positive)
+		shift_mode: in std_logic;--'1': arithmetic shift (instead of logic shift)
 		overflow: out std_logic;-- '1' if there are ones that were dropped in the output
 		output: out std_logic_vector(O-1 downto 0)--
 );
@@ -34,14 +35,18 @@ signal output_dropped_bits: std_logic_vector((O+2**(S-1)-2) downto O);
 signal tmp: std_logic_vector((O+2**(S-1)-2) downto O);--to generate the OR of all output_dropped_bits bits
 
 signal logic_extended_input: std_logic_vector((O+2**(S-1)-2) downto 0);
+signal arith_extended_input: std_logic_vector((O+2**(S-1)-2) downto 0);
 
 begin
 	logic_extended_input <= ((O+2**(S-1)-2) downto N =>'0') & input;
+	arith_extended_input <= ((O+2**(S-1)-2) downto N =>input(N-1)) & input;
 
 	--implements all possible shifts at once, let the user select the appropriate
 	
 	shifts: for i in -2**(S-1) to 2**(S-1)-1 generate
-		possible_outputs(i) <= to_stdlogicvector(to_bitvector(logic_extended_input) srl ((N - O) - i));--shift right logic
+		--if the argument of srl operator is negative, performs a left shift
+		possible_outputs(i) <=	to_stdlogicvector(to_bitvector(arith_extended_input) srl ((N - O) - i)) when shift_mode='1' else--shift right arithmetic
+								to_stdlogicvector(to_bitvector(logic_extended_input) srl ((N - O) - i));--shift right logic
 	end generate;
 
 	
