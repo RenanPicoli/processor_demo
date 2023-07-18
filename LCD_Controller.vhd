@@ -1,25 +1,24 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;
 
 entity LCD_Controller is
     port (
-        clk       : in  std_logic;
-        rst       : in  std_logic;
-		  --interface with CPU
-		  D			: in std_logic_vector(31 downto 0);
-        wren      : in  std_logic;
-		  Q			: out std_logic_vector(31 downto 0);
+        clk		: in  std_logic;
+        rst		: in  std_logic;
+		-- interface with CPU
+		D		: in std_logic_vector(31 downto 0);
+        wren	: in std_logic;
+		Q		: out std_logic_vector(31 downto 0);
+		ready	: out std_logic;--check for writes
 		  
-        -- Other LCD control signals
-        -- ...
-        -- Outputs for idle state
-        -- ...
-		  RS			: out std_logic;
-		  RW			: out std_logic;
-		  E			: out std_logic;
-		  VO			: out std_logic;
-		  DB			: inout std_logic_vector(7 downto 0)
+        -- LCD control signals
+		RS		: out std_logic;
+		RW		: out std_logic;
+		E		: out std_logic;
+		VO		: out std_logic;
+		DB		: inout std_logic_vector(7 downto 0)
     );
 end entity LCD_Controller;
 
@@ -32,9 +31,9 @@ architecture behavioral of LCD_Controller is
     signal current_state, next_state : State_Type;
     
     -- Define time constants for LCD instructions
-    constant Time_IdleBeforeInit   : time := 50 ms;
-    constant Time_Init1   : time := 100 ns;
-    constant Time_Init2   : time := 5 ms;
+    constant Time_IdleBeforeInit   : time := 2.5 ms;
+    constant Time_Init1   : time := 100 us;
+    constant Time_Init2   : time := 2.5 ms;
     constant Time_Init3   : time := 160 us;
     constant Time_Init4   : time := 160 us;
     constant Time_Init5   : time := 160 us;
@@ -55,23 +54,28 @@ architecture behavioral of LCD_Controller is
     signal cmd: std_logic_vector(9 downto 0);
     signal data: std_logic_vector(7 downto 0);
     signal busy: std_logic;
+	--timer signals
+	signal Time_Expired: std_logic;
+	signal timer_cnt: std_logic_vector(31 downto 0);
+	signal timer_preset: std_logic_vector(31 downto 0);
+	signal timer_load: std_logic;
     
 begin
 
     -- Logic for current and next state
-    process(clk)
+    process(clk,rst,next_state,Time_Expired)
     begin
         if rising_edge(clk) then
             if rst = '1' then
                 current_state <= IdleBeforeInit;
-            else
+            elsif(Time_Expired='1')then
                 current_state <= next_state;
             end if;
         end if;
     end process;
 
     -- State transition logic
-    process(current_state, cmd)
+    process--(current_state, cmd)
     begin
         next_state <= current_state;
         
@@ -81,7 +85,9 @@ begin
                 -- Execute Initialization Instruction 1
                 -- ...
                 -- After minimum time, move to the next state
-                wait for Time_IdleBeforeInit;
+                --wait for Time_IdleBeforeInit;
+				timer_preset <= std_logic_vector(to_unsigned(Time_IdleBeforeInit/1us,32));
+				timer_load <= '1';
                 next_state <= Init1;
             
             when Init1 =>
@@ -134,7 +140,7 @@ begin
                 next_state <= Idle;
             
             when Idle =>
-                if cmd /= (others => '0') then
+                if cmd /= b"0000_0000" then
                     -- Transition to the corresponding command state
 						  
 						  -- case? is valid ONLY in VHDL 2008
@@ -275,7 +281,7 @@ begin
 				RS <= cmd(9);
 				RW <= cmd(8);
 				busy <= DB(7);
-				data <= DB(6 downto 0);
+				data <= '0' & DB(6 downto 0);
 			when Idle|IdleBeforeInit=>
 				RS <= '0';
 				RW <= '0';
@@ -283,25 +289,50 @@ begin
 			when Init1|Init2|Init3|Init4=>
 				RS <= '0';
 				RW <= '0';
-				DB <= "0011_1000";
+				DB <= b"0011_1000";
 			when Init5=>
 				RS <= '0';
 				RW <= '0';
-				DB <= "0000_1000";
+				DB <= b"0000_1000";
 			when Init6=>
 				RS <= '0';
 				RW <= '0';
-				DB <= "0000_0001";
+				DB <= b"0000_0001";
 			when Init7=>
 				RS <= '0';
 				RW <= '0';
-				DB <= "0000_0111";
+				DB <= b"0000_0111";
 			when others=>
 				RS <= '0';
 				RW <= '0';
-				DB <= "0000_0000";
+				DB <= b"0000_0000";
 		end case;
 	 end process;
     
 	 VO <= '1';
+	 
+	sw_write:process(clk, rst, D, wren)
+	begin
+		if(rst='1')then
+			cmd <= (others=>'0');
+		elsif(rising_edge(clk) and wren='1')then
+			cmd <= D(9 downto 0);
+		end if;
+	end process sw_write;
+
+	Q <=(31 downto 8=>'0') & data(7 downto 0);
+	
+	timer: process(clk, rst, D, wren)
+	begin
+		if(rst='1')then
+			timer_cnt <= (others=>'0');
+		elsif(rising_edge(clk))then
+			if(timer_load='1' and timer_cnt = x"0000_0000")then
+				timer_cnt <= timer_preset;
+			elsif(timer_cnt /= x"0000_0000")then
+				timer_cnt <= timer_cnt - 1;
+			end if;
+		end if;
+	end process timer;
+	Time_Expired <= '1' when timer_cnt=x"0000_0000" else '0';
 end architecture behavioral;
