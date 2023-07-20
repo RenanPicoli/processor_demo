@@ -64,12 +64,13 @@ architecture behavioral of LCD_Controller is
 begin
 
     -- Logic for current and next state
-    process(clk,rst,next_state,Time_Expired)
+    process(clk,rst,next_state,Time_Expired,timer_load)
     begin
-        if (rst = '1') then
-            current_state <= IdleBeforeInit;
-        elsif rising_edge(clk) then
-            if(Time_Expired='1' and timer_load='0')then
+        if rising_edge(clk) then
+			  if (rst = '1') then
+					current_state <= IdleBeforeInit;
+           elsif(Time_Expired='1' and rst='0')then
+--            if(Time_Expired='1')then
                 current_state <= next_state;
             end if;
         end if;
@@ -87,72 +88,72 @@ begin
                 -- ...
                 -- After minimum time, move to the next state
                 next_state <= Init1;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_Init1/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
             
             when Init1 =>
                 -- Execute Initialization Instruction 1
                 -- ...
                 -- After minimum time, move to the next state
                 next_state <= Init2;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_Init2/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
             
             when Init2 =>
                 -- Execute Initialization Instruction 2
                 -- ...
                 -- After minimum time, move to the next state
                 next_state <= Init3;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_Init2/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when Init3 =>
                 -- Execute Initialization Instruction 3
                 -- ...
                 -- After minimum time, move to the next state
                 next_state <= Init4;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_Init3/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when Init4 =>
                 -- Execute Initialization Instruction 3
                 -- ...
                 -- After minimum time, move to the next state
                 next_state <= Init5;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_Init4/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when Init5 =>
                 -- Execute Initialization Instruction 3
                 -- ...
                 -- After minimum time, move to the next state
                 next_state <= Init6;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_Init5/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when Init6 =>
                 -- Execute Initialization Instruction 3
                 -- ...
                 -- After minimum time, move to the next state
                 next_state <= Init7;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_Init6/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when Init7 =>
                 -- Execute Initialization Instruction 3
                 -- ...
                 -- After minimum time, move to the next state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_Init7/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
             
             when Idle =>
                 if cmd /= b"0000_0000" then
@@ -199,185 +200,186 @@ begin
                             next_state <= Idle;
                     end case?;
                 end if;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
                 
             when ClearDisplay =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_ClearDisplay/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when ReturnHome =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_ReturnHome/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when EntryModeSet =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_EntryModeSet/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when DisplayOnOff =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_DisplayOnOff/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
-                
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+               
             when CursorDisplayShift =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_CursorDisplayShift/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when FunctionSet =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_FunctionSet/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when SetCGRAMAddr =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_SetCGRAMAddr/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when SetDDRAMAddr =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_SetDDRAMAddr/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when ReadBusyAddr =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_ReadBusyAddr/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when WriteData =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_WriteData/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
                 
             when ReadData =>
                 -- Execute the Clear Display command
                 -- ...
                 -- After minimum time, return to the idle state
                 next_state <= Idle;
-                wait for 100 ns;--necessary only in SIMULATION??
+                wait for 1 ns;--necessary only in SIMULATION??
 				timer_preset <= std_logic_vector(to_unsigned(Time_ReadData/1us,32));
-				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+				timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
             
         end case;
 		if(rst='1')then
 			timer_preset <= std_logic_vector(to_unsigned(Time_IdleBeforeInit/1us,32));
+			timer_load <= '1';
 		end if;
     end process;
 	
-	process
-	begin
- 		if(rst='1')then
-			--timer_load <= '0';
-			timer_preset_prev <= (others=>'0');
-		elsif(rising_edge(clk))then
-			--if(Time_Expired='1')then
-			--	timer_load <= '1';
-			--else
-			--	timer_load <= '0';
-			--end if;
-			timer_preset_prev <= timer_preset;
-		end if;
-	end process;
-	timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
+--	process
+--	begin
+-- 		if(rst='1')then
+--			timer_load <= '0';
+--			timer_preset_prev <= (others=>'0');
+--		elsif(rising_edge(clk))then
+--			if(Time_Expired='1')then
+--				timer_load <= '1';
+--			else
+--				timer_load <= '0';
+--			end if;
+--			timer_preset_prev <= timer_preset;
+--		end if;
+--	end process;
+--	timer_load <= '1' when (Time_Expired='1' or rst='1') else '0';
 
-    -- Output logic
-    process(current_state)
-	 begin
-		case current_state is
-			when ClearDisplay|ReturnHome|EntryModeSet|DisplayOnOff|CursorDisplayShift|FunctionSet|SetCGRAMAddr|SetDDRAMAddr|WriteData =>
-				RS <= cmd(9);
-				RW <= cmd(8);
-				DB <= cmd(7 downto 0);
-			when ReadData =>
-				RS <= cmd(9);
-				RW <= cmd(8);
-				data <= DB;
-			when ReadBusyAddr =>
-				RS <= cmd(9);
-				RW <= cmd(8);
-				busy <= DB(7);
-				data <= '0' & DB(6 downto 0);
-			when Idle|IdleBeforeInit=>
-				RS <= '0';
-				RW <= '0';
-				data <= (others => '0');
-			when Init1|Init2|Init3|Init4=>
-				RS <= '0';
-				RW <= '0';
-				DB <= b"0011_1000";
-			when Init5=>
-				RS <= '0';
-				RW <= '0';
-				DB <= b"0000_1000";
-			when Init6=>
-				RS <= '0';
-				RW <= '0';
-				DB <= b"0000_0001";
-			when Init7=>
-				RS <= '0';
-				RW <= '0';
-				DB <= b"0000_0111";
-			when others=>
-				RS <= '0';
-				RW <= '0';
-				DB <= b"0000_0000";
-		end case;
-	 end process;
-    
-	 VO <= '1';
-	 
-	sw_write:process(clk, rst, D, wren)
-	begin
-		if(rst='1')then
-			cmd <= (others=>'0');
-		elsif(rising_edge(clk) and wren='1')then
-			cmd <= D(9 downto 0);
-		end if;
-	end process sw_write;
-
-	Q <=(31 downto 8=>'0') & data(7 downto 0);
+--    -- Output logic
+--    process(current_state)
+--	 begin
+--		case current_state is
+--			when ClearDisplay|ReturnHome|EntryModeSet|DisplayOnOff|CursorDisplayShift|FunctionSet|SetCGRAMAddr|SetDDRAMAddr|WriteData =>
+--				RS <= cmd(9);
+--				RW <= cmd(8);
+--				DB <= cmd(7 downto 0);
+--			when ReadData =>
+--				RS <= cmd(9);
+--				RW <= cmd(8);
+--				data <= DB;
+--			when ReadBusyAddr =>
+--				RS <= cmd(9);
+--				RW <= cmd(8);
+--				busy <= DB(7);
+--				data <= '0' & DB(6 downto 0);
+--			when Idle|IdleBeforeInit=>
+--				RS <= '0';
+--				RW <= '0';
+--				data <= (others => '0');
+--			when Init1|Init2|Init3|Init4=>
+--				RS <= '0';
+--				RW <= '0';
+--				DB <= b"0011_1000";
+--			when Init5=>
+--				RS <= '0';
+--				RW <= '0';
+--				DB <= b"0000_1000";
+--			when Init6=>
+--				RS <= '0';
+--				RW <= '0';
+--				DB <= b"0000_0001";
+--			when Init7=>
+--				RS <= '0';
+--				RW <= '0';
+--				DB <= b"0000_0111";
+--			when others=>
+--				RS <= '0';
+--				RW <= '0';
+--				DB <= b"0000_0000";
+--		end case;
+--	 end process;
+--    
+--	 VO <= '1';
+--	 
+--	sw_write:process(clk, rst, D, wren)
+--	begin
+--		if(rst='1')then
+--			cmd <= (others=>'0');
+--		elsif(rising_edge(clk) and wren='1')then
+--			cmd <= D(9 downto 0);
+--		end if;
+--	end process sw_write;
+--
+--	Q <=(31 downto 8=>'0') & data(7 downto 0);
 	
 	timer: process(clk, rst,timer_load,timer_preset)
 	begin
@@ -385,7 +387,7 @@ begin
 			timer_cnt <= (others=>'0');
 		elsif(rising_edge(clk))then
 			if(timer_load='1' and timer_cnt = x"0000_0000")then
-				timer_cnt <= timer_preset_prev;
+				timer_cnt <= timer_preset;
 			elsif(timer_cnt /= x"0000_0000")then
 				timer_cnt <= timer_cnt - 1;
 			end if;

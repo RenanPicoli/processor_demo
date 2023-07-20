@@ -47,7 +47,7 @@ begin
 		wait for 0.5 us;
     end process clk_p;
     
-	rst <= '1', '0' after 10 us;
+	rst <= '1', '0' after 10.6 us;
 	D <= (others=>'0'), x"0000_0038" after 6000 us, (others=>'0') after 6001 us;
 	wren <= '0', '1' after 6000 us, '0' after 6001 us;
    dut: LCD_Controller port map (
