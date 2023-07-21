@@ -19,7 +19,7 @@ component LCD_Controller
         -- LCD control signals
 		RS		: out std_logic;
 		RW		: out std_logic;
-		E		: out std_logic;
+		E		: inout std_logic;
 		VO		: out std_logic;
 		DB		: inout std_logic_vector(7 downto 0)
     );
