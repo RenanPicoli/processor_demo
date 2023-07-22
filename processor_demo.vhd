@@ -447,6 +447,25 @@ port(	address	: in std_logic_vector (3 downto 0);
 );
 end component;
 
+component LCD_Controller
+port (
+	clk		: in  std_logic;
+	rst		: in  std_logic;
+	-- interface with CPU
+	D		: in std_logic_vector(31 downto 0);
+	wren	: in std_logic;
+	Q		: out std_logic_vector(31 downto 0);
+	ready	: out std_logic;--check for writes
+	  
+	  -- LCD control signals
+	RS		: out std_logic;
+	RW		: out std_logic;
+	E		: inout std_logic;
+	VO		: out std_logic;
+	DB		: inout std_logic_vector(7 downto 0)
+);
+end component;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -686,6 +705,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#72#,16#72#),--filter status
 											(16#73#,16#73#),--converted_out
 											(16#74#,16#74#),-- 7-segments display DR
+											(16#75#,16#75#),-- LCD controller
 											(16#80#,16#FF#),--interrupt controller
 											(16#400#,16#7FF#)--instruction memory
 											);
@@ -719,6 +739,11 @@ signal disp_7seg_DR_nibble: std_logic_vector(3 downto 0);--used if one nibble is
 --signal disp_7seg_DR_code: std_logic_vector(6 downto 0);--used if one code is computed at a time
 signal disp_7seg_DR_code: array7(7 downto 0);--used if one code is computed at a time
 
+--signals for LCD controller
+signal lcd_Q: std_logic_vector(31 downto 0);
+signal lcd_wren: std_logic;
+signal lcd_ready: std_logic;
+
 --signals for vector transfers
 signal lvec: std_logic;
 signal lvec_src: std_logic_vector(2 downto 0);
@@ -747,7 +772,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
 	--to an instruction address (starting at 0)
-	program_data_address <= ram_addr(18 downto 0) - ranges(13)(0);
+	program_data_address <= ram_addr(18 downto 0) - ranges(14)(0);
 	d_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
@@ -1383,15 +1408,16 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (13=> program_data_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (13=> program_data_Q, 12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready		<= (14=> program_data_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
+	all_periphs_output	<= (14=> program_data_Q, 13 => irq_ctrl_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	program_data_rden			<= all_periphs_rden(13);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
+	program_data_rden			<= all_periphs_rden(14);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(13);-- not used, just to keep form
+--	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
 	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
 	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
 	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
@@ -1405,8 +1431,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	program_data_wren			<= all_periphs_wren(13);
-	irq_ctrl_wren				<= all_periphs_wren(12);
+	program_data_wren			<= all_periphs_wren(14);
+	irq_ctrl_wren				<= all_periphs_wren(13);
+	lcd_wren						<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
 	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
 	filter_ctrl_status_wren	<= all_periphs_wren(9);
@@ -1527,6 +1554,23 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		segments(i) <= not disp_7seg_DR_code(i);
 --		segments(i) <= (6 downto 4 => '1') & disp_7seg_DR_out(4*i+3 downto 4*i);
 	end generate disp_7seg_drive;
+	
+	lcd_ctrl: LCD_Controller port map (
+		clk => ram_clk,
+		rst => rst,
+		-- interface with CPU
+		D => ram_write_data,
+		wren => lcd_wren,
+		Q => lcd_Q,
+		ready => lcd_ready,
+		  
+		  -- LCD control signals
+		RS => open,--RS,
+		RW => open,--RW,
+		E => open,--E,
+		VO => open,--VO,
+		DB => open--DB
+	);
 	
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
