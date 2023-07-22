@@ -61,6 +61,7 @@ architecture behavioral of LCD_Controller is
 	signal timer_preset: std_logic_vector(31 downto 0);
 	signal timer_preset_prev: std_logic_vector(31 downto 0);
 	signal timer_load: std_logic := '0';
+	signal rst_delayed: std_logic;
     
 begin
 
@@ -78,9 +79,9 @@ begin
     end process;
 
     -- State transition logic
-    process(current_state, cmd)
+    process(current_state, cmd, rst,rst_delayed,timer_load)
     begin
-        next_state <= current_state;
+        --next_state <= current_state;
         
         case current_state is
         
@@ -88,13 +89,14 @@ begin
                 -- Execute Initialization Instruction 1
                 -- ...
                 -- After minimum time, move to the next state
-                next_state <= Init1;
                 ----wait for 1 ns;--necessary only in SIMULATION??
-					 if(rst='1')then
+					 if(rst_delayed='1')then
+						next_state <= IdleBeforeInit;
 						timer_preset <= std_logic_vector(to_unsigned(Time_IdleBeforeInit/1us,32));
 					 else
+						next_state <= Init1;
 						timer_preset <= std_logic_vector(to_unsigned(Time_Init1/1us,32));
-					  end if;
+					 end if;
 				--timer_load <= '1' when (Time_Expired='1' and rst='0') else '0';
             
             when Init1 =>
@@ -440,8 +442,10 @@ begin
 	process(rst,clk,timer_cnt)
 	begin
 		if(rst='1')then
+			rst_delayed <= '1';
 			Time_Expired <= '0';	
-		elsif(rising_edge(clk))then	
+		elsif(rising_edge(clk))then
+			rst_delayed <= rst;
 			if(timer_cnt=x"0000_0000" and rst='0')then
 				Time_Expired <= '1';
 			else
