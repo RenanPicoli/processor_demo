@@ -415,12 +415,16 @@ begin
     
 	 VO <= '1';
 	 
-	sw_write:process(clk, rst, D, wren)
+	sw_write:process(clk, rst, D, wren, timer_load, current_state)
 	begin
 		if(rst='1')then
 			cmd <= (others=>'0');
-		elsif(rising_edge(clk) and wren='1')then
-			cmd <= D(9 downto 0);
+		elsif(rising_edge(clk))then
+			if(wren='1')then
+				cmd <= D(9 downto 0);
+			elsif(timer_load='1' and current_state /= Idle)then
+				cmd <= (others=>'0');
+			end if;
 		end if;
 	end process sw_write;
 
