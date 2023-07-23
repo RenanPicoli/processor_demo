@@ -82,7 +82,7 @@ begin
     -- State transition logic
     process(current_state, cmd, rst,rst_delayed,timer_load)
     begin
-        --next_state <= current_state;
+        next_state <= current_state;
         
         case current_state is
         
