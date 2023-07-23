@@ -61,6 +61,7 @@ architecture behavioral of LCD_Controller is
 	signal timer_preset: std_logic_vector(31 downto 0);
 	signal timer_preset_prev: std_logic_vector(31 downto 0);
 	signal timer_load: std_logic := '0';
+	signal timer_en: std_logic := '0';--enables timer counting
 	signal rst_delayed: std_logic;
     
 begin
@@ -71,8 +72,8 @@ begin
         if rising_edge(clk) then
 			  if (rst = '1') then
 					current_state <= IdleBeforeInit;
-           elsif(timer_load='1' and rst='0')then
---            if(Time_Expired='1')then
+           elsif((timer_load='1' and rst='0') or
+						(current_state=Idle and next_state/=Idle))then
                 current_state <= next_state;
             end if;
         end if;
@@ -339,21 +340,7 @@ begin
 			--timer_load <= '1';
 		end if;
     end process;
-	
---	process
---	begin
--- 		if(rst='1')then
---			timer_load <= '0';
---			timer_preset_prev <= (others=>'0');
---		elsif(rising_edge(clk))then
---			if(Time_Expired='1')then
---				timer_load <= '1';
---			else
---				timer_load <= '0';
---			end if;
---			timer_preset_prev <= timer_preset;
---		end if;
---	end process;
+	 
 	timer_load <= '1' when (timer_cnt=x"0000_0000" or rst='1') else '0';
 
     -- Output logic
@@ -436,18 +423,20 @@ begin
 
 	Q <=(31 downto 8=>'0') & data(7 downto 0);
 	
-	timer: process(clk, rst,timer_load,timer_preset)
+	timer: process(clk, rst,timer_load,timer_preset,timer_en,current_state,next_state)
 	begin
 		if(rst='1')then
 			timer_cnt <= (others=>'0');
 		elsif(rising_edge(clk))then
-			if(timer_load='1' and timer_cnt = x"0000_0000")then
+			if((timer_load='1' and timer_cnt = x"0000_0000")or
+				(current_state=Idle and next_state/=Idle))then
 				timer_cnt <= timer_preset;
-			elsif(timer_cnt /= x"0000_0000")then
+			elsif(timer_cnt /= x"0000_0000" and timer_en='1')then
 				timer_cnt <= timer_cnt - 1;
 			end if;
 		end if;
 	end process timer;
+	timer_en <= '0' when current_state=Idle else '1';
 	
 	process(rst,clk,timer_cnt)
 	begin
