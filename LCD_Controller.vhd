@@ -427,6 +427,12 @@ begin
 			end if;
 		end if;
 	end process sw_write;
+	ready <= '0' when (cmd/=x"0000_0000" or current_state=IdleBeforeInit or
+							current_state=Init1 or current_state=Init2 or
+							current_state=Init3 or current_state=Init4 or
+							current_state=Init5 or current_state=Init6 or
+							current_state=Init7)
+							else '1';
 
 	Q <=(31 downto 8=>'0') & data(7 downto 0);
 	
