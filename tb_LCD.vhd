@@ -48,8 +48,16 @@ begin
     end process clk_p;
     
 	rst <= '1', '0' after 10.6 us;
-	D <= (others=>'0'), x"0000_0038" after 6000.5 us, (others=>'0') after 6001.5 us, x"0000_0080" after 6500.5 us, (others=>'0') after 6501.5 us;
-	wren <= '0', '1' after 6000.5 us, '0' after 6001.5 us, '1' after 6500.5 us, '0' after 6501.5 us;
+	D <=(others=>'0'),
+    	x"0000_0038" after 6000.5 us,
+        (others=>'0') after 6001.5 us,
+        x"0000_0080" after 6500.5 us,
+        (others=>'0') after 6501.5 us;
+	wren <= '0',
+    		'1' after 6000.5 us,
+            '0' after 6001.5 us,
+            '1' after 6500.5 us,
+            '0' after 6501.5 us;
    dut: LCD_Controller port map (
         clk => clk,
         rst => rst,
