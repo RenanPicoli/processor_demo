@@ -55,7 +55,6 @@ architecture behavioral of LCD_Controller is
     signal cmd: std_logic_vector(9 downto 0);
     signal data: std_logic_vector(7 downto 0);
     signal busy: std_logic;
-	signal curr_ready: std_logic;
 	--timer signals
 	signal Time_Expired: std_logic;
 	signal timer_cnt: std_logic_vector(31 downto 0);
@@ -403,32 +402,24 @@ begin
     
 	 VO <= '1';
 	 
-	sw_write:process(clk, rst, D, wren, timer_load, current_state)
+	sw_write:process(clk, rst, D, wren, ready, timer_load, current_state)
 	begin
 		if(rst='1')then
 			cmd <= (others=>'0');
 		elsif(rising_edge(clk))then
-			if(wren='1')then
+			if(wren='1' and ready='1')then
 				cmd <= D(9 downto 0);
 			elsif(timer_load='1' and current_state /= Idle)then
 				cmd <= (others=>'0');
 			end if;
 		end if;
 	end process sw_write;
-	curr_ready <= '0' when (cmd/=x"0000_0000" or current_state=IdleBeforeInit or
+	ready <= '0' when (cmd/=x"0000_0000" or current_state=IdleBeforeInit or
 							current_state=Init1 or current_state=Init2 or
 							current_state=Init3 or current_state=Init4 or
 							current_state=Init5 or current_state=Init6 or
 							current_state=Init7)
 							else '1';
-	process(clk,rst,curr_ready)
-    begin
-    	if(rst='1')then
-        	ready <= '0';
-        elsif(rising_edge(clk))then
-        	ready <= curr_ready;
-        end if;
-    end process;
     
 	Q <=(31 downto 8=>'0') & data(7 downto 0);
 	
