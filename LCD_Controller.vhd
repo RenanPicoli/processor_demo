@@ -395,7 +395,7 @@ begin
 			if(current_state=ReadData)then				
 				data <= DB;
 			elsif(current_state=ReadBusyAddr)then
-				data <= '0' & DB(6 downto 0);
+				data <= busy & DB(6 downto 0);
 			end if;
 		end if;
 	 end process;
