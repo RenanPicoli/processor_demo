@@ -7,6 +7,7 @@ end entity tb;
 
 architecture bhv of tb is
 component LCD_Controller
+	generic (F : natural);
     port (
         clk		: in  std_logic;
         rst		: in  std_logic;
@@ -58,7 +59,9 @@ begin
             '0' after 6001.5 us,
             '1' after 6030.5 us,
             '0' after 6031.5 us;
-   dut: LCD_Controller port map (
+   dut: LCD_Controller
+   generic map (F => 1)
+	port map (
         clk => clk,
         rst => rst,
 		-- interface with CPU
