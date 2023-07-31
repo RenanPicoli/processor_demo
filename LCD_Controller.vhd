@@ -4,6 +4,7 @@ use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;
 
 entity LCD_Controller is
+	 generic (F: natural);--F is frequency of clk in MHz
     port (
       clk		: in  std_logic;
       rst		: in  std_logic;
@@ -31,26 +32,26 @@ architecture behavioral of LCD_Controller is
     signal current_state, next_state : State_Type;
     
     -- Define time constants for LCD instructions
-    constant Time_IdleBeforeInit   : time := 2.5 ms;
-    constant Time_Init1   : time := 100 us;
-    constant Time_Init2   : time := 2.5 ms;
-    constant Time_Init3   : time := 160 us;
-    constant Time_Init4   : time := 160 us;
-    constant Time_Init5   : time := 160 us;
-    constant Time_Init6   : time := 160 us;
-    constant Time_Init7   : time := 160 us;
-	 constant Time_Idle    : time := 160 us;
-    constant Time_ClearDisplay : time := 1.64 ms;
-    constant Time_ReturnHome : time := 1.52 ms;
-    constant Time_EntryModeSet : time := 37 us;
-    constant Time_DisplayOnOff : time := 37 us;
-    constant Time_CursorDisplayShift : time := 37 us;
-    constant Time_FunctionSet : time := 37 us;
-    constant Time_SetCGRAMAddr : time := 37 us;
-    constant Time_SetDDRAMAddr : time := 37 us;
-    constant Time_ReadBusyAddr : time := 0 us;
-    constant Time_WriteData : time := 37 us;
-    constant Time_ReadData : time := 37 us;
+    constant Time_IdleBeforeInit   : time := 50 ms*F;
+    constant Time_Init1   : time := 4.1 us*F;
+    constant Time_Init2   : time := 100 us*F;
+    constant Time_Init3   : time := 37 us*F;
+    constant Time_Init4   : time := 37 us*F;
+    constant Time_Init5   : time := 37 us*F;
+    constant Time_Init6   : time := 37 us*F;
+    constant Time_Init7   : time := 37 us*F;
+	 constant Time_Idle    : time := 160 us*F;
+    constant Time_ClearDisplay : time := 1.64 ms*F;
+    constant Time_ReturnHome : time := 1.52 ms*F;
+    constant Time_EntryModeSet : time := 37 us*F;
+    constant Time_DisplayOnOff : time := 37 us*F;
+    constant Time_CursorDisplayShift : time := 37 us*F;
+    constant Time_FunctionSet : time := 37 us*F;
+    constant Time_SetCGRAMAddr : time := 37 us*F;
+    constant Time_SetDDRAMAddr : time := 37 us*F;
+    constant Time_ReadBusyAddr : time := 0 us*F;
+    constant Time_WriteData : time := 37 us*F;
+    constant Time_ReadData : time := 37 us*F;
 	 
     signal cmd: std_logic_vector(9 downto 0);
     signal data: std_logic_vector(7 downto 0);
