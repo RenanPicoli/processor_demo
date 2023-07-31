@@ -454,14 +454,14 @@ begin
 		end if;
 	end process;
 	
-	E_p: process(rst,clk,current_state,next_state,timer_load)
+	E_p: process(rst,rst_delayed,clk,current_state,next_state,timer_load)
 		type E_state_t is (E_idle,E_1st_low,E_high,E_2nd_low);
 		variable E_state: E_state_t;
 	begin
 		if(rst='1')then
 			E_state := E_idle;
 		elsif(rising_edge(clk))then
-			if((E_state=E_idle and current_state/=Idle) or (current_state=Idle and next_state/=Idle))then
+			if((E_state=E_idle and current_state/=Idle and rst_delayed='0' and timer_load='1') or (current_state=Idle and next_state/=Idle))then
 				E_state := E_1st_low;
 			elsif(E_state=E_1st_low)then
 				E_state := E_high;
