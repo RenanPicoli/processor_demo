@@ -45,6 +45,12 @@ port (CLK_IN: in std_logic;--50MHz input
 		sram_LB_n: buffer std_logic; --lower	IO byte access, active LOW
 		-- 7 segments displays
 		segments: out array7(7 downto 0);
+		--LCD
+		lcd_data: inout std_logic_vector(7 downto 0);
+		lcd_en: inout std_logic;
+		lcd_rw: out std_logic;
+		lcd_rs: out std_logic;
+		lcd_on: out std_logic;
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -225,6 +231,7 @@ component pll_dbg_uproc
 		c0		: OUT STD_LOGIC ;
 		c1 	: OUT STD_LOGIC ;
 		c2 	: OUT STD_LOGIC ;
+		c3 	: OUT STD_LOGIC ;
 		locked		: OUT STD_LOGIC 
 	);
 END component;
@@ -448,6 +455,7 @@ port(	address	: in std_logic_vector (3 downto 0);
 end component;
 
 component LCD_Controller
+generic (F: natural);--F is frequency of clk in MHz
 port (
 	clk		: in  std_logic;
 	rst		: in  std_logic;
@@ -740,6 +748,7 @@ signal disp_7seg_DR_nibble: std_logic_vector(3 downto 0);--used if one nibble is
 signal disp_7seg_DR_code: array7(7 downto 0);--used if one code is computed at a time
 
 --signals for LCD controller
+signal lcd_clk: std_logic;
 signal lcd_Q: std_logic_vector(31 downto 0);
 signal lcd_wren: std_logic;
 signal lcd_ready: std_logic;
@@ -1555,8 +1564,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --		segments(i) <= (6 downto 4 => '1') & disp_7seg_DR_out(4*i+3 downto 4*i);
 	end generate disp_7seg_drive;
 	
-	lcd_ctrl: LCD_Controller port map (
-		clk => ram_clk,
+	lcd_ctrl: LCD_Controller
+	generic map (F => 4)
+	port map (
+		clk => ram_CLK,--for timing, internal FSM
 		rst => rst,
 		-- interface with CPU
 		D => ram_write_data,
@@ -1565,11 +1576,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		ready => lcd_ready,
 		  
 		  -- LCD control signals
-		RS => open,--RS,
-		RW => open,--RW,
-		E => open,--E,
-		VO => open,--VO,
-		DB => open--DB
+		RS => lcd_rs,
+		RW => lcd_rw,
+		E  => lcd_en,
+		VO => lcd_on,
+		DB => lcd_data
 	);
 	
 	clk_dbg_uproc:	pll_dbg_uproc
@@ -1580,6 +1591,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c0		=> CLK_dbg,--produces 48MHz for debugging
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
+		c3		=> lcd_clk,--1MHz for LCD timing and FSM
 		locked=> open
 	);
 
