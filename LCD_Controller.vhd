@@ -33,8 +33,8 @@ architecture behavioral of LCD_Controller is
     
     -- Define time constants for LCD instructions
     constant Time_IdleBeforeInit   : time := 50 ms*F;
-    constant Time_Init1   : time := 4.1 us*F;
-    constant Time_Init2   : time := 100 us*F;
+    constant Time_Init1   : time := 4.5 ms*F;
+    constant Time_Init2   : time := 150 us*F;
     constant Time_Init3   : time := 37 us*F;
     constant Time_Init4   : time := 37 us*F;
     constant Time_Init5   : time := 37 us*F;
