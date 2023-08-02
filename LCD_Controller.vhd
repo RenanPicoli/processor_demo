@@ -64,6 +64,7 @@ architecture behavioral of LCD_Controller is
 	signal timer_load: std_logic := '0';
 	signal timer_en: std_logic := '0';--enables timer counting
 	signal rst_delayed: std_logic;
+	signal E_last_cnt: std_logic_vector(31 downto 0);
     
 begin
 
@@ -454,21 +455,26 @@ begin
 		end if;
 	end process;
 	
-	E_p: process(rst,rst_delayed,clk,current_state,next_state,timer_load)
+	E_p: process(rst,rst_delayed,clk,current_state,next_state,timer_load,timer_cnt,timer_preset,E_last_cnt)
 		type E_state_t is (E_idle,E_1st_low,E_high,E_2nd_low);
 		variable E_state: E_state_t;
 	begin
 		if(rst='1')then
 			E_state := E_idle;
+			E_last_cnt <= (others=>'0');
 		elsif(rising_edge(clk))then
 			if((E_state=E_idle and current_state/=Idle and rst_delayed='0' and timer_load='1') or (current_state=Idle and next_state/=Idle))then
 				E_state := E_1st_low;
-			elsif(E_state=E_1st_low)then
+				E_last_cnt <= timer_preset;
+			elsif(E_state=E_1st_low and (timer_cnt=E_last_cnt-F+1 or F=1))then
 				E_state := E_high;
-			elsif(E_state=E_high)then
+				E_last_cnt <= timer_cnt;
+			elsif(E_state=E_high and (timer_cnt=E_last_cnt-F+1 or F=1))then
 				E_state := E_2nd_low;
+				E_last_cnt <= timer_cnt;
 			elsif(E_state=E_2nd_low and timer_load='1' and next_state/=Idle)then
 				E_state := E_1st_low;
+				E_last_cnt <= timer_preset;
 			elsif(E_state=E_2nd_low and timer_load='1' and next_state=Idle)then
 				E_state := E_idle;
 			end if;
