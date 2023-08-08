@@ -213,14 +213,7 @@ BEGIN
 		if(rst='1')then
 			cmd <= (others=>'0');
 			char_count_received <= (others=>'0');
-			lcd_display_string <= 
-			(
-		-- Line 1    B    a      t     t     e    r     y          L     e     v      e    l 
-					 x"42",x"61",x"74",x"74",x"65",x"72",x"79",x"20",x"4C",x"65",x"76",x"65",x"6C",x"20",x"20",x"20",
-			
-		-- Line 2   ->     %    1     0      0
-					 x"7E",x"25",x"31",x"30",x"30",x"20",x"20",x"20",x"20",x"20",x"20",x"20",x"20",x"20",x"20",x"20" 
-			);
+			lcd_display_string <= (others=>x"20");--fills lcd_display_string with spaces
 		elsif(rising_edge(clk))then
 			if(wren='1' and ready='1')then
 				cmd(7 downto 0) <= D(7 downto 0);
