@@ -51,6 +51,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		lcd_rw: out std_logic;
 		lcd_rs: out std_logic;
 		lcd_on: out std_logic;
+		lcd_blon: out std_logic;--is this really necessary??
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -474,6 +475,28 @@ port (
 );
 end component;
 
+--component by Gerry O'Brien
+component LCD_DISPLAY_nty
+   PORT( 
+      rst              	 : in     std_logic;  -- synchronous active low reset
+      clk           		 : in     std_logic;  -- Using the CPU 4 MHz Clk, in order to Genreate the 400Hz signal... clk_count_400hz reset count value must be set to:  <= x"0F424"
+
+		-- interface with CPU
+		D		: in std_logic_vector(31 downto 0);
+      wren	: in std_logic;
+		Q		: out std_logic_vector(31 downto 0);
+		ready	: out std_logic;--check for writes
+      
+      lcd_rs             : out    std_logic;
+      lcd_e              : out    std_logic;
+      lcd_rw             : out    std_logic;
+      lcd_on             : out    std_logic;
+      lcd_blon           : out    std_logic;      
+      
+      data_bus        	 : inout  std_logic_vector(7 downto 0)
+   );
+end component;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -714,6 +737,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#73#,16#73#),--converted_out
 											(16#74#,16#74#),-- 7-segments display DR
 											(16#75#,16#75#),-- LCD controller
+											(16#76#,16#76#),-- LCD enable
 											(16#80#,16#FF#),--interrupt controller
 											(16#400#,16#7FF#)--instruction memory
 											);
@@ -751,7 +775,13 @@ signal disp_7seg_DR_code: array7(7 downto 0);--used if one code is computed at a
 signal lcd_clk: std_logic;
 signal lcd_Q: std_logic_vector(31 downto 0);
 signal lcd_wren: std_logic;
+signal lcd_rden: std_logic;
 signal lcd_ready: std_logic;
+
+--signals for LCD_EN-------------------------------------
+signal lcd_en_Q: std_logic_vector(31 downto 0);-- register containing current filter output
+signal lcd_en_rden: std_logic;-- not used, just to keep form
+signal lcd_en_wren: std_logic;
 
 --signals for vector transfers
 signal lvec: std_logic;
@@ -781,7 +811,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
 	--to an instruction address (starting at 0)
-	program_data_address <= ram_addr(18 downto 0) - ranges(14)(0);
+	program_data_address <= ram_addr(18 downto 0) - ranges(15)(0);
 	d_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
@@ -1417,16 +1447,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (14=> program_data_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (14=> program_data_Q, 13 => irq_ctrl_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready		<= (15=> program_data_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
+	all_periphs_output	<= (15=> program_data_Q, 14 => irq_ctrl_Q, 13=> lcd_en_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	program_data_rden			<= all_periphs_rden(14);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden(13);-- not used, just to keep form
---	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
+	program_data_rden			<= all_periphs_rden(15);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(14);-- not used, just to keep form
+	lcd_en_rden					<= all_periphs_rden(13);-- not used, just to keep form
+	lcd_rden						<= all_periphs_rden(12);-- not used, just to keep form
 	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
 	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
 	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
@@ -1440,8 +1471,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	program_data_wren			<= all_periphs_wren(14);
-	irq_ctrl_wren				<= all_periphs_wren(13);
+	program_data_wren			<= all_periphs_wren(15);
+	irq_ctrl_wren				<= all_periphs_wren(14);
+	lcd_en_wren					<= all_periphs_wren(13);
 	lcd_wren						<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
 	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
@@ -1564,24 +1596,57 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --		segments(i) <= (6 downto 4 => '1') & disp_7seg_DR_out(4*i+3 downto 4*i);
 	end generate disp_7seg_drive;
 	
-	lcd_ctrl: LCD_Controller
-	generic map (F => 4)
-	port map (
-		clk => ram_CLK,--for timing, internal FSM
-		rst => rst,
+--	lcd_ctrl: LCD_Controller
+--	generic map (F => 4)
+--	port map (
+--		clk => ram_CLK,--for timing, internal FSM
+--		rst => rst,
+--		-- interface with CPU
+--		D => ram_write_data,
+--		wren => lcd_wren,
+--		Q => lcd_Q,
+--		ready => lcd_ready,
+--		  
+--		  -- LCD control signals
+--		RS => lcd_rs,
+--		RW => lcd_rw,
+--		E  => lcd_en_Q(0),
+--		VO => lcd_on,
+--		DB => lcd_data
+--	);
+--	lcd_en <= lcd_en_Q(0);
+--	lcd_blon <= '1';
+
+--component by Gerry O'Brien
+lcd_ctrl: LCD_DISPLAY_nty
+   port map( 
+      rst		=> rst,-- synchronous active low reset
+      clk		=> ram_clk,
+		
 		-- interface with CPU
-		D => ram_write_data,
-		wren => lcd_wren,
-		Q => lcd_Q,
-		ready => lcd_ready,
-		  
-		  -- LCD control signals
-		RS => lcd_rs,
-		RW => lcd_rw,
-		E  => lcd_en,
-		VO => lcd_on,
-		DB => lcd_data
-	);
+		D			=> ram_write_data,
+		wren		=> lcd_wren,
+		Q			=> lcd_Q,
+		ready		=> lcd_ready,
+      
+      lcd_rs	=> lcd_rs,
+      lcd_e		=> lcd_en,
+      lcd_rw	=> lcd_rw,
+      lcd_on	=> lcd_on,
+      lcd_blon	=> lcd_blon,
+      
+      
+      data_bus	=> lcd_data
+   );
+	
+					
+	lcd_en_dff: d_flip_flop
+	 port map(	D => ram_write_data,--written by software
+					RST=> RST,--resets all previous history of filter output
+					ENA=> lcd_en_wren,
+					CLK=>ram_clk,--must be the same as filter_CLK
+					Q=> lcd_en_Q
+					);
 	
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
