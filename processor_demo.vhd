@@ -739,7 +739,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#75#,16#75#),-- LCD controller
 											(16#76#,16#76#),-- LCD enable
 											(16#80#,16#FF#),--interrupt controller
-											(16#400#,16#7FF#)--instruction memory
+											(16#800#,16#FFF#)--instruction memory
 											);
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
