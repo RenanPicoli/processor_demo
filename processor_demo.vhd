@@ -1493,8 +1493,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
 	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
-	generic map (N => 11, B => ranges)
-	port map (	ADDR => ram_addr(10 downto 0),-- input, it is a word address
+	generic map (N => 12, B => ranges)
+	port map (	ADDR => ram_addr(11 downto 0),-- input, it is a word address
 			RDEN => ram_rden,-- input
 			WREN => ram_wren,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
