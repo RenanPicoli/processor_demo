@@ -339,14 +339,16 @@ begin
 			end if;
 		end process;
 --		req_ready <= '1' when (req_ready_sr="00" or req_ready_sr="10") else '0';
-		req_ready_p: process(req_ready_sr,RST,CLK,req_rden,req_wren,full,miss)
+		req_ready_p: process(req_ready_sr,RST,CLK,req_rden,req_wren,full,miss,mem_CLK)
 		begin
 			if(RST='1')then--req_ready_sr="01" or req_ready_sr="11"
 				req_ready <= '1';
-			elsif(req_ready_sr="00" and (((req_rden='1' or req_wren='1') and miss='1') or (req_rden='1' and hit='1')))then
-				req_ready <= '0';
-			elsif((req_ready_sr="11" and full='1') )then
-				req_ready <= '1';
+			elsif(rising_edge(mem_CLK))then--this is to avoid glitches
+				if(req_ready_sr="00" and (((req_rden='1' or req_wren='1') and miss='1') or (req_rden='1' and hit='1')))then
+					req_ready <= '0';
+				elsif((req_ready_sr="11" and full='1') )then
+					req_ready <= '1';
+				end if;
 			end if;
 		end process;
 	end generate;
