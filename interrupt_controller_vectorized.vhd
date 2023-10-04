@@ -100,6 +100,8 @@ architecture behv of interrupt_controller_vectorized is
 	signal irq:						std_logic;
 	signal tmp:						std_logic_vector(31 downto 0);
 	signal tmp_IRQ_out:			std_logic_vector(31 downto 0);
+	signal IRQ_mask:			std_logic_vector(31 downto 0);-- Interrupt masks
+	signal sw_IRQ_reg:			std_logic_vector(31 downto 0);-- written by software, requests the interrupt
 
 	------------signals for interrupt vector-------------------
 	signal vector: array32 (L-1 downto 0);--address of interrupt handler
@@ -260,6 +262,34 @@ begin
 			end if;
 		end process;
 	end generate priorities_gen;
+	
+	-------------software interrupt write----------------------------
+	sw_IRQ_reg_gen: for i in 0 to L-1 generate
+		process(CLK,address_decoder_wren,D,RST)
+		begin
+			if(RST='1')then
+				sw_IRQ_reg <= (others=>'0');
+			elsif(rising_edge(CLK))then
+				if(address_decoder_wren(5)='1')then
+					sw_IRQ_reg <= D;
+				end if;
+			end if;
+		end process;
+	end generate sw_IRQ_reg_gen;
+	
+	-------------masks write----------------------------
+	mask_gen: for i in 0 to L-1 generate
+		process(CLK,address_decoder_wren,D,RST)
+		begin
+			if(RST='1')then
+				IRQ_mask <= (others=>'0');
+			elsif(rising_edge(CLK))then
+				if(address_decoder_wren(6)='1')then
+					IRQ_mask <= D;
+				end if;
+			end if;
+		end process;
+	end generate mask_gen;
 		
 -------------------------- status register ---------------------------------------------------
 	--active
@@ -272,6 +302,8 @@ begin
 	--addr 000_0010: IRQ_suspended
 	--addr 000_0011: IRQ_status
 	--addr 000_0100: IRQ_curr_out
+	--addr 000_0101: sw_IRQ_reg
+	--addr 000_0110: IRQ_mask
 	--addr 010_0000 - 011_1111: vector
 	--addr 100_0000 - 101_1111: priorities
 	--other addresses: unused (zeroed)
@@ -281,6 +313,8 @@ begin
 	all_registers_output(2) <= IRQ_started;
 	all_registers_output(3) <= IRQ_status;
 	all_registers_output(4) <= IRQ_curr_out;
+	all_registers_output(5) <= sw_IRQ_reg;
+	all_registers_output(6) <= IRQ_mask;
 	
 	all_registers_output_gen: for i in 0 to L-1 generate
 				all_registers_output(i+32) <= vector(i);
