@@ -264,32 +264,28 @@ begin
 	end generate priorities_gen;
 	
 	-------------software interrupt write----------------------------
-	sw_IRQ_reg_gen: for i in 0 to L-1 generate
-		process(CLK,address_decoder_wren,D,RST)
-		begin
-			if(RST='1')then
-				sw_IRQ_reg <= (others=>'0');
-			elsif(rising_edge(CLK))then
-				if(address_decoder_wren(5)='1')then
-					sw_IRQ_reg <= D;
-				end if;
+	process(CLK,address_decoder_wren,D,RST)
+	begin
+		if(RST='1')then
+			sw_IRQ_reg <= (others=>'0');
+		elsif(rising_edge(CLK))then
+			if(address_decoder_wren(5)='1')then
+				sw_IRQ_reg <= D;
 			end if;
-		end process;
-	end generate sw_IRQ_reg_gen;
+		end if;
+	end process;
 	
 	-------------masks write----------------------------
-	mask_gen: for i in 0 to L-1 generate
-		process(CLK,address_decoder_wren,D,RST)
-		begin
-			if(RST='1')then
-				IRQ_mask <= (others=>'0');
-			elsif(rising_edge(CLK))then
-				if(address_decoder_wren(6)='1')then
-					IRQ_mask <= D;
-				end if;
+	process(CLK,address_decoder_wren,D,RST)
+	begin
+		if(RST='1')then
+			IRQ_mask <= (others=>'0');
+		elsif(rising_edge(CLK))then
+			if(address_decoder_wren(6)='1')then
+				IRQ_mask <= D;
 			end if;
-		end process;
-	end generate mask_gen;
+		end if;
+	end process;
 		
 -------------------------- status register ---------------------------------------------------
 	--active
