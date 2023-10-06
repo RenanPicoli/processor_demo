@@ -100,7 +100,7 @@ architecture behv of interrupt_controller_vectorized is
 	signal irq:						std_logic;
 	signal tmp:						std_logic_vector(31 downto 0);
 	signal tmp_IRQ_out:			std_logic_vector(31 downto 0);
-	signal IRQ_mask:			std_logic_vector(31 downto 0);-- Interrupt masks
+	signal IRQ_mask:			std_logic_vector(31 downto 0);-- Interrupt masks, '1' means masked
 	signal sw_IRQ_reg:			std_logic_vector(31 downto 0);-- written by software, requests the interrupt
 
 	------------signals for interrupt vector-------------------
@@ -135,7 +135,7 @@ begin
 			IRQ_pend(i)			<= fsm_state(i)(1);
 			IRQ_started(i)		<= fsm_state(i)(0);
 			
-			irq_pending: process(RST,preemption,IRQ_IN,IRQ_OUT,IACK_OUT,IRQ_active,CLK,REQ_READY)
+			irq_pending: process(RST,preemption,IRQ_IN,sw_IRQ_reg,IRQ_mask,IACK_OUT,IRQ_active,CLK,REQ_READY)
 			begin
 				if(RST='1') then
 					--idle state
@@ -146,11 +146,12 @@ begin
 					
 				--next state will be determined
 				elsif(rising_edge(CLK)) then -- MUST be the same active edge of other RAM peripherals
-					IRQ_IN_prev(i)	<= IRQ_IN(i);
+					IRQ_IN_prev(i)	<= (IRQ_IN(i) or sw_IRQ_reg(i)) and (not IRQ_mask(i));
 					
 					-- idle state
 					if (fsm_state(i)="00")then
-						if (IRQ_IN(i)='1' and IRQ_IN_prev(i)='0') then-- capture IRQ_IN rising_edge
+						--edge detection
+						if (((IRQ_IN(i) or sw_IRQ_reg(i)) and (not IRQ_mask(i))) and IRQ_IN_prev(i)='0') then-- capture IRQ_IN rising_edge
 							fsm_state(i) <= "10";--enters in IRQ_pend state
 						end if;
 					-- IRQ_pend state
@@ -190,7 +191,8 @@ begin
 		--é necessário que o software zere os bits das IRQ atendidas e
 		--DEPOIS envie o IACK.
 		iack_out_write: for i in 0 to L-1 generate
-					IACK_OUT(i) <= IACK_IN and IRQ_active(i);
+					--sends IACK to peripheral if that interrupt is active AND was NOT software-generated
+					IACK_OUT(i) <= IACK_IN and IRQ_active(i) and (not sw_IRQ_reg(i));
 		end generate;
 		
 --		IRQ_active <= IRQ_started and (not preemption);
@@ -203,7 +205,7 @@ begin
 				tmp(i) <= tmp(i-1) or tmp_IRQ_out(i);
 			end generate tmp_i;
 			
-			process(RST,IRQ_IN,CLK,IRQ_started,IRQ_pend,preemption,REQ_READY)
+			process(RST,CLK,IRQ_started,IRQ_pend,preemption,REQ_READY)
 			begin
 				if(RST='1')then
 					tmp_IRQ_out(i) <= '0';
@@ -264,18 +266,22 @@ begin
 	end generate priorities_gen;
 	
 	-------------software interrupt write----------------------------
-	process(CLK,address_decoder_wren,D,RST)
+	process(CLK,address_decoder_wren,D,IACK_IN,IRQ_active,RST)
 	begin
 		if(RST='1')then
 			sw_IRQ_reg <= (others=>'0');
 		elsif(rising_edge(CLK))then
 			if(address_decoder_wren(5)='1')then
 				sw_IRQ_reg <= D;
+			elsif(IACK_IN='1')then
+				--clears sw_IRQ_reg(i) only if IRQ_active(i)='1'
+				sw_IRQ_reg <= sw_IRQ_reg and (not IRQ_active);
 			end if;
 		end if;
 	end process;
 	
 	-------------masks write----------------------------
+	-- '1' means masked
 	process(CLK,address_decoder_wren,D,RST)
 	begin
 		if(RST='1')then
