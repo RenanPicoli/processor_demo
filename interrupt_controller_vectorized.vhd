@@ -151,7 +151,7 @@ begin
 					-- idle state
 					if (fsm_state(i)="00")then
 						--edge detection
-						if (((IRQ_IN(i) or sw_IRQ_reg(i)) and (not IRQ_mask(i))) and IRQ_IN_prev(i)='0') then-- capture IRQ_IN rising_edge
+						if (((IRQ_IN(i)='1' or sw_IRQ_reg(i)='1') and (IRQ_mask(i)='0')) and IRQ_IN_prev(i)='0') then-- capture IRQ_IN rising_edge
 							fsm_state(i) <= "10";--enters in IRQ_pend state
 						end if;
 					-- IRQ_pend state
