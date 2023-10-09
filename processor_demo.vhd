@@ -676,6 +676,7 @@ signal filter_ctrl_status_wren: std_logic;
 signal irq_ctrl_Q: std_logic_vector(31 downto 0);-- register containing filter status of convergency
 signal irq_ctrl_rden: std_logic;-- not used, just to keep form
 signal irq_ctrl_wren: std_logic;
+signal irq_ctrl_ready: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
 signal all_irq: std_logic_vector(3 downto 0);
@@ -1448,7 +1449,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (15=> program_data_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
+	all_periphs_ready		<= (15=> program_data_ready, 14=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
 	all_periphs_output	<= (15=> program_data_Q, 14 => irq_ctrl_Q, 13=> lcd_en_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
@@ -1569,7 +1570,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			IACK_IN => iack,--input: IACK line coming from cpu
 			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
 			ISR_ADDR => ISR_ADDR,
-			ready => open,
+			ready => irq_ctrl_ready,
 			output => irq_ctrl_Q -- output of register reading
 	);
 	
