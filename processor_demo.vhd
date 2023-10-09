@@ -354,6 +354,7 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
 		IACK_OUT: buffer std_logic_vector(L-1 downto 0);--output: all IACK lines going to peripherals
 		ISR_ADDR: out std_logic_vector(31 downto 0);--address of ISR
+		ready: out std_logic;-- output ready
 		output: out std_logic_vector(31 downto 0)-- output of register reading
 );
 
@@ -677,8 +678,8 @@ signal irq_ctrl_rden: std_logic;-- not used, just to keep form
 signal irq_ctrl_wren: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
-signal all_irq: std_logic_vector(31 downto 0);
-signal all_iack: std_logic_vector(31 downto 0);
+signal all_irq: std_logic_vector(3 downto 0);
+signal all_iack: std_logic_vector(3 downto 0);
 signal ISR_ADDR: std_logic_vector(31 downto 0);
 
 --signals for fp32_to_integer----------------------------------
@@ -1550,12 +1551,12 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--i2s_irq is synchronized to ram_clk rising_edge inside I2S peripheral
 	--aparently, i2c_irq is synchronized to ram_clk rising_edge because I2C clocks are created dividing ram_clk
 --	all_irq	<= (3 => filter_irq_sync(1), 2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq_sync(0));
-	all_irq	<= (3 => filter_irq_sync(1), 2 => '0', 1 => i2c_irq, 0 => filter_irq_sync(0), others=> '0');
+	all_irq	<= (3 => filter_irq_sync(1), 2 => '0', 1 => i2c_irq, 0 => filter_irq_sync(0));
 	i2s_iack	<= all_iack(2);										 
 	i2c_iack	<= all_iack(1);
 	filter_iack	<= all_iack(3) & all_iack(0);
 	irq_ctrl: interrupt_controller_vectorized
-	generic map (L => 32)--L: number of IRQ lines
+	generic map (L => 4)--L: number of IRQ lines
 	port map (	D => ram_write_data,-- input: data to register write
 			ADDR => ram_addr(6 downto 0),
 			CLK => ram_clk,-- input
@@ -1568,6 +1569,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			IACK_IN => iack,--input: IACK line coming from cpu
 			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
 			ISR_ADDR => ISR_ADDR,
+			ready => open,
 			output => irq_ctrl_Q -- output of register reading
 	);
 	
