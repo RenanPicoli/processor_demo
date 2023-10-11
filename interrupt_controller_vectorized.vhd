@@ -308,12 +308,12 @@ begin
 	end process;
 	
 	-------------vector_ready----------------------------
-	process(CLK,RST,all_periphs_rden)
+	process(CLK,RST,all_periphs_rden,all_periphs_wren)
 	begin
 		if(RST='1')then
 			vector_ready <= '0';
 		elsif(rising_edge(CLK))then
-			if(all_periphs_rden(7)='1')then
+			if(vector_ready='0' and (all_periphs_rden(7)='1' or all_periphs_wren(7)='1'))then
 				vector_ready <= '1';
 			else
 				vector_ready <= '0';
@@ -337,13 +337,13 @@ begin
 		end if;
 	end process;
 	
-	-------------vector_ready----------------------------
-	process(CLK,RST,all_periphs_rden)
+	-------------priorities_ready----------------------------
+	process(CLK,RST,all_periphs_rden,all_periphs_wren)
 	begin
 		if(RST='1')then
 			priorities_ready <= '0';
 		elsif(rising_edge(CLK))then
-			if(all_periphs_rden(8)='1')then
+			if(priorities_ready='0' and (all_periphs_rden(8)='1' or all_periphs_wren(8)='1'))then
 				priorities_ready <= '1';
 			else
 				priorities_ready <= '0';
