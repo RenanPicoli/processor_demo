@@ -189,6 +189,9 @@ begin
 			IRQ_pend(i)			<= fsm_state(i)(1);
 			IRQ_started(i)		<= fsm_state(i)(0);
 			
+			-- if the peripheral deasserts IRQ line before IACK (which is prohibited)
+			-- and asserts it while the corresponding ISR is active,
+			-- this second IRQ is IGNORED!
 			irq_pending: process(RST,preemption,IRQ_IN_ex,sw_IRQ_reg,IRQ_mask,IACK_OUT,IRQ_active,CLK,REQ_READY)
 			begin
 				if(RST='1') then
@@ -204,16 +207,19 @@ begin
 					
 					-- idle state
 					if (fsm_state(i)="00")then
-						--edge detection
+						-- edge detection
+						-- will enter pending state only if it was in idle state
 						if (((IRQ_IN_ex(i)='1' or sw_IRQ_reg(i)='1') and (IRQ_mask(i)='0')) and IRQ_IN_prev(i)='0') then-- capture IRQ_IN rising_edge
 							fsm_state(i) <= "10";--enters in IRQ_pend state
 						end if;
 					-- IRQ_pend state
-					elsif(fsm_state(i)="10" and REQ_READY='1')then
+					-- will ignore IRQ physical/software lines
+					elsif(fsm_state(i)="10")then
 						if (preemption(i)='0')then
 							fsm_state(i) <= "01";--enters in IRQ_started state
 						end if;
-					--IRQ_started state
+					-- IRQ_started state
+					-- will ignore IRQ physical/software lines
 					elsif(fsm_state(i)="01" and REQ_READY='1')then
 						if(IACK_IN='1' and IRQ_active(i)='1')then-- its ISR finished, cpu sent IACK
 							fsm_state(i) <= "00";--enters in idle state
@@ -222,12 +228,6 @@ begin
 				end if;
 			end process;
 		end generate irq_fsm_i;
-		
-		--unused bits receive '0'
---		fsm_state(31 downto L)		<= (others => (others => '0'));
---		IRQ_pend(31 downto L)		<= (others => '0');
---		IRQ_started(31 downto L)	<= (others => '0');
---		IRQ_IN_prev(31 downto L)	<= (others => '0');
 		
 		arbiter: for i in 0 to 31 generate
 			--if two IRQ's of equal priority arrive in the along the same clock cycle, the IRQ of highest index takes precendence
@@ -248,13 +248,11 @@ begin
 					--sends IACK to peripheral if that interrupt is active AND was NOT software-generated
 					IACK_OUT(i) <= IACK_IN and IRQ_active(i) and (not sw_IRQ_reg(i));
 		end generate;
-		
---		IRQ_active <= IRQ_started and (not preemption);
---		IRQ_active <= tmp_preferred(L-1);
 
 		-- AFTER irq_pend_out UPDATE
 		tmp(0) <= tmp_IRQ_out(0);
 		irq_out_write: for i in 0 to 31 generate
+			-- a BIG-OR of all tmp_IRQ_out signals
 			tmp_i: if (i /= 0) generate
 				tmp(i) <= tmp(i-1) or tmp_IRQ_out(i);
 			end generate tmp_i;
