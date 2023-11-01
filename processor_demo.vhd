@@ -68,9 +68,9 @@ architecture setup of processor_demo is
 component microprocessor
 port (CLK_IN: in std_logic;
 		rst: in std_logic;
+		ready: out std_logic;--processor is ready (for new IRQs), clk_enable, synchronized to falling edge of CLK_IN
 		irq: in std_logic;--interrupt request
 		iack: out std_logic;--interrupt acknowledgement
-		return_value: out std_logic_vector (31 downto 0);-- output of RV register
 		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(31 downto 0);--addr é endereço de word
@@ -348,7 +348,7 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
 		RDEN: in std_logic;-- input
-		REQ_READY: in  std_logic;--input
+		PROC_READY: in std_logic;--processor is ready (for new IRQs), clk_enable, synchronized to falling edge of CLK_IN
 		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines
 		IRQ_OUT: out std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
@@ -564,7 +564,7 @@ signal instruction_upper_half_latched: std_logic;
 signal instruction_lower_half_latched: std_logic;
 signal i_cache_ready: std_logic;
 signal i_cache_ready_sync: std_logic;--i_cache_ready synchronized to rising_edge(CLK)
-signal all_ready: std_logic;--synchronized to rising_edge(CLK)
+signal proc_ready: std_logic;--synchronized to falling_edge(CLK)
 signal instruction_clk: std_logic;
 signal instruction_memory_addr: std_logic_vector(19 downto 0);
 signal instruction_memory_Q: std_logic_vector(31 downto 0);
@@ -831,14 +831,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				mem_O		=> instruction_memory_write_data,
 				data => program_data_Q--fetched data
 		);
-	process(i_cache_ready,d_cache_ready,CLK)
-	begin
-		if(RST='1')then
-			all_ready <= '1';
-		elsif(falling_edge(CLK))then--reprocuces delay in clk_enable
-			all_ready <= i_cache_ready and d_cache_ready_sync;
-		end if;
-	end process;
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
@@ -1514,9 +1506,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	port map (
 		CLK_IN => CLK,
 		rst => rst,
+		ready=> proc_ready,
 		irq => irq,
 		iack => iack,
-		return_value => open,
 		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		ADDR_rom => instruction_memory_address,
 		i_cache_ready => i_cache_ready_sync,--synchronized to rising_edge(CLK)
@@ -1564,7 +1556,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
 			RDEN => irq_ctrl_rden,-- input
-			REQ_READY => all_ready,--synchronized to rising_edge(CLK)
+			PROC_READY => proc_ready,--synchronized to falling_edge(CLK)
 			IRQ_IN => all_irq,--input: all IRQ lines
 			IRQ_OUT => irq,--output: IRQ line to cpu
 			IACK_IN => iack,--input: IACK line coming from cpu
