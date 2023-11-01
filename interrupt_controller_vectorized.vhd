@@ -29,7 +29,7 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write (vect
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
 		RDEN: in std_logic;-- input
-		REQ_READY: in  std_logic;--input
+		PROC_READY: in std_logic;--processor is ready (for new IRQs), clk_enable, synchronized to falling edge of CLK_IN
 		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines, sampled internally at rising_edge(CLK)
 		IRQ_OUT: buffer std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
@@ -192,7 +192,7 @@ begin
 			-- if the peripheral deasserts IRQ line before IACK (which is prohibited)
 			-- and asserts it while the corresponding ISR is active,
 			-- this second IRQ is IGNORED!
-			irq_pending: process(RST,preemption,IRQ_IN_ex,sw_IRQ_reg,IRQ_mask,IACK_OUT,IRQ_active,CLK,REQ_READY)
+			irq_pending: process(RST,preemption,IRQ_IN_ex,sw_IRQ_reg,IRQ_mask,IACK_OUT,IRQ_active,CLK,PROC_READY)
 			begin
 				if(RST='1') then
 					--idle state
@@ -220,7 +220,7 @@ begin
 						end if;
 					-- IRQ_started state
 					-- will ignore IRQ physical/software lines
-					elsif(fsm_state(i)="01" and REQ_READY='1')then
+					elsif(fsm_state(i)="01" and PROC_READY='1')then
 						if(IACK_IN='1' and IRQ_active(i)='1')then-- its ISR finished, cpu sent IACK
 							fsm_state(i) <= "00";--enters in idle state
 						end if;
@@ -257,12 +257,12 @@ begin
 				tmp(i) <= tmp(i-1) or tmp_IRQ_out(i);
 			end generate tmp_i;
 			
-			process(RST,CLK,IRQ_started,IRQ_pend,preemption,REQ_READY)
+			process(RST,CLK,IRQ_started,IRQ_pend,preemption,PROC_READY)
 			begin
 				if(RST='1')then
 					tmp_IRQ_out(i) <= '0';
 				elsif(rising_edge(CLK))then
-					if(IRQ_started(i)='1' and REQ_READY='1')then
+					if(IRQ_started(i)='1' and PROC_READY='1')then
 						tmp_IRQ_out(i) <='0';
 					elsif(IRQ_pend(i)='1' and preemption(i)='0')then
 						tmp_IRQ_out(i) <='1';
