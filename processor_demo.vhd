@@ -449,10 +449,10 @@ port(	IO:	inout std_logic_vector(DATA_WIDTH-1 downto 0);--data bus
 
 end component;
 
-component mem_code_for_7seg
-port(	address	: in std_logic_vector (3 downto 0);
-		clock		: in std_logic  := '1';
-		q			: out std_logic_vector (6 downto 0)
+component disp_7seg_driver
+port (CLK: in std_logic;
+		D: in std_logic_vector(31 downto 0);
+		segments: out array7(7 downto 0)
 );
 end component;
 
@@ -771,7 +771,6 @@ signal disp_7seg_DR_rden: std_logic;
 signal disp_7seg_DR_cnt: std_logic_vector(2 downto 0);--counter for switching between nibbles (0 to 7)
 signal disp_7seg_DR_nibble: std_logic_vector(3 downto 0);--used if one nibble is displayed at a time
 --signal disp_7seg_DR_code: std_logic_vector(6 downto 0);--used if one code is computed at a time
-signal disp_7seg_DR_code: array7(7 downto 0);--used if one code is computed at a time
 
 --signals for LCD controller
 signal lcd_clk: std_logic;
@@ -1574,22 +1573,12 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		ENA => disp_7seg_DR_wren,
 		Q => disp_7seg_DR_out
 	);
-	
-		disp_7seg_drive: for i in 0 to 7 generate
-		--the statement below consumes much logic because 8 muxes are inferred (16x7bit)
---		segments(i) <= not code_for_7seg(to_integer(unsigned(disp_7seg_DR_out(4*i+3 downto 4*i ))));
-		
-		--one nibble being translated at a time
-		--ROM containing the codes (commands) to each digit
-		mem_code_for_7seg_i : mem_code_for_7seg port map (
-			address	=> disp_7seg_DR_out(4*i+3 downto 4*i),
-			clock		=> ram_clk,
-			q			=> disp_7seg_DR_code(i)
-		);
 
-		segments(i) <= not disp_7seg_DR_code(i);
---		segments(i) <= (6 downto 4 => '1') & disp_7seg_DR_out(4*i+3 downto 4*i);
-	end generate disp_7seg_drive;
+	disp_7seg: disp_7seg_driver port map(
+		CLK=> ram_clk,
+		D	=> disp_7seg_DR_out,
+		segments => segments		
+	);
 	
 --	lcd_ctrl: LCD_Controller
 --	generic map (F => 4)
