@@ -929,7 +929,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 							'0' when instruction_memory_wren='1' else-- enables software to update content
 							'1';--reading always enabled
 		i_cache: cache
-			generic map (REQUESTED_SIZE => 1024, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
+			generic map (REQUESTED_SIZE => 2048, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> true)--user requested cache size, in 32 bit words
 			port map (
 					req_ADDR => instruction_memory_address(18 downto 0),--address of requested instruction
 					req_rden => '1',
