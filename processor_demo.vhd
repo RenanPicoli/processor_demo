@@ -728,7 +728,7 @@ signal filter_output_sync: std_logic_vector(31 downto 0);--filter output synchro
 constant ranges: boundaries := 	(--notation: base#value#
 											(16#00#,16#07#),--filter coeffs
 											(16#08#,16#0F#),--filter xN
-											(16#10#,16#17#),--cache
+											(16#10#,16#1F#),--cache
 											(16#20#,16#3F#),--inner_product
 											(16#40#,16#5F#),--VMAC
 											(16#60#,16#67#),--I2C
@@ -833,9 +833,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
-	mini_ram_cache: mini_ram 	generic map (N => 3)
+	mini_ram_cache: mini_ram 	generic map (N => 4)
 							port map(CLK	=> ram_clk,
-										ADDR	=> ram_addr(2 downto 0),
+										ADDR	=> ram_addr(3 downto 0),
 										write_data => ram_write_data,
 										rden	=> cache_rden,
 										wren	=> cache_wren,
