@@ -77,7 +77,6 @@ signal waddr: std_logic_vector(W+D downto 0);--write address for the tdp_ram, W+
 														-- because W LSbit are used to select between subwords of instruction (when memory width is smaller than instruction width)
 														-- and 1 bit (overflow) is used to detect full
 signal mem_write_ADDR: std_logic_vector(W+D-1 downto 0);--write address coming from fifo
-														
 type waddr_sr_t is array (natural range <>) of std_logic_vector(W+D downto 0);
 signal waddr_sr: waddr_sr_t (MEM_LATENCY+1 downto 0);--waddr passes through a shift register to account for memory latency
 signal waddr_delayed: std_logic_vector(W+D downto 0);--waddr delayed to account for memory latency
@@ -105,6 +104,14 @@ signal dc_fifo_data_out:std_logic_vector(32+D-1 downto 0);
 --signal word_idx: natural;--index of the word being written to program memory (0,1,...,2**W-1)
 subtype word_idx_t is natural range 0 to 2**W-1;
 signal word_idx: word_idx_t;--index of the word being written to program memory
+
+attribute preserve : boolean;
+attribute preserve of raddr : signal is true;
+attribute preserve of waddr_sr : signal is true;
+attribute preserve of waddr_delayed : signal is true;
+attribute preserve of full : signal is true;
+attribute preserve of offset : signal is true;
+attribute preserve of dc_fifo_data_out : signal is true;
 
 begin
 
@@ -332,11 +339,11 @@ begin
 			end if;
 		end process;
 --		req_ready <= '1' when (req_ready_sr="00" or req_ready_sr="10") else '0';
-		req_ready_p: process(req_ready_sr,RST,CLK,req_rden,req_wren,full,miss)
+		req_ready_p: process(req_ready_sr,RST,CLK,req_rden,req_wren,full,miss,mem_CLK)
 		begin
 			if(RST='1')then--req_ready_sr="01" or req_ready_sr="11"
 				req_ready <= '1';
-			elsif(falling_edge(CLK))then
+			elsif(rising_edge(mem_CLK))then--this is to avoid glitches
 				if(req_ready_sr="00" and (((req_rden='1' or req_wren='1') and miss='1') or (req_rden='1' and hit='1')))then
 					req_ready <= '0';
 				elsif((req_ready_sr="11" and full='1') )then

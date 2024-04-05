@@ -30,6 +30,7 @@ port(	D: in std_logic_vector(31 downto 0);
 --		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
 		parallel_read_data_A: out array32 (0 to 2**(N-2)-1);
 		parallel_read_data_B: out array32 (0 to 2**(N-2)-1);
+		ready: out std_logic;-- output
 		output: out std_logic_vector(31 downto 0)-- output
 );
 
@@ -58,11 +59,15 @@ architecture behv of inner_product_calculation_unit is
 
 	end component;
 	
-	--combinatorial, data comes from register external to this component
+	--pipelined, data comes from register external to this component
 	component fpu_inner_product
 	generic	(N: natural);--number of elements of each vector
-	port(	A:	in array32(N-1 downto 0);-- input
+	port(	CLK: in std_logic;
+			RST: in std_logic;
+			req_in: in std_logic;
+			A:	in array32(N-1 downto 0);-- input
 			B:	in array32(N-1 downto 0);-- input
+			req_ready: out std_logic;--synchronous to rising_edge(CLK)
 			output: out std_logic_vector(31 downto 0)-- output
 	);
 	end component;
@@ -96,7 +101,9 @@ architecture behv of inner_product_calculation_unit is
 	
 	signal A_fpu_inner_product_input: array32 (0 to (2**(N-2)-1));-- A input of fpu_inner_product
 	signal B_fpu_inner_product_input: array32 (0 to (2**(N-2)-1));-- B input of fpu_inner_product
+	signal fpu_inner_product_ready: std_logic;
 	signal result: std_logic_vector(31 downto 0);--result of fpu_inner_product
+	signal result_ready: std_logic;
 	signal A_rden: std_logic;--rden for single word of A registers
 	signal B_rden: std_logic;--rden for single word of B registers
 	signal result_rden: std_logic;--rden for result register
@@ -107,28 +114,37 @@ architecture behv of inner_product_calculation_unit is
 	signal B_output: std_logic_vector(31 downto 0);
 	signal reg_result_out: std_logic_vector(31 downto 0);--result of inner product will be read here
 	signal CLK_n: std_logic;
+	signal ctrl_in: std_logic_vector(31 downto 0);
+	signal ctrl_wren: std_logic;
+	signal ctrl_rden: std_logic;
+	signal ctrl_out: std_logic_vector(31 downto 0);
 	
 	-----------signals for memory map interfacing----------------
 	constant ranges: boundaries := 	(--notation: base#value#
 												(16#00#,16#07#),--A regs
 												(16#08#,16#0F#),--B regs
-												(16#10#,16#10#)--result
+												(16#10#,16#10#),--result
+												(16#11#,16#11#)--control
 												);
-	signal all_periphs_output: array32 (2 downto 0);
-	signal all_periphs_rden: std_logic_vector(2 downto 0);
-	signal all_periphs_wren: std_logic_vector(2 downto 0);
+	signal all_periphs_output: array32 (3 downto 0);
+	signal all_periphs_rden: std_logic_vector(3 downto 0);
+	signal all_periphs_wren: std_logic_vector(3 downto 0);
+	signal all_periphs_ready_in: std_logic_vector(3 downto 0);
 
 begin
 
-	all_periphs_output <= (0 => A_output, 1 => B_output, 2=> reg_result_out);
+	all_periphs_output <= (0 => A_output, 1 => B_output, 2=> reg_result_out, 3=> ctrl_out);
+	all_periphs_ready_in <= (2=> result_ready, others=>'1');
 	
 	A_rden <= all_periphs_rden(0);
 	B_rden <= all_periphs_rden(1);
 	result_rden <= all_periphs_rden(2);
+	ctrl_rden <= all_periphs_rden(3);
 	
 	A_wren <= all_periphs_wren(0);
 	B_wren <= all_periphs_wren(1);
 	result_wren <= all_periphs_wren(2);
+	ctrl_wren <= all_periphs_wren(3);
 
 -------------------------- address decoder ---------------------------------------------------
 	memory_map: address_decoder_memory_map
@@ -141,9 +157,10 @@ begin
 			RDEN => RDEN,-- input
 			WREN => WREN,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
-			ready_in => (others=>'1'),
+			ready_in => all_periphs_ready_in,
 			RDEN_OUT => all_periphs_rden,-- output
 			WREN_OUT => all_periphs_wren,-- output
+			ready_out => ready,
 			data_out => output-- data read
 	);
 
@@ -182,11 +199,15 @@ begin
 ----------------------- inner product instantiation -------------------------------------------
 	inner_product: fpu_inner_product
 	generic map (N => 2**(N-2))
-	port map(A => A_fpu_inner_product_input,--supposed to be normalized
+	port map(CLK => CLK,
+				RST => RST,
+				req_in => ctrl_out(0),
+				A => A_fpu_inner_product_input,--supposed to be normalized
 				B => B_fpu_inner_product_input,--supposed to be normalized
 				-------NEED ADD FLAGS (overflow, underflow, etc)
 				--overflow:		out std_logic,
 				--underflow:		out std_logic,
+				req_ready => fpu_inner_product_ready,
 				output => result
 				);
 				
@@ -195,11 +216,36 @@ begin
 	CLK_n <= not CLK;
 	d_ff_result: d_flip_flop port map(	D => result,
 													RST=> RST,--resets all previous history of input signal
-													ENA=> '1',
+													ENA=> fpu_inner_product_ready,
 													CLK=> CLK_n,--sampling clock
 													Q=> reg_result_out
 													);
 ---------------------------------------------------------------------------------------------
+				
+---------------------------------- control register ---------------------------------------------
+---------------------(software writes '1' to create a pulse in bit 0)----------------------------
+	ctrl_in <= D when ctrl_wren='1' else ctrl_out(31 downto 1) & '0';
+	d_ff_ctrl: d_flip_flop port map(	D => ctrl_in,
+												RST=> RST,--resets all previous history of input signal
+												ENA=> '1',
+												CLK=> CLK,--sampling clock
+												Q=> ctrl_out
+												);
+												
+---------------------------------------------------------------------------------------------
+	--I wanted a latch, but latches are bad for timing analysis
+	process(CLK,RST,ctrl_out,result_ready,fpu_inner_product_ready)
+	begin
+		if(RST='1')then
+			result_ready <= '1';
+		elsif(rising_edge(CLK))then
+			if(ctrl_in(0)='1')then
+				result_ready <= '0';
+			elsif(fpu_inner_product_ready='1')then
+				result_ready <= '1';
+			end if;
+		end if;
+	end process;
 
 	--parallel_read_data connects to a shared data bus
 	--note that if you mistakenly assert both parallel_rden_A AND parallel_rden_B,

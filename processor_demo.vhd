@@ -45,6 +45,13 @@ port (CLK_IN: in std_logic;--50MHz input
 		sram_LB_n: buffer std_logic; --lower	IO byte access, active LOW
 		-- 7 segments displays
 		segments: out array7(7 downto 0);
+		--LCD
+		lcd_data: inout std_logic_vector(7 downto 0);
+		lcd_en: inout std_logic;
+		lcd_rw: out std_logic;
+		lcd_rs: out std_logic;
+		lcd_on: out std_logic;
+		lcd_blon: out std_logic;--is this really necessary??
 		--GREEN LEDS
 		LEDG: out std_logic_vector(8 downto 0);
 		--RED LEDS
@@ -61,9 +68,9 @@ architecture setup of processor_demo is
 component microprocessor
 port (CLK_IN: in std_logic;
 		rst: in std_logic;
+		ready: out std_logic;--processor is ready (for new IRQs), clk_enable, synchronized to falling edge of CLK_IN
 		irq: in std_logic;--interrupt request
 		iack: out std_logic;--interrupt acknowledgement
-		return_value: out std_logic_vector (31 downto 0);-- output of RV register
 		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(31 downto 0);--addr é endereço de word
@@ -71,7 +78,7 @@ port (CLK_IN: in std_logic;
 		Q_rom:	in std_logic_vector(31 downto 0);
 		i_cache_ready: in std_logic;--indicates i_cache is ready (Q_rom is valid), synchronous to rising_edge(CLK_IN)
 		-----RAM-----------
-		ADDR_ram: out std_logic_vector(31 downto 0);--addr é endereço de byte, mas os Lsb são 00
+		ADDR_ram: out std_logic_vector(31 downto 0);--WORD ADDRESS
 		write_data_ram: out std_logic_vector(31 downto 0);
 		rden_ram: out std_logic;--enables read on ram
 		wren_ram: out std_logic;--enables write on ram
@@ -225,6 +232,7 @@ component pll_dbg_uproc
 		c0		: OUT STD_LOGIC ;
 		c1 	: OUT STD_LOGIC ;
 		c2 	: OUT STD_LOGIC ;
+		c3 	: OUT STD_LOGIC ;
 		locked		: OUT STD_LOGIC 
 	);
 END component;
@@ -246,6 +254,7 @@ port(	D: in std_logic_vector(31 downto 0);
 --		parallel_rden_B: in std_logic;--enables parallel read (to shared data bus)
 		parallel_read_data_A: out array32 (0 to 2**(N-2)-1);
 		parallel_read_data_B: out array32 (0 to 2**(N-2)-1);
+		ready: out std_logic;--synchronous to rising_edge(CLK)
 		output: out std_logic_vector(31 downto 0)-- output
 );
 end component;
@@ -339,12 +348,13 @@ port(	D: in std_logic_vector(31 downto 0);-- input: data to register write
 		RST: in std_logic;-- input
 		WREN: in std_logic;-- input
 		RDEN: in std_logic;-- input
-		REQ_READY: in  std_logic;--input
+		PROC_READY: in std_logic;--processor is ready (for new IRQs), clk_enable, synchronized to falling edge of CLK_IN
 		IRQ_IN: in std_logic_vector(L-1 downto 0);--input: all IRQ lines
 		IRQ_OUT: out std_logic;--output: IRQ line to cpu
 		IACK_IN: in std_logic;--input: IACK line coming from cpu
 		IACK_OUT: buffer std_logic_vector(L-1 downto 0);--output: all IACK lines going to peripherals
 		ISR_ADDR: out std_logic_vector(31 downto 0);--address of ISR
+		ready: out std_logic;-- output ready
 		output: out std_logic_vector(31 downto 0)-- output of register reading
 );
 
@@ -439,11 +449,53 @@ port(	IO:	inout std_logic_vector(DATA_WIDTH-1 downto 0);--data bus
 
 end component;
 
-component mem_code_for_7seg
-port(	address	: in std_logic_vector (3 downto 0);
-		clock		: in std_logic  := '1';
-		q			: out std_logic_vector (6 downto 0)
+component disp_7seg_driver
+port (CLK: in std_logic;
+		D: in std_logic_vector(31 downto 0);
+		segments: out array7(7 downto 0)
 );
+end component;
+
+component LCD_Controller
+generic (F: natural);--F is frequency of clk in MHz
+port (
+	clk		: in  std_logic;
+	rst		: in  std_logic;
+	-- interface with CPU
+	D		: in std_logic_vector(31 downto 0);
+	wren	: in std_logic;
+	Q		: out std_logic_vector(31 downto 0);
+	ready	: out std_logic;--check for writes
+	  
+	  -- LCD control signals
+	RS		: out std_logic;
+	RW		: out std_logic;
+	E		: inout std_logic;
+	VO		: out std_logic;
+	DB		: inout std_logic_vector(7 downto 0)
+);
+end component;
+
+--component by Gerry O'Brien
+component LCD_DISPLAY_nty
+   PORT( 
+      rst              	 : in     std_logic;  -- synchronous active low reset
+      clk           		 : in     std_logic;  -- Using the CPU 4 MHz Clk, in order to Genreate the 400Hz signal... clk_count_400hz reset count value must be set to:  <= x"0F424"
+
+		-- interface with CPU
+		D		: in std_logic_vector(31 downto 0);
+      wren	: in std_logic;
+		Q		: out std_logic_vector(31 downto 0);
+		ready	: out std_logic;--check for writes
+      
+      lcd_rs             : out    std_logic;
+      lcd_e              : out    std_logic;
+      lcd_rw             : out    std_logic;
+      lcd_on             : out    std_logic;
+      lcd_blon           : out    std_logic;      
+      
+      data_bus        	 : inout  std_logic_vector(7 downto 0)
+   );
 end component;
 
 signal rst: std_logic;--active high
@@ -512,7 +564,7 @@ signal instruction_upper_half_latched: std_logic;
 signal instruction_lower_half_latched: std_logic;
 signal i_cache_ready: std_logic;
 signal i_cache_ready_sync: std_logic;--i_cache_ready synchronized to rising_edge(CLK)
-signal all_ready: std_logic;--synchronized to rising_edge(CLK)
+signal proc_ready: std_logic;--synchronized to falling_edge(CLK)
 signal instruction_clk: std_logic;
 signal instruction_memory_addr: std_logic_vector(19 downto 0);
 signal instruction_memory_Q: std_logic_vector(31 downto 0);
@@ -575,6 +627,7 @@ signal coeffs_mem_vector_bus: array32 (0 to 7);--data bus for parallel write of 
 signal inner_product_result: std_logic_vector(31 downto 0);
 signal inner_product_rden: std_logic;
 signal inner_product_wren: std_logic;
+signal inner_product_ready:std_logic;
 --signal inner_product_parallel_rden_A: std_logic;
 signal inner_product_parallel_wren_A: std_logic;
 --signal inner_product_parallel_rden_B: std_logic;
@@ -623,6 +676,7 @@ signal filter_ctrl_status_wren: std_logic;
 signal irq_ctrl_Q: std_logic_vector(31 downto 0);-- register containing filter status of convergency
 signal irq_ctrl_rden: std_logic;-- not used, just to keep form
 signal irq_ctrl_wren: std_logic;
+signal irq_ctrl_ready: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
 signal all_irq: std_logic_vector(3 downto 0);
@@ -674,7 +728,7 @@ signal filter_output_sync: std_logic_vector(31 downto 0);--filter output synchro
 constant ranges: boundaries := 	(--notation: base#value#
 											(16#00#,16#07#),--filter coeffs
 											(16#08#,16#0F#),--filter xN
-											(16#10#,16#17#),--cache
+											(16#10#,16#1F#),--cache
 											(16#20#,16#3F#),--inner_product
 											(16#40#,16#5F#),--VMAC
 											(16#60#,16#67#),--I2C
@@ -684,8 +738,10 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#72#,16#72#),--filter status
 											(16#73#,16#73#),--converted_out
 											(16#74#,16#74#),-- 7-segments display DR
+											(16#75#,16#75#),-- LCD controller
+											(16#76#,16#76#),-- LCD enable
 											(16#80#,16#FF#),--interrupt controller
-											(16#400#,16#7FF#)--instruction memory
+											(16#800#,16#FFF#)--instruction memory
 											);
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
@@ -715,7 +771,18 @@ signal disp_7seg_DR_rden: std_logic;
 signal disp_7seg_DR_cnt: std_logic_vector(2 downto 0);--counter for switching between nibbles (0 to 7)
 signal disp_7seg_DR_nibble: std_logic_vector(3 downto 0);--used if one nibble is displayed at a time
 --signal disp_7seg_DR_code: std_logic_vector(6 downto 0);--used if one code is computed at a time
-signal disp_7seg_DR_code: array7(7 downto 0);--used if one code is computed at a time
+
+--signals for LCD controller
+signal lcd_clk: std_logic;
+signal lcd_Q: std_logic_vector(31 downto 0);
+signal lcd_wren: std_logic;
+signal lcd_rden: std_logic;
+signal lcd_ready: std_logic;
+
+--signals for LCD_EN-------------------------------------
+signal lcd_en_Q: std_logic_vector(31 downto 0);-- register containing current filter output
+signal lcd_en_rden: std_logic;-- not used, just to keep form
+signal lcd_en_wren: std_logic;
 
 --signals for vector transfers
 signal lvec: std_logic;
@@ -752,27 +819,18 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 									WREN_B=> program_data_wren,
 									Q_B	=> program_data_Q
 	);
-	program_data_address <= ram_addr(18 downto 0) - ranges(13)(0);
+	program_data_address <= ram_addr(18 downto 0) - ranges(15)(0);
 	program_data_ready <= '1';
 	i_cache_ready <= '1';
 	i_cache_ready_sync <= i_cache_ready;
 	
 	CLK_n <= not CLK;
 	
-	process(i_cache_ready,d_cache_ready,CLK)
-	begin
-		if(RST='1')then
-			all_ready <= '1';
-		elsif(falling_edge(CLK))then--reprocuces delay in clk_enable
-			all_ready <= i_cache_ready and d_cache_ready_sync;
-		end if;
-	end process;
-	
 	--MINHA ESTRATEGIA É EXECUTAR CÁLCULOS NA SUBIDA DE CLK E GRAVAR NA MEMÓRIA NA BORDA DE DESCIDA
 	ram_clk <= CLK;
-	mini_ram_cache: mini_ram 	generic map (N => 3)
+	mini_ram_cache: mini_ram 	generic map (N => 4)
 							port map(CLK	=> ram_clk,
-										ADDR	=> ram_addr(2 downto 0),
+										ADDR	=> ram_addr(3 downto 0),
 										write_data => ram_write_data,
 										rden	=> cache_rden,
 										wren	=> cache_wren,
@@ -1080,6 +1138,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				-------NEED ADD FLAGS (overflow, underflow, etc)
 				--overflow:		out std_logic,
 				--underflow:		out std_logic,
+				ready => inner_product_ready,--synchronous to rising_edge(CLK)
 				output => inner_product_result
 				);
 				
@@ -1201,15 +1260,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (13=> program_data_ready, others=>'1');
-	all_periphs_output	<= (13=> program_data_Q, 12 => irq_ctrl_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready		<= (15=> program_data_ready, 14=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
+	all_periphs_output	<= (15=> program_data_Q, 14 => irq_ctrl_Q, 13=> lcd_en_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	program_data_rden			<= all_periphs_rden(13);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden(12);-- not used, just to keep form
+	program_data_rden			<= all_periphs_rden(15);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(14);-- not used, just to keep form
+	lcd_en_rden					<= all_periphs_rden(13);-- not used, just to keep form
+	lcd_rden						<= all_periphs_rden(12);-- not used, just to keep form
 	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
 	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
 	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
@@ -1223,8 +1284,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	program_data_wren			<= all_periphs_wren(13);
-	irq_ctrl_wren				<= all_periphs_wren(12);
+	program_data_wren			<= all_periphs_wren(15);
+	irq_ctrl_wren				<= all_periphs_wren(14);
+	lcd_en_wren					<= all_periphs_wren(13);
+	lcd_wren						<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
 	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
 	filter_ctrl_status_wren	<= all_periphs_wren(9);
@@ -1243,8 +1306,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
 	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
-	generic map (N => 11, B => ranges)
-	port map (	ADDR => ram_addr(10 downto 0),-- input, it is a word address
+	generic map (N => 12, B => ranges)
+	port map (	ADDR => ram_addr(11 downto 0),-- input, it is a word address
 			RDEN => ram_rden,-- input
 			WREN => ram_wren,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
@@ -1262,9 +1325,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	port map (
 		CLK_IN => CLK,
 		rst => rst,
+		ready=> proc_ready,
 		irq => irq,
 		iack => iack,
-		return_value => open,
 		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		ADDR_rom => instruction_memory_address,
 		i_cache_ready => i_cache_ready_sync,--synchronized to rising_edge(CLK)
@@ -1312,12 +1375,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
 			RDEN => irq_ctrl_rden,-- input
-			REQ_READY => all_ready,--synchronized to rising_edge(CLK)
+			PROC_READY => proc_ready,--synchronized to falling_edge(CLK)
 			IRQ_IN => all_irq,--input: all IRQ lines
 			IRQ_OUT => irq,--output: IRQ line to cpu
 			IACK_IN => iack,--input: IACK line coming from cpu
 			IACK_OUT => all_iack,--output: all IACK lines going to peripherals
 			ISR_ADDR => ISR_ADDR,
+			ready => irq_ctrl_ready,
 			output => irq_ctrl_Q -- output of register reading
 	);
 	
@@ -1329,22 +1393,64 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		ENA => disp_7seg_DR_wren,
 		Q => disp_7seg_DR_out
 	);
-	
-		disp_7seg_drive: for i in 0 to 7 generate
-		--the statement below consumes much logic because 8 muxes are inferred (16x7bit)
---		segments(i) <= not code_for_7seg(to_integer(unsigned(disp_7seg_DR_out(4*i+3 downto 4*i ))));
-		
-		--one nibble being translated at a time
-		--ROM containing the codes (commands) to each digit
-		mem_code_for_7seg_i : mem_code_for_7seg port map (
-			address	=> disp_7seg_DR_out(4*i+3 downto 4*i),
-			clock		=> ram_clk,
-			q			=> disp_7seg_DR_code(i)
-		);
 
-		segments(i) <= not disp_7seg_DR_code(i);
---		segments(i) <= (6 downto 4 => '1') & disp_7seg_DR_out(4*i+3 downto 4*i);
-	end generate disp_7seg_drive;
+	disp_7seg: disp_7seg_driver port map(
+		CLK=> ram_clk,
+		D	=> disp_7seg_DR_out,
+		segments => segments		
+	);
+	
+--	lcd_ctrl: LCD_Controller
+--	generic map (F => 4)
+--	port map (
+--		clk => ram_CLK,--for timing, internal FSM
+--		rst => rst,
+--		-- interface with CPU
+--		D => ram_write_data,
+--		wren => lcd_wren,
+--		Q => lcd_Q,
+--		ready => lcd_ready,
+--		  
+--		  -- LCD control signals
+--		RS => lcd_rs,
+--		RW => lcd_rw,
+--		E  => lcd_en_Q(0),
+--		VO => lcd_on,
+--		DB => lcd_data
+--	);
+--	lcd_en <= lcd_en_Q(0);
+--	lcd_blon <= '1';
+
+--component by Gerry O'Brien
+lcd_ctrl: LCD_DISPLAY_nty
+   port map( 
+      rst		=> rst,-- synchronous active low reset
+      clk		=> ram_clk,
+		
+		-- interface with CPU
+		D			=> ram_write_data,
+		wren		=> lcd_wren,
+		Q			=> lcd_Q,
+		ready		=> lcd_ready,
+      
+      lcd_rs	=> lcd_rs,
+      lcd_e		=> lcd_en,
+      lcd_rw	=> lcd_rw,
+      lcd_on	=> lcd_on,
+      lcd_blon	=> lcd_blon,
+      
+      
+      data_bus	=> lcd_data
+   );
+	
+					
+	lcd_en_dff: d_flip_flop
+	 port map(	D => ram_write_data,--written by software
+					RST=> RST,--resets all previous history of filter output
+					ENA=> lcd_en_wren,
+					CLK=>ram_clk,--must be the same as filter_CLK
+					Q=> lcd_en_Q
+					);
 	
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
@@ -1354,6 +1460,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c0		=> CLK_dbg,--produces 48MHz for debugging
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
+		c3		=> lcd_clk,--1MHz for LCD timing and FSM
 		locked=> open
 	);
 

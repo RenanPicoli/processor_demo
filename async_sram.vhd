@@ -75,7 +75,7 @@ architecture behv of async_sram is
 	end;
 
 	--array of latches
-	constant ADDR_WIDTH_implemented: natural := 9;
+	constant ADDR_WIDTH_implemented: natural := 11;--for 1K instructions
 --	constant initial_value: mem(0 to 2**ADDR_WIDTH_implemented-1)(DATA_WIDTH-1 downto 0):= set_initial_value(INIT,(2**ADDR_WIDTH_implemented-1 downto 0 => (DATA_WIDTH-1 downto 0 => '1')),
 --																										get_slv_array_from_file(DATA_WIDTH/8,2**ADDR_WIDTH_implemented,"../../sram_file_experimental.bin"));
 	constant initial_value: mem(0 to 2**ADDR_WIDTH_implemented-1)(DATA_WIDTH-1 downto 0):= set_initial_value(INIT,(2**ADDR_WIDTH_implemented-1 downto 0 => (DATA_WIDTH-1 downto 0 => '1')),

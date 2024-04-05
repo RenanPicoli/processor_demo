@@ -26,7 +26,8 @@ architecture behv of fp32_to_integer is
 component var_shift
 generic	(N: natural; O: natural; S: natural);--N: number of bits in input, O in output; S: number of bits in shift
 port(	input:in std_logic_vector(N-1 downto 0);--input vector that will be shifted
-		shift:in std_logic_vector(S-1 downto 0);--unsigned integer meaning number of shifts to left
+		shift:in std_logic_vector(S-1 downto 0);--signed integer: number of shifts to left (if positive)
+		shift_mode: in std_logic;--'1': arithmetic shift (instead of logic shift)
 		overflow: out std_logic;-- '1' if there are ones that were dropped in the output
 		output: out std_logic_vector(O-1 downto 0)--
 );
@@ -84,6 +85,7 @@ begin
 	generic map (N => 24, O=> N, S => 8)
 	port map (input => extended_mantissa,
 				 shift => unbiased_exponent,
+				 shift_mode => '0',--always logic shift
 				 overflow => shift_overflow,
 				 output => shifted_ext_mantissa);
 	
