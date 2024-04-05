@@ -15,7 +15,7 @@ use work.single_precision_type.all;--defines floating point single precision fie
 entity fp32_to_integer is
 generic	(N: natural);--number of bits in output
 port(	fp_in:in std_logic_vector(31 downto 0);--floating point input
-		output: out std_logic_vector(N-1 downto 0)-- valid input range [-1,1] maps to output range [-2^(N-1),+(2^(N-1)-1)]
+		output: out std_logic_vector(N-1 downto 0)-- valid input range [-Inf,+Inf] maps to output range [-2^(N-1),+(2^(N-1)-1)]
 );
 end fp32_to_integer;
 
@@ -32,29 +32,6 @@ port(	input:in std_logic_vector(N-1 downto 0);--input vector that will be shifte
 		output: out std_logic_vector(O-1 downto 0)--
 );
 end component;
-
---useful functions
--- +2^(N-1)-1
-function max_int(N: natural) return std_logic_vector is-- Don't constrain the length at the return type declaration.
-	variable result: std_logic_vector(N-1 downto 0);
-begin
-	result(N-1) := '0';
-	for i in 0 to N-2 loop
-		result(i) := '1';
-	end loop;
-	return result;
-end;
-
--- -2^(N-1)
-function min_int(N: natural) return std_logic_vector is-- Don't constrain the length at the return type declaration.
-	variable result: std_logic_vector(N-1 downto 0);
-begin
-	result(N-1) := '1';
-	for i in 0 to N-2 loop
-		result(i) := '0';
-	end loop;
-	return result;
-end;
 
 --signals of floating point input
 signal sign: std_logic;--floating point sign bit, '1' means negative
@@ -84,7 +61,7 @@ begin
 	shift: var_shift
 	generic map (N => 24, O=> N, S => 8)
 	port map (input => extended_mantissa,
-				 shift => unbiased_exponent,
+				 shift => unbiased_exponent-31,
 				 shift_mode => '0',--always logic shift
 				 overflow => shift_overflow,
 				 output => shifted_ext_mantissa);
@@ -93,28 +70,10 @@ begin
 	int_absolute <= shifted_ext_mantissa(N-1 downto 0);
 	process(int_absolute,sign,shift_overflow)
 	begin
-		if(shift_overflow='0') then
-			if(int_absolute>=min_int(N) and sign='0')then-- this means output would be >= +1.0, which is not allowed
-				int_output <= max_int(N);
-				overflow <= '1';
-			elsif(int_absolute>min_int(N) and sign='1')then-- this means output would be < -1.0, which is not allowed
-				int_output <= min_int(N);
-				overflow <= '1';
-			else-- int_absolute with it's sign form a representable integer
-				overflow <= '0';
-				if (sign='1') then
-					int_output <= ((not int_absolute)+'1');
-				else-- sign='0'
-					int_output <= int_absolute;
-				end if;
-			end if;
-		else-- shift_overflow='1'
-			overflow <= '1';
-			if(sign='1')then--DAC will saturate at (-1)*Vref
-				int_output <= min_int(N);
-			else--DAC will saturate at (+1)*Vref
-				int_output <= max_int(N);
-			end if;
+		if (sign='1') then
+			int_output <= ((not int_absolute)+'1');
+		else-- sign='0'
+			int_output <= int_absolute;
 		end if;
 	end process;
 	output <= int_output;

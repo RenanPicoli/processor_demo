@@ -365,6 +365,15 @@ end component;
 component fp32_to_integer
 generic	(N: natural);--number of bits in output
 port(	fp_in:in std_logic_vector(31 downto 0);--floating point input
+		output: out std_logic_vector(N-1 downto 0)-- valid input range [-Inf,+Inf] maps to output range [-2^(N-1),+(2^(N-1)-1)]
+);
+end component;
+
+---------------------------------------------------
+
+component fp32_to_audio
+generic	(N: natural);--number of bits in output
+port(	fp_in:in std_logic_vector(31 downto 0);--floating point input
 		output: out std_logic_vector(N-1 downto 0)-- valid input range [-1,1] maps to output range [-2^(N-1),+(2^(N-1)-1)]
 );
 end component;
@@ -709,7 +718,7 @@ signal all_irq: std_logic_vector(3 downto 0);
 signal all_iack: std_logic_vector(3 downto 0);
 signal ISR_ADDR: std_logic_vector(31 downto 0);
 
---signals for fp32_to_integer----------------------------------
+--signals for fp32_to_audio----------------------------------
 constant audio_resolution: natural := 16;
 signal fp_in: std_logic_vector(31 downto 0);
 signal fp_in_new_exponent: std_logic_vector(7 downto 0);
@@ -717,9 +726,9 @@ signal fpu_denominator: std_logic_vector(31 downto 0);
 signal fp32_div0: std_logic;
 signal fp32_ovf: std_logic;
 signal fp32_undf: std_logic;
-signal fp32_to_int_out: std_logic_vector(audio_resolution-1 downto 0);
-signal fp32_to_int_out_gain: std_logic_vector(audio_resolution+4 downto 0);--5 bit more than fp32_to_int_out (overflow detection)
-signal left_padded_fp32_to_int_out_gain: std_logic_vector(31 downto 0);--fp32_to_int_out_gain left padded with zeroes
+signal fp32_to_audio_out: std_logic_vector(audio_resolution-1 downto 0);
+signal fp32_to_audio_out_gain: std_logic_vector(audio_resolution+4 downto 0);--5 bit more than fp32_to_audio_out (overflow detection)
+signal left_padded_fp32_to_audio_out_gain: std_logic_vector(31 downto 0);--fp32_to_audio_out_gain left padded with zeroes
 
 --signals for converted_out----------------------------------
 signal converted_out_Q: std_logic_vector(31 downto 0);-- register containing current filter output converted to 2's complement
@@ -765,7 +774,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#73#,16#73#),--converted_out
 											(16#74#,16#74#),-- 7-segments display DR
 											(16#75#,16#75#),-- LCD controller
-											(16#76#,16#76#),-- LCD enable
+											(16#76#,16#77#),-- lcd_en: general purpose fp32_to_int32
 											(16#80#,16#FF#),--interrupt controller
 											(16#100#,16#10F#),--tmp_vector
 											(16#800#,16#FFF#)--instruction memory
@@ -806,10 +815,13 @@ signal lcd_wren: std_logic;
 signal lcd_rden: std_logic;
 signal lcd_ready: std_logic;
 
---signals for LCD_EN-------------------------------------
-signal lcd_en_Q: std_logic_vector(31 downto 0);-- register containing current filter output
-signal lcd_en_rden: std_logic;-- not used, just to keep form
-signal lcd_en_wren: std_logic;
+--signals for gp_fp32_to_int32----------------------------------
+signal gp_fp32_to_int32_Q: std_logic_vector(31 downto 0);
+signal gp_fp32_to_int32_rden: std_logic;-- not used, just to keep form
+signal gp_fp32_to_int32_wren: std_logic;
+signal fp_from_proc: std_logic_vector(31 downto 0);
+signal fp32_to_int32_Q: std_logic_vector(31 downto 0);
+signal fp32_to_int32: std_logic_vector(31 downto 0);
 
 --signals for vector transfers
 signal lvec: std_logic;
@@ -1155,21 +1167,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 						vmac_vector_bus_B when (lvec='1' and lvec_src="110") else
 						tmp_vector_bus when (lvec='1' and lvec_src="111") else
 						(others=>(others => '0'));
---	vector_bus <= 	open_drain(coeffs_mem_vector_bus) when (lvec='1' and lvec_src="000") else (others=>(others => 'Z'));
---	vector_bus <= 	open_drain(filter_xN_vector_bus) when (lvec='1' and lvec_src="010") else (others=>(others => 'Z'));
---	vector_bus <= 	open_drain(inner_product_vector_bus_A) when (lvec='1' and lvec_src="011") else (others=>(others => 'Z'));
---	vector_bus <= 	open_drain(inner_product_vector_bus_B) when (lvec='1' and lvec_src="100") else (others=>(others => 'Z'));
---	vector_bus <= 	open_drain(vmac_vector_bus_A) when (lvec='1' and lvec_src="101") else (others=>(others => 'Z'));
---	vector_bus <= 	open_drain(vmac_vector_bus_B) when (lvec='1' and lvec_src="110") else (others=>(others => 'Z'));
-	-- index 1 was skipped because refers to filter internal coefficients
---	vector_bus_inputs <= (	0=> coeffs_mem_vector_bus, 2 => filter_xN_vector_bus, 3 => inner_product_vector_bus_A,
---									4=> inner_product_vector_bus_B, 5=> vmac_vector_bus_A, 6=> vmac_vector_bus_B,
---									others=> (others=>(others => '0')));
---	vector_bus_mux: mux
---						generic map (N_BITS_SEL => 4)
---						port map(A => vector_bus_inputs,
---									sel => ((not lvec) & lvec_src),
---									Q => vector_bus);
 	
 --	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
 	coeffs_mem_parallel_wren <= lvec_dst_mask(0);
@@ -1391,11 +1388,37 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				parallel_read_data => tmp_vector_bus,
 				Q => tmp_vector_Q
 		);
+		
+	process(rst,ram_clk)
+	begin
+		if(rst='1')then
+			fp_from_proc <= (others=>'0');
+		elsif(rising_edge(ram_clk) and gp_fp32_to_int32_wren='1' and ram_addr(0)='0')then
+			fp_from_proc <= ram_write_data;
+		end if;
+	end process;
+		
+	--general purpose fp32 to int32
+	gp_fp32_to_int32: fp32_to_integer
+	generic map (N=> 32)
+	port map (fp_in => fp_from_proc,
+				 output=> fp32_to_int32);
+		
+	process(rst,ram_clk)
+	begin
+		if(rst='1')then
+			fp32_to_int32_Q <= (others=>'0');
+		elsif(falling_edge(ram_clk))then
+			fp32_to_int32_Q <= fp32_to_int32;
+		end if;
+	end process;
+	gp_fp32_to_int32_Q <= fp_from_proc when ram_addr(0)='0' else fp32_to_int32_Q;
 	
-	fp32_to_int: fp32_to_integer
+	--fp32 to int dedicated to audio (converts filter output to I2S format)
+	fp32_to_audio_int: fp32_to_audio
 	generic map (N=> audio_resolution)
 	port map (fp_in => fp_in,
-				 output=> fp32_to_int_out);
+				 output=> fp32_to_audio_out);
 				 
 --	fp32_attenuation: fpu_divider
 --	port map(A => filter_output_sync,
@@ -1407,40 +1430,40 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --				);
 	fp_in <= filter_output_sync;
 	
-	--Switches are used to select fp_in division (preventing saturation) and fp32_to_int_out gain
---	process(fp32_to_int_out_gain,fp32_to_int_out,SW)
+	--Switches are used to select fp_in division (preventing saturation) and fp32_to_audio_out gain
+--	process(fp32_to_audio_out_gain,fp32_to_audio_out,SW)
 --	begin
 --		if(SW(1 downto 0)="00")then
 --			fpu_denominator <= x"3F80_0000";-- +1.0, decreases by 0 dB
---			fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution => fp32_to_int_out(audio_resolution-1)) & fp32_to_int_out;--increases 0 dB, sign extension
+--			fp32_to_audio_out_gain <= (audio_resolution+4 downto audio_resolution => fp32_to_audio_out(audio_resolution-1)) & fp32_to_audio_out;--increases 0 dB, sign extension
 --		elsif(SW(1 downto 0)="01")then
 --			fpu_denominator <= x"4000_0000";-- +2.0, decreases by 6 dB
---			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(2,5));--increases 6 dB
+--			fp32_to_audio_out_gain <= std_logic_vector(signed(fp32_to_audio_out) * to_signed(2,5));--increases 6 dB
 --			--detection of overflow
---			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
---				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+--			if(fp32_to_audio_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_audio_out(audio_resolution-1)))then
+--				fp32_to_audio_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_audio_out(audio_resolution-1), others=> not fp32_to_audio_out(audio_resolution-1));
 --			end if;
 --		elsif(SW(1 downto 0)="10")then
 --			fpu_denominator <= x"4080_0000";-- +4.0, decreases by 12 dB
---			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(4,5));--increases 12 dB
+--			fp32_to_audio_out_gain <= std_logic_vector(signed(fp32_to_audio_out) * to_signed(4,5));--increases 12 dB
 --			--detection of overflow
---			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
---				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+--			if(fp32_to_audio_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_audio_out(audio_resolution-1)))then
+--				fp32_to_audio_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_audio_out(audio_resolution-1), others=> not fp32_to_audio_out(audio_resolution-1));
 --			end if;
 --		else-- SW(1 downto 0)="11"
 --			fpu_denominator <= x"4100_0000";-- +8.0, decreases by 18 dB
---			fp32_to_int_out_gain <= std_logic_vector(signed(fp32_to_int_out) * to_signed(8,5));--increases 18 dB
+--			fp32_to_audio_out_gain <= std_logic_vector(signed(fp32_to_audio_out) * to_signed(8,5));--increases 18 dB
 --			--detection of overflow
---			if(fp32_to_int_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_int_out(audio_resolution-1)))then
---				fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_int_out(audio_resolution-1), others=> not fp32_to_int_out(audio_resolution-1));
+--			if(fp32_to_audio_out_gain(audio_resolution+2 downto audio_resolution-1) /= (3 downto 0 => fp32_to_audio_out(audio_resolution-1)))then
+--				fp32_to_audio_out_gain <= (audio_resolution+4 downto audio_resolution-1 => fp32_to_audio_out(audio_resolution-1), others=> not fp32_to_audio_out(audio_resolution-1));
 --			end if;
 --		end if;
 --	end process;
-	fp32_to_int_out_gain <= (audio_resolution+4 downto audio_resolution=> fp32_to_int_out(audio_resolution-1)) & fp32_to_int_out;
+	fp32_to_audio_out_gain <= (audio_resolution+4 downto audio_resolution=> fp32_to_audio_out(audio_resolution-1)) & fp32_to_audio_out;
 
-	left_padded_fp32_to_int_out_gain <= (31 downto audio_resolution => '0') & fp32_to_int_out_gain(audio_resolution-1 downto 0);
+	left_padded_fp32_to_audio_out_gain <= (31 downto audio_resolution => '0') & fp32_to_audio_out_gain(audio_resolution-1 downto 0);
 	converted_output: d_flip_flop
-	 port map(	D => left_padded_fp32_to_int_out_gain,
+	 port map(	D => left_padded_fp32_to_audio_out_gain,
 					RST=> RST,--resets all previous history of filter output
 					CLK=>ram_clk,--sampling clock, must be much faster than filter_CLK
 					Q=> converted_out_Q
@@ -1485,7 +1508,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
 	all_periphs_ready		<= (16=> program_data_ready, 14=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (16=> program_data_Q, 15=> tmp_vector_Q, 14 => irq_ctrl_Q, 13=> lcd_en_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (16=> program_data_Q, 15=> tmp_vector_Q, 14 => irq_ctrl_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
@@ -1494,7 +1517,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	program_data_rden			<= all_periphs_rden(16);-- not used, just to keep form
 	tmp_vector_rden			<= all_periphs_rden(15);-- not used, just to keep form
 	irq_ctrl_rden				<= all_periphs_rden(14);-- not used, just to keep form
-	lcd_en_rden					<= all_periphs_rden(13);-- not used, just to keep form
+	gp_fp32_to_int32_rden	<= all_periphs_rden(13);-- not used, just to keep form
 	lcd_rden						<= all_periphs_rden(12);-- not used, just to keep form
 	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
 	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
@@ -1512,7 +1535,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	program_data_wren			<= all_periphs_wren(16);
 	tmp_vector_wren			<= all_periphs_wren(15);
 	irq_ctrl_wren				<= all_periphs_wren(14);
-	lcd_en_wren					<= all_periphs_wren(13);
+	gp_fp32_to_int32_wren	<= all_periphs_wren(13);
 	lcd_wren						<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
 	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
@@ -1668,16 +1691,7 @@ lcd_ctrl: LCD_DISPLAY_nty
       
       data_bus	=> lcd_data
    );
-	
-					
-	lcd_en_dff: d_flip_flop
-	 port map(	D => ram_write_data,--written by software
-					RST=> RST,--resets all previous history of filter output
-					ENA=> lcd_en_wren,
-					CLK=>ram_clk,--must be the same as filter_CLK
-					Q=> lcd_en_Q
-					);
-	
+		
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
 	(
