@@ -92,14 +92,16 @@ port (CLK_IN: in std_logic;
 end component;
 
 component mini_rom
-	port (CLK: in std_logic;--borda de subida para escrita, se desativado, memória é lida
+	port (
 			RST: in std_logic;--asynchronous reset
 			--interface de instrução (read-only)
-			ADDR_A: in std_logic_vector(9 downto 0);--addr é endereço de byte, mas os Lsb são 00
+			CLK_A:in std_logic;--borda de subida para escrita, se desativado, memória é lida
+			ADDR_A: in std_logic_vector;--addr é endereço de byte, mas os Lsb são 00
 			Q_A:	out std_logic_vector(31 downto 0);
 			--interface de dados (read-write)
+			CLK_B:in std_logic;--borda de subida para escrita, se desativado, memória é lida
 			D_B:	in std_logic_vector(31 downto 0);
-			ADDR_B: in std_logic_vector(9 downto 0);--addr é endereço de byte, mas os Lsb são 00
+			ADDR_B: in std_logic_vector;--addr é endereço de byte, mas os Lsb são 00
 			WREN_B: std_logic;
 			Q_B:	out std_logic_vector(31 downto 0)
 			);
@@ -605,6 +607,7 @@ signal program_data_address: std_logic_vector(18 downto 0);--ram address transla
 signal program_data_wren: std_logic;
 signal program_data_rden: std_logic;
 signal program_data_ready: std_logic;
+signal read_program_data_ready: std_logic;
 
 -----------signals for RAM interfacing---------------------
 ---processor sees all memory-mapped I/O as part of RAM-----
@@ -847,19 +850,36 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
 											filter_CLK & CLK & instruction_memory_address(7 downto 0);
 											
-	program_memory: mini_rom port map(	CLK	=> instruction_clk,	
+	program_memory: mini_rom port map(
 									RST	=> rst,--asynchronous reset
 									--instruction interface (read-only)
-									ADDR_A=> instruction_memory_address(9 downto 0),
+									CLK_A	=> instruction_clk,	
+									ADDR_A=> instruction_memory_address(10 downto 0),
 									Q_A	=> instruction_memory_output,
 									--data interface (read-write)
+									CLK_B => ram_clk,
 									D_B	=> ram_write_data,
-									ADDR_B=> program_data_address(9 downto 0),
+									ADDR_B=> program_data_address(10 downto 0),
 									WREN_B=> program_data_wren,
 									Q_B	=> program_data_Q
 	);
 	program_data_address <= ram_addr(18 downto 0) - ranges(16)(0);
-	program_data_ready <= '1';
+	-----------------read_program_data_ready----------------------
+	-------------same logic of ready in mm_stack------------------
+	process(ram_clk,RST,program_data_rden)
+	begin
+		if(RST='1')then
+			read_program_data_ready <= '0';
+		elsif(rising_edge(ram_clk))then
+			if(read_program_data_ready='0' and (program_data_rden='1'))then
+				read_program_data_ready <= '1';
+			else
+				read_program_data_ready <= '0';
+			end if;
+		end if;
+	end process;	
+	program_data_ready <= '1' when (program_data_wren='1') else read_program_data_ready;
+	
 	i_cache_ready <= '1';
 	i_cache_ready_sync <= i_cache_ready;
 	
@@ -1334,7 +1354,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	program_data_rden			<= all_periphs_rden(16);-- not used, just to keep form
+	program_data_rden			<= all_periphs_rden(16);
 	tmp_vector_rden			<= all_periphs_rden(15);-- not used, just to keep form
 	irq_ctrl_rden				<= all_periphs_rden(14);-- not used, just to keep form
 	gp_fp32_to_int32_rden	<= all_periphs_rden(13);-- not used, just to keep form
