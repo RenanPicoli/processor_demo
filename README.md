@@ -28,6 +28,6 @@ Setup for testing microprocessor repo (https://github.com/RenanPicoli/microproce
 
 ## branches
 * master: main branch, instructions are stored at mini_rom, a small, synchronous RAM memory with hard-coded content.
-* async_SRAM: almost the same as master, but instructions are stored at the DE2-115 asynchronous SRAM, retrieved by i-cache/d-cache and presented to cpu.
-* SRAM_caches_only: simplified version of async_SRAM, only includes peripherals like i-cache, d-cache, LCD controller and memory decoder.
+* async_SRAM: almost the same as master, but instructions are stored at the DE2-115 asynchronous SRAM, retrieved by i-cache/d-cache and presented to cpu. This branche is useful for tests involving only software changes 9no need for recompiling the FPGA).
+* SRAM_caches_only: simplified version of async_SRAM, only includes peripherals like i-cache, d-cache, LCD controller and memory decoder. This branch is useful for for tests involving changing only cpu, since the compile time of this branch is much faster than masters' and async_SRAM's.
 * async_SRAM_LCD_by_SW: old branch, unused. This was a branch derived of async_SRAM. async_SRAM_LCD_by_SW would additionally drive the board LCD signals entirely by software (no LCD specialized controller).
