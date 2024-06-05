@@ -8,3 +8,6 @@
 [submodule "i2s_master_transmitter"]
 	path = i2s_master_transmitter
 	url = https://github.com/RenanPicoli/i2s_master_transmitter
+[submodule "uart"]
+	path = uart
+	url = https://github.com/RenanPicoli/uart
