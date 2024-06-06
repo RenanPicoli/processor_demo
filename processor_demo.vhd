@@ -26,6 +26,9 @@ port (CLK_IN: in std_logic;--50MHz input
 		AUD_BCLK: out std_logic;--SCK aka BCLK_IN
 		AUD_DACDAT: out std_logic;--DACDAT aka SD
 		AUD_DACLRCK: out std_logic;--DACLRCK aka WS
+		--UART
+        uart_rx: in std_logic;
+        uart_tx: out std_logic;
 		--FLASH (data samples)
 		flash_IO: in std_logic_vector(7 downto 0);--flash data; input because we'll only read
 		flash_ADDR: out std_logic_vector(22 downto 0);--ADDR for flash
@@ -525,6 +528,22 @@ component LCD_DISPLAY_nty
    );
 end component;
 
+component uart
+	port (
+		rst: in std_logic;
+		clk: in std_logic;
+		D: in std_logic_vector(7 downto 0);
+		wren: in std_logic;
+		rden: in std_logic;
+		Q: out std_logic_vector(7 downto 0);
+		data_sent: out std_logic;
+		data_received: buffer std_logic;
+		stop_error: out std_logic;
+		tx: out std_logic;
+		rx: in std_logic
+	);
+end component;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -755,6 +774,15 @@ signal i2s_WS: std_logic;--left/right clock
 signal i2s_SCK: std_logic;--continuous clock (bit clock)
 signal i2s_SCK_IN_PLL_LOCKED: std_logic;--'1' if PLL that provides SCK_IN is locked
 
+-- signals for UART
+signal uart_data_in: std_logic_vector(7 downto 0);
+signal uart_Q: std_logic_vector(7 downto 0);
+signal uart_wren: std_logic;
+signal uart_rden: std_logic;
+signal uart_data_sent: std_logic;
+signal uart_data_received: std_logic;
+signal uart_stop_error: std_logic;
+
 -----------signals for synchronizer chain -------------------
 signal filter_irq_sync: std_logic_vector(1 downto 0);--filter_irq synchronized to ram_clk posedge
 signal filter_output_sync: std_logic_vector(31 downto 0);--filter output synchronized to ram_CLK negedge
@@ -774,7 +802,8 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#73#,16#73#),--converted_out
 											(16#74#,16#74#),-- 7-segments display DR
 											(16#75#,16#75#),-- LCD controller
-											(16#76#,16#77#),-- lcd_en: general purpose fp32_to_int32
+											(16#76#,16#77#),-- general purpose fp32_to_int32
+											(16#78#,16#78#),-- UART
 											(16#80#,16#FF#),--interrupt controller
 											(16#100#,16#10F#),--tmp_vector
 											(16#800#,16#FFF#)--instruction memory
@@ -851,7 +880,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
 	--to an instruction address (starting at 0)
-	program_data_address <= ram_addr(18 downto 0) - ranges(16)(0);
+	program_data_address <= ram_addr(18 downto 0) - ranges(17)(0);
 	d_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
@@ -1507,16 +1536,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (16=> program_data_ready, 14=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (16=> program_data_Q, 15=> tmp_vector_Q, 14 => irq_ctrl_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready		<= (17=> program_data_ready, 15=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
+	all_periphs_output	<= (17=> program_data_Q, 16=> tmp_vector_Q, 15 => irq_ctrl_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	program_data_rden			<= all_periphs_rden(16);-- not used, just to keep form
-	tmp_vector_rden			<= all_periphs_rden(15);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden(14);-- not used, just to keep form
+	program_data_rden			<= all_periphs_rden(17);-- not used, just to keep form
+	tmp_vector_rden			<= all_periphs_rden(16);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(15);-- not used, just to keep form
+	uart_rden				<= all_periphs_rden(14);
 	gp_fp32_to_int32_rden	<= all_periphs_rden(13);-- not used, just to keep form
 	lcd_rden						<= all_periphs_rden(12);-- not used, just to keep form
 	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
@@ -1532,9 +1562,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	program_data_wren			<= all_periphs_wren(16);
-	tmp_vector_wren			<= all_periphs_wren(15);
-	irq_ctrl_wren				<= all_periphs_wren(14);
+	program_data_wren			<= all_periphs_wren(17);
+	tmp_vector_wren			<= all_periphs_wren(16);
+	irq_ctrl_wren				<= all_periphs_wren(15);
+    uart_rden				<= all_periphs_rden(14);
 	gp_fp32_to_int32_wren	<= all_periphs_wren(13);
 	lcd_wren						<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
@@ -1670,27 +1701,42 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	lcd_en <= lcd_en_Q(0);
 --	lcd_blon <= '1';
 
---component by Gerry O'Brien
-lcd_ctrl: LCD_DISPLAY_nty
-   port map( 
-      rst		=> rst,-- synchronous active low reset
-      clk		=> ram_clk,
-		
+	--component by Gerry O'Brien
+	lcd_ctrl: LCD_DISPLAY_nty
+	port map( 
+		rst		=> rst,-- synchronous active low reset
+		clk		=> ram_clk,
+			
 		-- interface with CPU
-		D			=> ram_write_data,
-		wren		=> lcd_wren,
-		Q			=> lcd_Q,
-		ready		=> lcd_ready,
-      
-      lcd_rs	=> lcd_rs,
-      lcd_e		=> lcd_en,
-      lcd_rw	=> lcd_rw,
-      lcd_on	=> lcd_on,
-      lcd_blon	=> lcd_blon,
-      
-      
-      data_bus	=> lcd_data
-   );
+		D		=> ram_write_data,
+		wren	=> lcd_wren,
+		Q		=> lcd_Q,
+		ready	=> lcd_ready,
+		  
+		lcd_rs	=> lcd_rs,
+		lcd_e	=> lcd_en,
+		lcd_rw	=> lcd_rw,
+		lcd_on	=> lcd_on,
+		lcd_blon=> lcd_blon,
+		
+		data_bus=> lcd_data
+	);
+   
+	uart_data_in <= ram_write_data;
+    uart_0: uart
+	port map (
+		rst => rst,
+		clk => ram_clk,
+		D => uart_data_in,
+		wren => uart_wren,
+		rden => uart_rden,
+		Q => uart_Q,
+		data_sent => uart_data_sent,
+		data_received => uart_data_received,
+		stop_error => uart_stop_error,
+		tx => uart_tx,
+		rx => uart_rx
+	);
 		
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
