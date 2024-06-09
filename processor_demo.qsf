@@ -591,87 +591,6 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to segments[7][4]
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to segments[7][5]
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to segments[7][6]
 
-set_global_assignment -name VHDL_FILE dc_fifo.vhd
-set_global_assignment -name VHDL_FILE cache.vhd
-set_global_assignment -name VHDL_FILE microprocessor/mini_rom.vhd
-set_global_assignment -name VHDL_FILE microprocessor/pure_stack.vhd
-set_global_assignment -name VHDL_FILE microprocessor/tdp_ram.vhd
-set_global_assignment -name VHDL_FILE microprocessor/memory_mapped_stack.vhd
-set_global_assignment -name VHDL_FILE sdp_ram.vhd
-set_global_assignment -name VHDL_FILE interrupt_controller_vectorized.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_sign_1bit.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_geq_zero.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/signed_digit_pkg.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_FA.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_adder.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_fast_divider_sd.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/carry_lookahead_adder_8bit.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/carry_lookahead_adder_4bit.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fast_adder.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_fast_divider.vhd
-set_global_assignment -name SDC_FILE processor_demo.sdc
-set_global_assignment -name VHDL_FILE i2s_master_transmitter/i2s_master_transmitter_generic.vhd
-set_global_assignment -name VHDL_FILE i2s_master_transmitter/i2s_master_transmitter.vhd
-set_global_assignment -name VHDL_FILE i2c_master/i2c_slave_generic.vhd
-set_global_assignment -name VHDL_FILE i2c_master/i2c_slave.vhd
-set_global_assignment -name VHDL_FILE i2c_master/i2c_master_generic.vhd
-set_global_assignment -name VHDL_FILE i2c_master/i2c_master.vhd
-set_global_assignment -name VHDL_FILE address_decoder_register_map.vhd
-set_global_assignment -name VHDL_FILE fpu_inner_product.vhd
-set_global_assignment -name VHDL_FILE shift_register.vhd
-set_global_assignment -name VHDL_FILE microprocessor/parallel_load_cache.vhd
-set_global_assignment -name VHDL_FILE binary_to_bcd_digit.vhd
-set_global_assignment -name VHDL_FILE binary_to_bcd.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/single_prec_type.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/multiplier.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/full_adder.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_mult.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_divider.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_adder.vhd
-set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu.vhd
-set_global_assignment -name VHDL_FILE microprocessor/reg_file.vhd
-set_global_assignment -name VHDL_FILE microprocessor/my_types.vhd
-set_global_assignment -name VHDL_FILE microprocessor/mux.vhd
-set_global_assignment -name VHDL_FILE microprocessor/multiplier.vhd
-set_global_assignment -name VHDL_FILE microprocessor/mini_ram.vhd
-set_global_assignment -name VHDL_FILE microprocessor/microprocessor.vhd
-set_global_assignment -name VHDL_FILE microprocessor/full_adder.vhd
-set_global_assignment -name VHDL_FILE microprocessor/demux.vhd
-set_global_assignment -name VHDL_FILE microprocessor/d_flip_flop.vhd
-set_global_assignment -name VHDL_FILE microprocessor/control_unit.vhd
-set_global_assignment -name VHDL_FILE microprocessor/ALU.vhd
-set_global_assignment -name VHDL_FILE processor_demo.vhd -hdl_version VHDL_2008
-set_global_assignment -name VHDL_FILE decimal_converter.vhd
-set_global_assignment -name VHDL_FILE 7seg_controller.vhd
-set_global_assignment -name VHDL_FILE prescaler.vhd
-set_global_assignment -name VHDL_FILE mmu.vhd
-set_global_assignment -name VHDL_FILE generic_coeffs_mem.vhd
-set_global_assignment -name VHDL_FILE filter.vhd
-set_global_assignment -name VHDL_FILE wren_ctrl.vhd
-set_global_assignment -name VHDL_FILE inner_product_calculation_unit.vhd
-set_global_assignment -name VHDL_FILE address_decoder_memory_map.vhd
-set_global_assignment -name VHDL_FILE filter_xN.vhd
-set_global_assignment -name VHDL_FILE vmac.vhd
-set_global_assignment -name VHDL_FILE interrupt_controller.vhd
-set_global_assignment -name VHDL_FILE fp32_to_integer.vhd
-set_global_assignment -name VHDL_FILE tb_fp32_to_integer.vhd
-set_global_assignment -name VHDL_FILE var_shift.vhd
-set_global_assignment -name QIP_FILE pll_12MHz.qip
-set_global_assignment -name QIP_FILE pll_audio.qip
-set_global_assignment -name QIP_FILE tb_sram.qip
-set_global_assignment -name MIF_FILE sram.mif
-set_global_assignment -name HEX_FILE sram.hex
-set_global_assignment -name SIGNALTAP_FILE output_files/signal_tap.stp
-set_global_assignment -name QIP_FILE pll_dbg_uproc.qip
-set_global_assignment -name VHDL_FILE sync_chain.vhd
-set_global_assignment -name QIP_FILE data_in_rom_ip.qip
-set_global_assignment -name QIP_FILE desired_rom_ip.qip
-set_global_assignment -name QIP_FILE output_rom_ip.qip
-set_global_assignment -name VHDL_FILE i2s_master_transmitter/dc_fifo.vhd
-set_global_assignment -name SDC_FILE sync_chain.sdc
-set_global_assignment -name QIP_FILE microprocessor/ram_2_port.qip
-set_global_assignment -name QIP_FILE microprocessor/ram_1_port.qip
-set_global_assignment -name QIP_FILE mem_code_for_7seg.qip
 set_global_assignment -name SLD_NODE_CREATOR_ID 110 -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_ENTITY_NAME sld_signaltap -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_clk -to "pll_dbg_uproc:clk_dbg_uproc|c0" -section_id auto_signaltap_0
@@ -693,7 +612,6 @@ set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ADVANCED_TRIGGER_
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_LEVEL_PIPELINE=1" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ENABLE_ADVANCED_TRIGGER=0" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_RAM_PIPELINE=5" -section_id auto_signaltap_0
-set_global_assignment -name VHDL_FILE LCD_Controller.vhd
 set_location_assignment PIN_L3 -to lcd_data[0]
 set_location_assignment PIN_L1 -to lcd_data[1]
 set_location_assignment PIN_L2 -to lcd_data[2]
@@ -720,7 +638,6 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to lcd_rs
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to lcd_on
 set_location_assignment PIN_L6 -to lcd_blon
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to lcd_blon
-set_global_assignment -name VHDL_FILE DE2_LCD_DISPLAY_arch.vhd
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[0] -to I2C_SCLK -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[1] -to I2C_SDAT -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[2] -to "address_decoder_memory_map:memory_map|ADDR[0]" -section_id auto_signaltap_0
@@ -751,7 +668,6 @@ set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[22] -
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[24] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[26] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[30] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
-set_global_assignment -name VHDL_FILE disp_7seg_driver.vhd
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[7] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[15] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[29] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
@@ -2415,6 +2331,96 @@ set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_BITS=827"
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STORAGE_QUALIFIER_BITS=3669" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK=000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK_LENGTH=2505" -section_id auto_signaltap_0
+set_global_assignment -name VHDL_FILE uart/uart_core.vhd
+set_global_assignment -name VHDL_FILE dc_fifo.vhd
+set_global_assignment -name VHDL_FILE cache.vhd
+set_global_assignment -name VHDL_FILE microprocessor/mini_rom.vhd
+set_global_assignment -name VHDL_FILE microprocessor/pure_stack.vhd
+set_global_assignment -name VHDL_FILE microprocessor/tdp_ram.vhd
+set_global_assignment -name VHDL_FILE microprocessor/memory_mapped_stack.vhd
+set_global_assignment -name VHDL_FILE sdp_ram.vhd
+set_global_assignment -name VHDL_FILE interrupt_controller_vectorized.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_sign_1bit.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_geq_zero.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/signed_digit_pkg.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_FA.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/sd_adder.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_fast_divider_sd.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/carry_lookahead_adder_8bit.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/carry_lookahead_adder_4bit.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fast_adder.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_fast_divider.vhd
+set_global_assignment -name SDC_FILE processor_demo.sdc
+set_global_assignment -name VHDL_FILE i2s_master_transmitter/i2s_master_transmitter_generic.vhd
+set_global_assignment -name VHDL_FILE i2s_master_transmitter/i2s_master_transmitter.vhd
+set_global_assignment -name VHDL_FILE i2c_master/i2c_slave_generic.vhd
+set_global_assignment -name VHDL_FILE i2c_master/i2c_slave.vhd
+set_global_assignment -name VHDL_FILE i2c_master/i2c_master_generic.vhd
+set_global_assignment -name VHDL_FILE i2c_master/i2c_master.vhd
+set_global_assignment -name VHDL_FILE address_decoder_register_map.vhd
+set_global_assignment -name VHDL_FILE fpu_inner_product.vhd
+set_global_assignment -name VHDL_FILE shift_register.vhd
+set_global_assignment -name VHDL_FILE microprocessor/parallel_load_cache.vhd
+set_global_assignment -name VHDL_FILE binary_to_bcd_digit.vhd
+set_global_assignment -name VHDL_FILE binary_to_bcd.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/single_prec_type.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/multiplier.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/full_adder.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_mult.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_divider.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu_adder.vhd
+set_global_assignment -name VHDL_FILE microprocessor/fpu_single_precision/fpu.vhd
+set_global_assignment -name VHDL_FILE microprocessor/reg_file.vhd
+set_global_assignment -name VHDL_FILE microprocessor/my_types.vhd
+set_global_assignment -name VHDL_FILE microprocessor/mux.vhd
+set_global_assignment -name VHDL_FILE microprocessor/multiplier.vhd
+set_global_assignment -name VHDL_FILE microprocessor/mini_ram.vhd
+set_global_assignment -name VHDL_FILE microprocessor/microprocessor.vhd
+set_global_assignment -name VHDL_FILE microprocessor/full_adder.vhd
+set_global_assignment -name VHDL_FILE microprocessor/demux.vhd
+set_global_assignment -name VHDL_FILE microprocessor/d_flip_flop.vhd
+set_global_assignment -name VHDL_FILE microprocessor/control_unit.vhd
+set_global_assignment -name VHDL_FILE microprocessor/ALU.vhd
+set_global_assignment -name VHDL_FILE processor_demo.vhd -hdl_version VHDL_2008
+set_global_assignment -name VHDL_FILE decimal_converter.vhd
+set_global_assignment -name VHDL_FILE 7seg_controller.vhd
+set_global_assignment -name VHDL_FILE prescaler.vhd
+set_global_assignment -name VHDL_FILE mmu.vhd
+set_global_assignment -name VHDL_FILE generic_coeffs_mem.vhd
+set_global_assignment -name VHDL_FILE filter.vhd
+set_global_assignment -name VHDL_FILE wren_ctrl.vhd
+set_global_assignment -name VHDL_FILE inner_product_calculation_unit.vhd
+set_global_assignment -name VHDL_FILE address_decoder_memory_map.vhd
+set_global_assignment -name VHDL_FILE filter_xN.vhd
+set_global_assignment -name VHDL_FILE vmac.vhd
+set_global_assignment -name VHDL_FILE interrupt_controller.vhd
+set_global_assignment -name VHDL_FILE fp32_to_integer.vhd
+set_global_assignment -name VHDL_FILE tb_fp32_to_integer.vhd
+set_global_assignment -name VHDL_FILE var_shift.vhd
+set_global_assignment -name QIP_FILE pll_12MHz.qip
+set_global_assignment -name QIP_FILE pll_audio.qip
+set_global_assignment -name QIP_FILE tb_sram.qip
+set_global_assignment -name MIF_FILE sram.mif
+set_global_assignment -name HEX_FILE sram.hex
+set_global_assignment -name SIGNALTAP_FILE output_files/signal_tap.stp
+set_global_assignment -name QIP_FILE pll_dbg_uproc.qip
+set_global_assignment -name VHDL_FILE sync_chain.vhd
+set_global_assignment -name QIP_FILE data_in_rom_ip.qip
+set_global_assignment -name QIP_FILE desired_rom_ip.qip
+set_global_assignment -name QIP_FILE output_rom_ip.qip
+set_global_assignment -name VHDL_FILE i2s_master_transmitter/dc_fifo.vhd
+set_global_assignment -name SDC_FILE sync_chain.sdc
+set_global_assignment -name QIP_FILE microprocessor/ram_2_port.qip
+set_global_assignment -name QIP_FILE microprocessor/ram_1_port.qip
+set_global_assignment -name QIP_FILE mem_code_for_7seg.qip
+set_global_assignment -name VHDL_FILE LCD_Controller.vhd
+set_global_assignment -name VHDL_FILE DE2_LCD_DISPLAY_arch.vhd
+set_global_assignment -name VHDL_FILE disp_7seg_driver.vhd
 set_global_assignment -name VHDL_FILE microprocessor/stack_protector.vhd
+set_global_assignment -name VHDL_FILE uart/uart_peripheral.vhd
+set_location_assignment PIN_G12 -to uart_rx
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to uart_rx
+set_location_assignment PIN_G9 -to uart_tx
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to uart_tx
 set_global_assignment -name SLD_FILE db/signal_tap_auto_stripped.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
