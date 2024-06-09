@@ -528,20 +528,21 @@ component LCD_DISPLAY_nty
    );
 end component;
 
-component uart
-	port (
-		rst: in std_logic;
-		clk: in std_logic;
-		D: in std_logic_vector(7 downto 0);
-		wren: in std_logic;
-		rden: in std_logic;
-		Q: out std_logic_vector(7 downto 0);
-		data_sent: out std_logic;
-		data_received: buffer std_logic;
-		stop_error: out std_logic;
-		tx: out std_logic;
-		rx: in std_logic
-	);
+component uart_peripheral
+    port (
+        clk: in std_logic;
+        rst: in std_logic;
+		ADDR: in std_logic_vector(0 downto 0);--address offset of registers relative to peripheral base address		
+        wren: in std_logic;
+        rden: in std_logic;
+        D: in std_logic_vector(31 downto 0);-- only bits 7..0 used
+        Q: out std_logic_vector(31 downto 0);--for register read, only bits 7..0 used
+		IACK: in std_logic;--interrupt acknowledgement
+		IRQ: out std_logic;--interrupt request
+		---------PHY-----------
+        rx: in std_logic;
+        tx: out std_logic
+    );
 end component;
 
 signal rst: std_logic;--active high
@@ -733,8 +734,8 @@ signal irq_ctrl_wren: std_logic;
 signal irq_ctrl_ready: std_logic;
 signal irq: std_logic;
 signal iack: std_logic;
-signal all_irq: std_logic_vector(3 downto 0);
-signal all_iack: std_logic_vector(3 downto 0);
+signal all_irq: std_logic_vector(4 downto 0);
+signal all_iack: std_logic_vector(4 downto 0);
 signal ISR_ADDR: std_logic_vector(31 downto 0);
 
 --signals for fp32_to_audio----------------------------------
@@ -775,13 +776,12 @@ signal i2s_SCK: std_logic;--continuous clock (bit clock)
 signal i2s_SCK_IN_PLL_LOCKED: std_logic;--'1' if PLL that provides SCK_IN is locked
 
 -- signals for UART
-signal uart_data_in: std_logic_vector(7 downto 0);
-signal uart_Q: std_logic_vector(7 downto 0);
+signal uart_data_in: std_logic_vector(31 downto 0);
+signal uart_Q: std_logic_vector(31 downto 0);
 signal uart_wren: std_logic;
 signal uart_rden: std_logic;
-signal uart_data_sent: std_logic;
-signal uart_data_received: std_logic;
-signal uart_stop_error: std_logic;
+signal uart_irq: std_logic;
+signal uart_iack: std_logic;
 
 -----------signals for synchronizer chain -------------------
 signal filter_irq_sync: std_logic_vector(1 downto 0);--filter_irq synchronized to ram_clk posedge
@@ -803,7 +803,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#74#,16#74#),-- 7-segments display DR
 											(16#75#,16#75#),-- LCD controller
 											(16#76#,16#77#),-- general purpose fp32_to_int32
-											(16#78#,16#78#),-- UART
+											(16#78#,16#79#),-- UART
 											(16#80#,16#FF#),--interrupt controller
 											(16#100#,16#10F#),--tmp_vector
 											(16#800#,16#FFF#)--instruction memory
@@ -1565,7 +1565,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	program_data_wren			<= all_periphs_wren(17);
 	tmp_vector_wren			<= all_periphs_wren(16);
 	irq_ctrl_wren				<= all_periphs_wren(15);
-    uart_rden				<= all_periphs_rden(14);
+    uart_wren				<= all_periphs_wren(14);
 	gp_fp32_to_int32_wren	<= all_periphs_wren(13);
 	lcd_wren						<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
@@ -1643,12 +1643,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--i2s_irq is synchronized to ram_clk rising_edge inside I2S peripheral
 	--aparently, i2c_irq is synchronized to ram_clk rising_edge because I2C clocks are created dividing ram_clk
 --	all_irq	<= (3 => filter_irq_sync(1), 2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq_sync(0));
-	all_irq	<= (3 => filter_irq_sync(1), 2 => '0', 1 => i2c_irq, 0 => filter_irq_sync(0));
+	all_irq	<= (4=> uart_irq, 3 => filter_irq_sync(1), 2 => '0', 1 => i2c_irq, 0 => filter_irq_sync(0));
+	
+	uart_iack	<= all_iack(4);				
 	i2s_iack	<= all_iack(2);										 
 	i2c_iack	<= all_iack(1);
 	filter_iack	<= all_iack(3) & all_iack(0);
 	irq_ctrl: interrupt_controller_vectorized
-	generic map (L => 4)--L: number of IRQ lines
+	generic map (L => 5)--L: number of IRQ lines
 	port map (	D => ram_write_data,-- input: data to register write
 			ADDR => ram_addr(6 downto 0),
 			CLK => ram_clk,-- input
@@ -1723,17 +1725,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);
    
 	uart_data_in <= ram_write_data;
-    uart_0: uart
+    uart_0: uart_peripheral
 	port map (
 		rst => rst,
 		clk => ram_clk,
+		ADDR => ram_addr(0 downto 0),
 		D => uart_data_in,
 		wren => uart_wren,
 		rden => uart_rden,
 		Q => uart_Q,
-		data_sent => uart_data_sent,
-		data_received => uart_data_received,
-		stop_error => uart_stop_error,
+		IRQ => uart_irq,
+		IACK => uart_iack,
 		tx => uart_tx,
 		rx => uart_rx
 	);
