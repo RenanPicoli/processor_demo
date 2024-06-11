@@ -28,7 +28,7 @@ port (CLK_IN: in std_logic;--50MHz input
 		AUD_DACLRCK: out std_logic;--DACLRCK aka WS
 		--UART
         uart_rx: in std_logic;
-        uart_tx: out std_logic;
+        uart_tx: buffer std_logic;
 		--FLASH (data samples)
 		flash_IO: in std_logic_vector(7 downto 0);--flash data; input because we'll only read
 		flash_ADDR: out std_logic_vector(22 downto 0);--ADDR for flash
@@ -207,7 +207,8 @@ component pll_12MHz
 	(
 		areset		: in std_logic  := '0';
 		inclk0		: in std_logic  := '0';
-		c0				: out std_logic 
+		c0			: out std_logic;
+		c1			: out std_logic 
 	);
 end component;
 
@@ -540,6 +541,7 @@ component uart_peripheral
 		IACK: in std_logic;--interrupt acknowledgement
 		IRQ: out std_logic;--interrupt request
 		---------PHY-----------
+		phy_clk: in std_logic;--bit clock (not transmitted)
         rx: in std_logic;
         tx: out std_logic
     );
@@ -598,6 +600,7 @@ signal CLK_fs: std_logic;-- 11.029kHz clock
 signal CLK_fs_dbg: std_logic;-- 110.29kHz clock (10fs)
 signal CLK20MHz: std_logic;-- 20MHz clock (for I2S peripheral)
 signal CLK12MHz: std_logic;-- 12MHz clock (MCLK for audio codec)
+signal clk_uart_8x2400: std_logic;--clock of 8x2400Hz (19k2 Hz) for uart_0 (2400 baud)
 
 -----------signals for ROM interfacing---------------------
 signal rom_clk: std_logic;
@@ -782,6 +785,7 @@ signal uart_wren: std_logic;
 signal uart_rden: std_logic;
 signal uart_irq: std_logic;
 signal uart_iack: std_logic;
+signal uart_phy_clk: std_logic;
 
 -----------signals for synchronizer chain -------------------
 signal filter_irq_sync: std_logic_vector(1 downto 0);--filter_irq synchronized to ram_clk posedge
@@ -864,6 +868,9 @@ signal send_cache_request: std_logic;
 signal mmu_irq: std_logic;
 signal mmu_iack: std_logic;
 
+signal uart_rx_mirror: std_logic;
+signal uart_tx_mirror: std_logic;
+
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
@@ -873,9 +880,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	LEDR <= (17 downto 5 =>'0') & fp32_ovf & fp32_undf & fp32_div0 & filter_rst & rst;
 	LEDG <= (8 downto 4 =>'0') & "00" & filter_CLK_state & i2s_SCK_IN_PLL_LOCKED;
 	EX_IO <= ram_clk & filter_rst & I2C_SDAT & I2C_SCLK & "000";
-	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK & filter_irq(0) &
-											filter_CLK & CLK & instruction_memory_address(7 downto 0);
+	GPIO <= (35 downto 16 => '0') & filter_parallel_wren & i2s_irq & AUD_BCLK & AUD_DACDAT & AUD_DACLRCK &
+			uart_rx_mirror & uart_tx_mirror & CLK & instruction_memory_address(7 downto 0);
 	
+	uart_rx_mirror <= uart_rx;
+	uart_tx_mirror <= uart_tx;
 	CLK_n <= not CLK;
 	
 	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
@@ -1725,6 +1734,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);
    
 	uart_data_in <= ram_write_data;
+	uart_phy_clk <= clk_uart_8x2400;
     uart_0: uart_peripheral
 	port map (
 		rst => rst,
@@ -1736,6 +1746,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		Q => uart_Q,
 		IRQ => uart_irq,
 		IACK => uart_iack,
+		phy_clk=> uart_phy_clk,
 		tx => uart_tx,
 		rx => uart_rx
 	);
@@ -1757,7 +1768,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	port map (
 	inclk0 => CLK_IN,
 	areset => '0',
-	c0 => CLK12MHz
+	c0 => CLK12MHz,
+	C1 => clk_uart_8x2400
 	);
 
 	--produces 44118Hz (fs) and 20 MHz (for BCLK_IN) from 12MHz input
