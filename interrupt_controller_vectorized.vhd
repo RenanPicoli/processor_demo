@@ -17,12 +17,12 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;--to_unsigned
 
-use work.my_types.all;--array32
+use work.my_types.all;--array32, array8
 
 ---------------------------------------------------
 
 entity interrupt_controller_vectorized is
-generic	(L: natural := 2);--L: number of PHYSICAL IRQ lines
+generic	(L: natural := 2);--L: number of PHYSICAL IRQ lines, UP TO 8 IRQs (software or physical)
 port(	D: in std_logic_vector(31 downto 0);-- input: data to register write (vector and priorities only)
 		ADDR: in std_logic_vector(6 downto 0);--address offset of registers relative to peripheral base address
 		CLK: in std_logic;-- input
@@ -124,56 +124,56 @@ signal all_periphs_ready: std_logic_vector(ranges'length-1 downto 0);
 	------------signals for IRQ control-------------------
 	
 	--fsm_state(i): (IRQ_pend(i), IRQ_active(i), IRQ_suspended(i))
-	signal fsm_state:				array2(31 downto 0);-- the state of each interrupt is a std_logic(1 downto 0)
+	signal fsm_state:				array2(7 downto 0);-- the state of each interrupt is a std_logic(1 downto 0)
 	
-	signal IRQ_IN_ex:				std_logic_vector(31 downto 0);-- extended to account for software interrupts	
-	signal IRQ_IN_prev:			std_logic_vector(31 downto 0);--state of IRQ_IN in previous clock cycle
-	signal IRQ_pend:				std_logic_vector(31 downto 0);-- IRQ waiting to be transmitted to CPU
-	signal IRQ_started:			std_logic_vector(31 downto 0);-- Means the IRQ was sent. All IRQ being SERVICED (includes nested interrupts)
---	signal IRQ_suspended:		std_logic_vector(31 downto 0);-- flag indicating that the IRQx was active, but preemption occurred
-	signal IRQ_active:			std_logic_vector(31 downto 0);-- one-hot of the ISR being executed NOW
+	signal IRQ_IN_ex:				std_logic_vector(7 downto 0);-- extended to account for software interrupts	
+	signal IRQ_IN_prev:			std_logic_vector(7 downto 0);--state of IRQ_IN in previous clock cycle
+	signal IRQ_pend:				std_logic_vector(7 downto 0);-- IRQ waiting to be transmitted to CPU
+	signal IRQ_started:			std_logic_vector(7 downto 0);-- Means the IRQ was sent. All IRQ being SERVICED (includes nested interrupts)
+--	signal IRQ_suspended:		std_logic_vector(7 downto 0);-- flag indicating that the IRQx was active, but preemption occurred
+	signal IRQ_active:			std_logic_vector(7 downto 0);-- one-hot of the ISR being executed NOW
 	signal IRQ_status:			std_logic_vector(31 downto 0);-- status register
 	signal IRQ_curr_out:			std_logic_vector(31 downto 0);-- number of IRQ CURRENTLY being serviced
-	signal IRQ_curr_stack_out_oh:std_logic_vector(31 downto 0);-- one-hot of the IRQ CURRENTLY being serviced on top of stack	
+	signal IRQ_curr_stack_out_oh:std_logic_vector(7 downto 0);-- one-hot of the IRQ CURRENTLY being serviced on top of stack	
 	signal tmp_IRQ_curr:			array32(31 downto 0);
-	signal IACK_pend_out:		std_logic_vector(31 downto 0);-- where the IACK must be sent when IACK_IN is asserted by processor
-	signal IACK_finished:		std_logic_vector(31 downto 0);-- '1' when IACK_OUT is deasserted
+	signal IACK_pend_out:		std_logic_vector(7 downto 0);-- where the IACK must be sent when IACK_IN is asserted by processor
+	signal IACK_finished:		std_logic_vector(7 downto 0);-- '1' when IACK_OUT is deasserted
 	signal irq:						std_logic;
 	signal tmp:						std_logic_vector(31 downto 0);
 	signal tmp_IRQ_out:			std_logic_vector(31 downto 0);
-	signal IRQ_mask:			std_logic_vector(31 downto 0);-- Interrupt masks, '1' means masked
-	signal sw_IRQ_reg:			std_logic_vector(31 downto 0);-- written by software, requests the interrupt
+	signal IRQ_mask:			std_logic_vector(7 downto 0);-- Interrupt masks, '1' means masked
+	signal sw_IRQ_reg:			std_logic_vector(7 downto 0);-- written by software, requests the interrupt
 
 	------------signals for interrupt vector-------------------
-	signal vector: array32 (31 downto 0);--address of interrupt handler
+	signal vector: array32 (7 downto 0);--address of interrupt handler
 	signal vector_ready: std_logic;
 	signal vector_Q: std_logic_vector(31 downto 0);
 	
   -- priority of each interrupt, in case more than one IRQ is asserted in a single cycle
   -- each array entry is a unsigned integer, the lower the integer, the higher the priority (0 is the highest priority)
   -- it is allowed to have IRQ's with the same priority, the first IRQ will be serviced
-	signal priorities:array32 (31 downto 0);
+	signal priorities:array32 (7 downto 0);
 	signal priorities_ready: std_logic;
 	signal priorities_Q: std_logic_vector(31 downto 0);
 	
 	signal ISR_ADDR_in:	std_logic_vector(31 downto 0);--address of next ISR
 	signal tmp_ISR_ADDR:	array32(31 downto 0);--address of next ISR
 	
-	signal preemption: std_logic_vector(31 downto 0) := (others=>'0');--bit i indicates for IRQi that it was preempted
+	signal preemption: std_logic_vector(7 downto 0) := (others=>'0');--bit i indicates for IRQi that it was preempted
 	signal preemption_evt: std_logic;--flag indicating that an active IRQ was preempted
 	signal tmp_preemption_evt: std_logic_vector(31 downto 0);
-	signal tmp_preferred: array32(31 downto 0) := (others=>(others=>'0'));
-	signal req: array32(31 downto 0) := (others=>(others=>'0'));
+	signal tmp_preferred: array8(7 downto 0) := (others=>(others=>'0'));
+	signal req: array8(7 downto 0) := (others=>(others=>'0'));
 	signal tmp_highest_priority: array32(31 downto 0) := (others=>(others=>'1'));
-	signal tmp_IRQ_active:	array32(32 downto 0);-- one-hot of the ISR being executed NOW
+	signal tmp_IRQ_active:	array8(8 downto 0);-- one-hot of the ISR being executed NOW
 	
 	constant STACK_LEVELS_LOG2: natural := 4;--up to 16 nested interrupts
 	
 begin
 	--L must be limited to 32 
-	assertion: assert (L <= 32) report "parameter L must be <= 32" severity Error;
+	assertion: assert (L <= 8) report "parameter L must be <= 8" severity Error;
 	
-	irq_in_ex_i: for i in 0 to 31 generate
+	irq_in_ex_i: for i in 0 to 7 generate
 		hw_irq_i: if (i>=0 and i<L) generate
 			IRQ_IN_ex(i) <= IRQ_IN(i);
 		end generate hw_irq_i;
@@ -184,7 +184,7 @@ begin
 	
 ---------------------------------- FSM ------------------------------------
 ----------- (separate bits for each state, for clarity sake) --------------
-		irq_fsm_i: for i in 0 to 31 generate
+		irq_fsm_i: for i in 0 to 7 generate
 			--fsm_state: (IRQ_pend, IRQ_started)
 			IRQ_pend(i)			<= fsm_state(i)(1);
 			IRQ_started(i)		<= fsm_state(i)(0);
@@ -229,13 +229,13 @@ begin
 			end process;
 		end generate irq_fsm_i;
 		
-		arbiter: for i in 0 to 31 generate
-			--if two IRQ's of equal priority arrive in the along the same clock cycle, the IRQ of highest index takes precendence
+		arbiter: for i in 0 to 7 generate
+			--if two IRQ's of equal priority arrive in the along the same clock cycle, the IRQ of highest index takes precedence
 			req(i) <= (i=> (IRQ_pend(i) or IRQ_started(i)), others=>'0');
 			tmp_preferred(i) <= req(to_integer(unsigned(priorities(i))));
 			tmp_IRQ_active(i) <= tmp_preferred(i) when (tmp_preferred(i) /= x"0000_0000") else tmp_IRQ_active(i+1);
 		end generate arbiter;
-		tmp_IRQ_active(32) <= x"0000_0000";
+		tmp_IRQ_active(8) <= x"00";
 		
 		IRQ_active <= tmp_IRQ_active(0);
 		
@@ -251,7 +251,7 @@ begin
 
 		-- AFTER irq_pend_out UPDATE
 		tmp(0) <= tmp_IRQ_out(0);
-		irq_out_write: for i in 0 to 31 generate
+		irq_out_write: for i in 0 to 7 generate
 			-- a BIG-OR of all tmp_IRQ_out signals
 			tmp_i: if (i /= 0) generate
 				tmp(i) <= tmp(i-1) or tmp_IRQ_out(i);
@@ -270,19 +270,19 @@ begin
 				end if;
 			end process;
 		end generate;
-		IRQ_OUT <= tmp(31);
+		IRQ_OUT <= tmp(7);
 		
 		tmp_ISR_ADDR(0) <= vector(0) when (tmp_IRQ_out(0)='1') else (others=>'0');		
-		ISR_ADDR_write: for i in 1 to 31 generate
+		ISR_ADDR_write: for i in 1 to 7 generate
 			tmp_ISR_ADDR(i) <= vector(i) when (tmp_IRQ_out(i)='1') else tmp_ISR_ADDR(i-1);
 		end generate;
-		ISR_ADDR <= tmp_ISR_ADDR(31);
+		ISR_ADDR <= tmp_ISR_ADDR(7);
 	
 	--DOES NOT CHECK if is a true one-hot, if two bits are high, the MSb will take precendence
 	process(IRQ_active)
 	begin
 		IRQ_curr_out <= (others=>'0');
-		for i in 0 to 31 loop
+		for i in 0 to 7 loop
 			if(IRQ_active(i) = '1') then
 				IRQ_curr_out <= (31 downto 5=>'0') & std_logic_vector(to_unsigned(i,5));
 			end if;
@@ -356,7 +356,7 @@ begin
 			sw_IRQ_reg <= (others=>'0');
 		elsif(rising_edge(CLK))then
 			if(all_periphs_wren(5)='1')then
-				sw_IRQ_reg <= D;
+				sw_IRQ_reg <= D(7 downto 0);
 			elsif(IACK_IN='1')then
 				--clears sw_IRQ_reg(i) only if IRQ_active(i)='1'
 				sw_IRQ_reg <= sw_IRQ_reg and (not IRQ_active);
@@ -372,7 +372,7 @@ begin
 			IRQ_mask <= (others=>'0');
 		elsif(rising_edge(CLK))then
 			if(all_periphs_wren(6)='1')then
-				IRQ_mask <= D;
+				IRQ_mask <= D(7 downto 0);
 			end if;
 		end if;
 	end process;
@@ -394,13 +394,13 @@ begin
 	--addr 100_0000 - 101_1111: priorities
 	--other addresses: unused (zeroed)
 
-	all_periphs_output(0) <= IRQ_pend;
-	all_periphs_output(1) <= IRQ_active;
-	all_periphs_output(2) <= IRQ_started;
+	all_periphs_output(0) <= (31 downto 8 => '0') & IRQ_pend;
+	all_periphs_output(1) <= (31 downto 8 => '0') & IRQ_active;
+	all_periphs_output(2) <= (31 downto 8 => '0') & IRQ_started;
 	all_periphs_output(3) <= IRQ_status;
 	all_periphs_output(4) <= IRQ_curr_out;
-	all_periphs_output(5) <= sw_IRQ_reg;
-	all_periphs_output(6) <= IRQ_mask;
+	all_periphs_output(5) <= (31 downto 8 => '0') & sw_IRQ_reg;
+	all_periphs_output(6) <= (31 downto 8 => '0') & IRQ_mask;
 	all_periphs_output(7) <= vector_Q;
 	all_periphs_output(8) <= priorities_Q;
 	
