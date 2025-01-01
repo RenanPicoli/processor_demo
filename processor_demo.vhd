@@ -75,6 +75,21 @@ port (CLK_IN: in std_logic;
 		irq: in std_logic;--interrupt request
 		iack: out std_logic;--interrupt acknowledgement
 		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
+		------CPU DEBUG ITFC---------
+        clk_out: out std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
+        dbg_data_0: inout std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+        dbg_data_1: in std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
+		dbg_sr: in std_logic;-- set register enable
+		dbg_gr: in std_logic;-- get register enable
+		dbg_sm: in std_logic;-- set memory enable
+		dbg_gm: in std_logic;-- get memory enable
+		dbg_brk: in std_logic;--instruction break
+		dbg_inj: in std_logic;--inject instruction
+		dbg_nxt: in std_logic;--next instruction
+		dbg_cont: in std_logic;--continue instruction
+		dbg_irq: in std_logic;-- debug irq
+		dbg_iack: out std_logic;--interrupt acknowledgement
+		dbg_next_pc: out std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(31 downto 0);--addr é endereço de word
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to i_cache)
@@ -547,6 +562,31 @@ component uart_peripheral
     );
 end component;
 
+component uart_debugger
+    port (
+        rst: in std_logic;
+		------CPU ITFC---------
+        clk: in std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
+        dbg_data_0: inout std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+        dbg_data_1: out std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
+		dbg_sr: out std_logic;-- set register enable
+		dbg_gr: out std_logic;-- get register enable
+		dbg_sm: out std_logic;-- set memory enable
+		dbg_gm: out std_logic;-- get memory enable
+		dbg_brk: out std_logic;--instruction break
+		dbg_inj: out std_logic;--inject instruction
+		dbg_nxt: out std_logic;--next instruction
+		dbg_cont: out std_logic;--continue instruction
+		dbg_irq: out std_logic;-- debug irq
+		IACK: in std_logic;--interrupt acknowledgement
+		next_pc: in std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
+		------UART PHY---------
+		uart_phy_clk: in std_logic;--bit clock (not transmitted)
+        rx: in std_logic;
+        tx: out std_logic
+    );
+end component;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -870,6 +910,22 @@ signal mmu_iack: std_logic;
 
 signal uart_rx_mirror: std_logic;
 signal uart_tx_mirror: std_logic;
+
+------CPU DEBUG ITFC---------
+signal proc_clk_out: std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
+signal proc_dbg_data_0: std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+signal proc_dbg_data_1: std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
+signal proc_dbg_sr: std_logic;-- set register enable
+signal proc_dbg_gr: std_logic;-- get register enable
+signal proc_dbg_sm: std_logic;-- set memory enable
+signal proc_dbg_gm: std_logic;-- get memory enable
+signal proc_dbg_brk: std_logic;-- instruction break
+signal proc_dbg_inj: std_logic;-- inject instruction
+signal proc_dbg_nxt: std_logic;-- next instruction
+signal proc_dbg_cont: std_logic;-- continue instruction
+signal proc_dbg_irq: std_logic;-- debug irq
+signal proc_dbg_iack: std_logic;--interrupt acknowledgement
+signal proc_next_pc: std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
 
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
@@ -1618,6 +1674,23 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		irq => irq,
 		iack => iack,
 		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
+
+		------CPU DBG ITFC---------
+		clk_out => proc_clk_out,--TODO: must be processor internal clock
+        dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes, value for reading
+        dbg_data_1 => proc_dbg_data_1,--address for memory access, register for reg_file access
+		dbg_sr => proc_dbg_sr,-- set register enable
+		dbg_gr => proc_dbg_gr,-- get register enable
+		dbg_sm => proc_dbg_sm,-- set memory enable
+		dbg_gm => proc_dbg_gm,-- get memory enable		
+		dbg_brk=> proc_dbg_brk,--instruction break
+		dbg_inj=> proc_dbg_inj,--inject instruction
+		dbg_nxt=> proc_dbg_nxt,--next instruction
+		dbg_cont=> proc_dbg_cont,--continue instruction
+		dbg_irq => proc_dbg_irq,-- debug irq
+		dbg_iack => proc_dbg_iack,--interrupt acknowledgement
+		dbg_next_pc => proc_next_pc,-- TODO: monitor PC (pc_in) for breakpoints
+		
 		ADDR_rom => instruction_memory_address,
 		i_cache_ready => i_cache_ready_sync,--synchronized to rising_edge(CLK)
 		CLK_rom => instruction_clk,
@@ -1733,20 +1806,46 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		data_bus=> lcd_data
 	);
    
+--	uart_data_in <= ram_write_data;
+--	uart_phy_clk <= clk_uart_8x2400;
+--    uart_0: uart_peripheral
+--	port map (
+--		rst => rst,
+--		clk => ram_clk,
+--		ADDR => ram_addr(0 downto 0),
+--		D => uart_data_in,
+--		wren => uart_wren,
+--		rden => uart_rden,
+--		Q => uart_Q,
+--		IRQ => uart_irq,
+--		IACK => uart_iack,
+--		phy_clk=> uart_phy_clk,
+--		tx => uart_tx,
+--		rx => uart_rx
+--	);
+	
 	uart_data_in <= ram_write_data;
 	uart_phy_clk <= clk_uart_8x2400;
-    uart_0: uart_peripheral
+    uart_dbg: uart_debugger
 	port map (
 		rst => rst,
-		clk => ram_clk,
-		ADDR => ram_addr(0 downto 0),
-		D => uart_data_in,
-		wren => uart_wren,
-		rden => uart_rden,
-		Q => uart_Q,
-		IRQ => uart_irq,
-		IACK => uart_iack,
-		phy_clk=> uart_phy_clk,
+		------CPU ITFC---------
+		clk => proc_clk_out,--TODO: must be processor internal clock
+        dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes, value for reading
+        dbg_data_1 => proc_dbg_data_1,--address for memory access, register for reg_file access
+		dbg_sr => proc_dbg_sr,-- set register enable
+		dbg_gr => proc_dbg_gr,-- get register enable
+		dbg_sm => proc_dbg_sm,-- set memory enable
+		dbg_gm => proc_dbg_gm,-- get memory enable
+		dbg_brk=> proc_dbg_brk,--instruction break
+		dbg_inj=> proc_dbg_inj,--inject instruction
+		dbg_nxt=> proc_dbg_nxt,--next instruction		
+		dbg_cont=> proc_dbg_cont,--continue instruction
+		dbg_irq => proc_dbg_irq,-- debug irq
+		IACK => proc_dbg_iack,--interrupt acknowledgement
+		next_pc => proc_next_pc,-- TODO: monitor PC (pc_in) for breakpoints
+		------UART PHY---------
+		uart_phy_clk=> uart_phy_clk,
 		tx => uart_tx,
 		rx => uart_rx
 	);
