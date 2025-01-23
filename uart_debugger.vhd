@@ -221,7 +221,7 @@ begin
 		end if;
 	end process;
 	
-	uart_fsm: process(rst,clk)
+	uart_fsm: process(rst,clk,data_received_evt)
 	begin
 		if(rst='1')then
 			next_dbg_state <= CMD;
@@ -379,7 +379,7 @@ begin
 	
 	dbg_irq <= '1' when (next_dbg_state=CMD and cmd_one_hot/="000000") else '0';
 	
-	process(rst,clk,uart_data_out,dbg_state,inject_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd)
+	process(rst,clk,uart_data_out,data_received_evt,dbg_state,inject_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd)
 	begin
 		if(rst='1')then
 			dbg_data_0 <= (others=>'0');
