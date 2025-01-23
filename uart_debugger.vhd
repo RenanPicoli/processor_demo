@@ -185,6 +185,12 @@ architecture Behavioral of uart_debugger is
 	signal uart_cache_req_addr: std_logic_vector(31 downto 0);
 	signal uart_cache_mem_addr: std_logic_vector(7 downto 0);
 	
+	--preserving signals during synthesis for debugging
+	attribute preserve : boolean;
+	attribute preserve of cmd_one_hot: signal is true;
+	attribute preserve of uart_cache_write_data: signal is true;
+	attribute preserve of uart_data_in: signal is true;
+	
 begin
 	get_mem_cmd <= cmd_one_hot(0);
 	set_mem_cmd <= cmd_one_hot(1);
@@ -198,6 +204,7 @@ begin
 	process(rst,clk,uart_data_out,dbg_state,uart_data_received)
 	begin
 		if(rst='1')then
+				cmd_one_hot <= 	"00000000";
 		elsif(rising_edge(clk) and dbg_state=CMD and uart_data_received='1')then
 			if uart_data_out="10000000"  then
 				cmd_one_hot <= 	"10000000";--continue_cmd
@@ -505,7 +512,8 @@ begin
 								DATA_OUT => dc_fifo_data_out);
 		req_wren_ready <= '1' when (req_wren='1' and req_ready='1' and (req_ready_sr="00" or req_ready_sr="11")) else '0';
 
-		dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1) and full='1') else '0';
+		--dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1) and full='1') else '0';
+		dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1)) else '0';
 		
 		uart_data_in <= dc_fifo_data_out((word_idx+1)*8-1 downto word_idx*8);
 
