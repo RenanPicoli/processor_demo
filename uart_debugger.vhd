@@ -163,7 +163,7 @@ architecture Behavioral of uart_debugger is
 	constant D: natural := natural(ceil(log2(real(REQUESTED_SIZE))));--number of bits needed to select all cache locations
 	constant SIZE: natural := 2**D;--real cache size in words SHOULD BE A POWER OF 2 to prevent errors;
 	signal req_ready: std_logic;--indicates that data already contains the requested data
-	signal req_wren_ready:	std_logic;-- so that cache is written only when ready
+	signal dc_fifo_wren:	std_logic;-- so that cache is written only when ready
 	signal req_wren: std_logic;--write requested
 	signal req_ready_sr: std_logic_vector(1 downto 0);
 	signal dc_fifo_empty:	std_logic;
@@ -189,7 +189,11 @@ architecture Behavioral of uart_debugger is
 	attribute preserve : boolean;
 	attribute preserve of cmd_one_hot: signal is true;
 	attribute preserve of uart_cache_write_data: signal is true;
-	attribute preserve of uart_data_in: signal is true;
+	attribute preserve of uart_data_in: signal is true;	
+	attribute preserve of prev_uart_data_received: signal is true;
+	attribute preserve of data_received_evt: signal is true;
+	attribute preserve of dbg_state: signal is true;
+	attribute preserve of next_dbg_state: signal is true;
 	
 begin
 	get_mem_cmd <= cmd_one_hot(0);
@@ -429,9 +433,16 @@ begin
 	begin
 		if(rst='1')then
 			data_received_evt <= '0';
-			prev_uart_data_received <= '0';
 		elsif(rising_edge(clk))then
 			data_received_evt <= uart_data_received and (not prev_uart_data_received);
+		end if;
+	end process;
+	
+	process(rst,clk,uart_data_received)
+	begin
+		if(rst='1')then
+			prev_uart_data_received <= '0';
+		elsif(rising_edge(clk))then
 			prev_uart_data_received <= uart_data_received;
 		end if;
 	end process;
@@ -462,10 +473,18 @@ begin
 		elsif(rising_edge(clk))then
 			if(get_reg_cmd='1')then
 				uart_cache_write_data <= dbg_data_0;--sends to uart value of register
-				uart_cache_wren <= '1';
+				if(uart_cache_wren='0')then
+					uart_cache_wren <= '1';
+				else
+					uart_cache_wren <= '0';
+				end if;
 			elsif(get_mem_cmd='1')then
 				uart_cache_write_data <= dbg_data_0;--sends to uart value of memory
-				uart_cache_wren <= '1';
+				if(uart_cache_wren='0')then
+					uart_cache_wren <= '1';
+				else
+					uart_cache_wren <= '0';
+				end if;
 			else
 				uart_cache_write_data <= (others=>'0');--sends to uart value of register
 				uart_cache_wren <= '0';
@@ -503,14 +522,14 @@ begin
 								DATA_IN => uart_cache_write_data,
 								RST => RST,
 								WCLK => CLK,
-								WREN => req_wren_ready,
+								WREN => uart_cache_wren,
 								FULL => dc_fifo_full,
 								EMPTY => dc_fifo_empty,
 								OVF => dc_fifo_ovf,
 								RCLK => uart_phy_clk,
 								POP => dc_fifo_pop,
 								DATA_OUT => dc_fifo_data_out);
-		req_wren_ready <= '1' when (req_wren='1' and req_ready='1' and (req_ready_sr="00" or req_ready_sr="11")) else '0';
+		dc_fifo_wren <= '1' when (get_mem_cmd='1' or get_reg_cmd='1') else '0';
 
 		--dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1) and full='1') else '0';
 		dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1)) else '0';
