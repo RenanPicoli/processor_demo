@@ -9,9 +9,9 @@ entity uart_debugger is
     port (
         rst: in std_logic;
 		------CPU ITFC---------
-        clk: in std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
-        dbg_data_0: inout std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
-        dbg_data_1: out std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
+		clk: in std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
+		dbg_data_0: inout std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+		dbg_data_1: out std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
 		dbg_sr: out std_logic;-- set register enable
 		dbg_gr: out std_logic;-- get register enable
 		dbg_sm: out std_logic;-- set memory enable
@@ -135,7 +135,7 @@ architecture Behavioral of uart_debugger is
 	signal status_wren:	std_logic;
 	signal status_rden:	std_logic;	
 		
-	type state is (CMD,D0,D1,D2,D3,A3,A2,A1,A0);
+	type state is (IDLE,CMD,D0,D1,D2,D3,A3,A2,A1,A0);
 	signal dbg_state: state;
 	signal next_dbg_state: state;
 	
@@ -209,7 +209,7 @@ begin
 	begin
 		if(rst='1')then
 				cmd_one_hot <= 	"00000000";
-		elsif(rising_edge(clk) and dbg_state=CMD and uart_data_received='1')then
+		elsif(rising_edge(clk) and (dbg_state=CMD or dbg_state=IDLE) and uart_data_received='1')then
 			if uart_data_out="10000000"  then
 				cmd_one_hot <= 	"10000000";--continue_cmd
 			elsif uart_data_out="01000000"  then
@@ -235,11 +235,11 @@ begin
 	uart_fsm: process(rst,clk,data_received_evt)
 	begin
 		if(rst='1')then
-			next_dbg_state <= CMD;
+			next_dbg_state <= IDLE;
 		--state transition when a byte is received
 		elsif(rising_edge(clk) and data_received_evt='1')then
 			case dbg_state is
-				when CMD =>
+				when CMD|IDLE =>
 					if (inject_cmd='1') then
 						next_dbg_state <= D3;
 					elsif (set_mem_cmd='1' or get_mem_cmd='1') then
@@ -278,7 +278,7 @@ begin
 	process(rst,clk)
 	begin
 		if(rst='1')then
-			dbg_state <= CMD;
+			dbg_state <= IDLE;
 		elsif(rising_edge(clk))then
 			dbg_state <= next_dbg_state;
 		end if;
@@ -388,7 +388,19 @@ begin
 		end if;
 	end process;
 	
-	dbg_irq <= '1' when (next_dbg_state=CMD and cmd_one_hot/="000000") else '0';
+	--dbg_irq <= '1' when (next_dbg_state=CMD and cmd_one_hot/="000000") else '0';
+	process(rst,clk,data_received_evt,next_dbg_state,dbg_state,cmd_one_hot)
+	begin
+		if(rst='1')then
+			dbg_irq <= '0';
+		elsif(rising_edge(clk))then
+			if(next_dbg_state=CMD and cmd_one_hot/="000000")then
+				dbg_irq <= '1';
+			else
+				dbg_irq <= '0';
+			end if;
+		end if;
+	end process;
 	
 	process(rst,clk,uart_data_out,data_received_evt,dbg_state,inject_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd)
 	begin
@@ -496,26 +508,7 @@ begin
 	--to an instruction address (starting at 0)
 	-- UART plays the role of the instruction memory
 	
---	uart_cache_req_addr <= (others=>'0');
---	uart_cache_rden <= '0';
---	uart_cache: cache
---		generic map (REQUESTED_SIZE => 1, MEM_WIDTH=> 16, REQUESTED_FIFO_DEPTH=> 4, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
---		port map (
---				req_ADDR => uart_cache_req_addr,--address of requested data/instruction
---				req_rden => uart_cache_rden,
---				req_wren => uart_cache_wren,
---				req_data_in => uart_cache_write_data,--sends to uart value of register/memory
---				CLK => clk,--processor clock for reading instructions, must run even if cache is not ready
---				mem_I => (others=>'0'),--data coming from UART, not used
---				mem_CLK => uart_phy_clk,--clock for reading embedded RAM
---				RST => rst,--reset to prevent reading while sram is written (must be synchronous to sram_CLK)
---				mem_ADDR => uart_cache_mem_addr,--address for write
---				req_ready => uart_cache_ready,--indicates that instruction already contains the requested instruction
---				mem_WREN => uart_wren,
---				mem_O		=> (15 downto 8 =>open) & uart_data_in,
---				data =>		open--fetched data from uart. not used
---		);	
-		
+	
 		-- stores the writes made to cache
 		fifo: dc_fifo	generic map (N=> 32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
 						port map(
@@ -535,37 +528,6 @@ begin
 		dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1)) else '0';
 		
 		uart_data_in <= dc_fifo_data_out((word_idx+1)*8-1 downto word_idx*8);
-
---		word_i: for i in 0 to 2**W-1 generate
---			storage: sdp_ram generic map (N => 8, L=> D)
---			port map(	--cpu/dc_fifo writes
---						WCLK	=> clk,
---						WDAT	=> uart_cache_write_data((i+1)*8-1 downto i*8),
---						WADDR	=> waddr_delayed(W+D-1 downto W),
---						WREN	=> WREN(i),
---						--uart reads
---						RCLK	=> uart_phy_clk,
---						RADDR	=> raddr,
---						RDAT	=> data((i+1)*8-1 downto i*8)
---			);
---			WREN(i) <= '1' when (full='0' and dc_fifo_empty='1' and waddr_delayed(W-1 downto 0)=i) else '0';
---		end generate;
---		
---	unregistered_waddr: if not REGISTER_ADDR generate--when req_ADDR is the CURRENT address
---		--cache write address generation
---		process(uart_phy_clk,WADDR,miss,req_ready_sr,dc_fifo_empty,RST)
---		begin
---			if(RST='1')then
---				waddr <= (others=>'0');
---			elsif(rising_edge(uart_phy_clk)) then
---				if(req_ready_sr="00" and miss='1')then--condition to start filling cache
---					waddr <= (others=>'0');
---				elsif(waddr /= ('1' & (W+D-1 downto 0=>'0')) and dc_fifo_empty='1')then
---					waddr <= waddr + '1';
---				end if;
---			end if;
---		end process;
---	end generate;
 
 		process(RST,uart_phy_clk,dc_fifo_pop,word_idx)
 		begin
@@ -592,53 +554,5 @@ begin
 				end if;
 			end if;
 		end process;
-		
---		unregistered_ready: if not REGISTER_ADDR generate--when req_ADDR is the the CURRENT address	
---			process(RST,CLK,waddr,raddr,miss,hit,req_rden,req_wren,full)
---			begin
---				if(RST='1')then
---					req_ready_sr <= "00";
---					previous_req_ready_sr <= "00";
---				elsif(rising_edge(CLK))then--this is to allow time for current requested address to be read in rising_edge
---					previous_req_ready_sr <= req_ready_sr;
---					if(req_ready_sr="00" and (req_wren='1' or req_rden='1') and miss='1')then
---						req_ready_sr <= "01";
---					elsif(req_ready_sr="00" and req_rden='1' and hit='1')then
---						req_ready_sr <= "11";
---					elsif(req_ready_sr="01" and full='1')then--recovered from a miss
---						req_ready_sr <= "11";
---					elsif(req_ready_sr="11")then
---						req_ready_sr <= "10";
---					elsif(req_ready_sr="10")then
---						req_ready_sr <= "00";
---					end if;
---				end if;
---			end process;
---	--		req_ready <= '1' when (req_ready_sr="00" or req_ready_sr="10") else '0';
---			req_ready_p: process(req_ready_sr,RST,CLK,req_rden,req_wren,full,miss,mem_CLK)
---			begin
---				if(RST='1')then--req_ready_sr="01" or req_ready_sr="11"
---					req_ready <= '1';
---				elsif(rising_edge(mem_CLK))then--this is to avoid glitches
---					if(req_ready_sr="00" and (((req_rden='1' or req_wren='1') and miss='1') or (req_rden='1' and hit='1')))then
---						req_ready <= '0';
---					elsif((req_ready_sr="11" and full='1') )then
---						req_ready <= '1';
---					end if;
---				end if;
---			end process;
---		end generate;
-		
---    -- Registrador de Status
---    process(clk, rst)
---    begin
---        if (rst = '1') then
---            status_reg <= (others => '0');
---        elsif (rising_edge(clk)) then
---            status_reg(0) <= uart_data_sent;
---            status_reg(1) <= uart_data_received;
---            status_reg(2) <= uart_stop_error;
---        end if;
---    end process;
 
 end Behavioral;
