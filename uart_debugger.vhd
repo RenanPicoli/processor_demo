@@ -246,9 +246,9 @@ begin
 						next_dbg_state <= A3;
 					elsif (next_cmd='1') then
 						next_dbg_state <= CMD;
-					else
+					else--when set_reg_cmd='1' or get_reg_cmd='1'
 						next_dbg_state <= A0;
-					end if;--when set_reg_cmd='1' or get_reg_cmd='1'
+					end if;
 				when D3 =>
 					next_dbg_state <= D2;
 				when D2 =>
@@ -477,21 +477,25 @@ begin
             rx => rx
         );	
 	
-	process(rst,clk,dbg_state,get_reg_cmd,get_mem_cmd)
+	process(rst,clk,dbg_state,get_reg_cmd,get_mem_cmd,dbg_irq)
 	begin
 		if(rst='1')then
 			uart_cache_write_data <= (others=>'0');--sends to uart value of register
 			uart_cache_wren <= '0';
 		elsif(rising_edge(clk))then
 			if(get_reg_cmd='1')then
-				uart_cache_write_data <= dbg_data_0;--sends to uart value of register
+				if(dbg_irq='1')then
+					uart_cache_write_data <= dbg_data_0;--sends to uart value of register
+				end if;
 				if(uart_cache_wren='0')then
 					uart_cache_wren <= '1';
 				else
 					uart_cache_wren <= '0';
 				end if;
 			elsif(get_mem_cmd='1')then
-				uart_cache_write_data <= dbg_data_0;--sends to uart value of memory
+				if(dbg_irq='1')then
+					uart_cache_write_data <= dbg_data_0;--sends to uart value of memory
+				end if;
 				if(uart_cache_wren='0')then
 					uart_cache_wren <= '1';
 				else
