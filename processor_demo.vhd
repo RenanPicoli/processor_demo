@@ -913,6 +913,8 @@ signal uart_tx_mirror: std_logic;
 
 ------CPU DEBUG ITFC---------
 signal proc_clk_out: std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
+signal proc_dbg_clk: std_logic;--same as CLK (keeps running ehrn cpu is halted or in i-cache miss) but can be extended during d-cache miss
+signal proc_dbg_clk_en: std_logic;--enables proc_dbg_clk to follow CLK
 signal proc_dbg_data_0: std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
 signal proc_dbg_data_1: std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
 signal proc_dbg_sr: std_logic;-- set register enable
@@ -1823,16 +1825,30 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --		tx => uart_tx,
 --		rx => uart_rx
 --	);
+
+	process(CLK,rst,d_cache_ready_sync)
+	begin
+		if(rst='1')then
+			proc_dbg_clk_en <='1';
+		elsif(falling_edge(CLK))then
+			if(d_cache_ready_sync='0')then
+				proc_dbg_clk_en <= '0';
+			else
+				proc_dbg_clk_en <= '1';
+			end if;
+		end if;
+	end process;
+	proc_dbg_clk <= CLK and proc_dbg_clk_en;
 	
 	uart_data_in <= ram_write_data;
 	uart_phy_clk <= clk_uart_8x2400;
-    uart_dbg: uart_debugger
+	uart_dbg: uart_debugger
 	port map (
 		rst => rst,
 		------CPU ITFC---------
-		clk => proc_clk_out,--TODO: must be processor internal clock
-        dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes, value for reading
-        dbg_data_1 => proc_dbg_data_1,--address for memory access, register for reg_file access
+		clk => proc_dbg_clk,--must run while processor is halted, but need to be extended by processor during memory reading/writing
+		dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes, value for reading
+		dbg_data_1 => proc_dbg_data_1,--address for memory access, register for reg_file access
 		dbg_sr => proc_dbg_sr,-- set register enable
 		dbg_gr => proc_dbg_gr,-- get register enable
 		dbg_sm => proc_dbg_sm,-- set memory enable
