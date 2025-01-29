@@ -417,6 +417,8 @@ begin
 				elsif(dbg_state=D0)then
 					dbg_data_0(7 downto 0)   <= uart_data_out;
 				end if;
+			else		
+				dbg_data_0   <= (others=>'Z');
 			end if;
 		end if;
 	end process;
