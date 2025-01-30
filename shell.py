@@ -51,7 +51,7 @@ def shell():
    def continue_fn():
        b=0x80.to_bytes(1,'big')
        enter="\r\n".encode('utf-8')
-       binary = b+enter
+       binary = b#+enter
        barr = bytearray(binary)
        ser.write(barr)
        
@@ -64,7 +64,7 @@ def shell():
    def breakpoint_fn():
        b=0x40.to_bytes(1,'big')
        enter="\r\n".encode('utf-8')
-       binary = b+enter
+       binary = b#+enter
        barr = bytearray(binary)
        ser.write(barr)
        
@@ -77,7 +77,7 @@ def shell():
    def next_fn():
        b=0x20.to_bytes(1,'big')
        enter="\r\n".encode('utf-8')
-       binary = b+enter
+       binary = b#+enter
        barr = bytearray(binary)
        ser.write(barr)
        
@@ -91,7 +91,7 @@ def shell():
        b=0x10.to_bytes(1,'big')
        enter="\r\n".encode('utf-8')
        instruction_value=get_32bit_hex()
-       binary = b+instruction_value.to_bytes(4, 'big')+enter
+       binary = b+instruction_value.to_bytes(4, 'big')#+enter
        barr = bytearray(binary)
        ser.write(barr)
        
@@ -107,7 +107,7 @@ def shell():
        enter="\r\n".encode('utf-8')
        reg=get_8bit_int()
        value=get_32bit_hex()
-       binary = b+reg.to_bytes(1, 'big')+value.to_bytes(4, 'big')+enter
+       binary = b+reg.to_bytes(1, 'big')+value.to_bytes(4, 'big')#+enter
        barr = bytearray(binary)
        ser.write(barr)
        
@@ -122,7 +122,7 @@ def shell():
        b=0x04.to_bytes(1,'big')
        enter="\r\n".encode('utf-8')
        reg=get_8bit_int()
-       binary = b+reg.to_bytes(1, 'big')+enter
+       binary = b+reg.to_bytes(1, 'big')#+enter
        barr = bytearray(binary)
        ser.write(barr)
        
@@ -139,7 +139,7 @@ def shell():
        memory_address=get_32bit_hex()
        value=get_32bit_hex()
        binary = b+memory_address.to_bytes(4, 'big')+\
-                       value.to_bytes(4, 'big')+enter
+                       value.to_bytes(4, 'big')#+enter
        barr = bytearray(binary)
        ser.write(barr)
        
@@ -154,7 +154,7 @@ def shell():
        b=0x01.to_bytes(1,'big')
        enter="\r\n".encode('utf-8')
        memory_address=get_32bit_hex()
-       binary = b+memory_address.to_bytes(4, 'big')+enter
+       binary = b+memory_address.to_bytes(4, 'big')#+enter
        barr = bytearray(binary)
        ser.write(barr)
        
