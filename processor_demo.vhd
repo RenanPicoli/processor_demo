@@ -76,9 +76,10 @@ port (CLK_IN: in std_logic;
 		iack: out std_logic;--interrupt acknowledgement
 		ISR_addr: in std_logic_vector (31 downto 0);--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 		------CPU DEBUG ITFC---------
-        clk_out: out std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
-        dbg_data_0: inout std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
-        dbg_data_1: in std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
+		clk_out: out std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
+		dbg_data_0: in std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+		dbg_data_1: in std_logic_vector(31 downto 0);-- address for memory access, register for reg_file access
+		dbg_data_2: out std_logic_vector(31 downto 0);-- values for reading
 		dbg_sr: in std_logic;-- set register enable
 		dbg_gr: in std_logic;-- get register enable
 		dbg_sm: in std_logic;-- set memory enable
@@ -564,11 +565,12 @@ end component;
 
 component uart_debugger
     port (
-        rst: in std_logic;
+		rst: in std_logic;
 		------CPU ITFC---------
-        clk: in std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
-        dbg_data_0: inout std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
-        dbg_data_1: out std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
+		clk: in std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
+		dbg_data_0: out std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+		dbg_data_1: out std_logic_vector(31 downto 0);-- address for memory access, register for reg_file access
+		dbg_data_2: in std_logic_vector(31 downto 0);-- values for reading
 		dbg_sr: out std_logic;-- set register enable
 		dbg_gr: out std_logic;-- get register enable
 		dbg_sm: out std_logic;-- set memory enable
@@ -915,8 +917,9 @@ signal uart_tx_mirror: std_logic;
 signal proc_clk_out: std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
 signal proc_dbg_clk: std_logic;--same as CLK (keeps running ehrn cpu is halted or in i-cache miss) but can be extended during d-cache miss
 signal proc_dbg_clk_en: std_logic;--enables proc_dbg_clk to follow CLK
-signal proc_dbg_data_0: std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+signal proc_dbg_data_0: std_logic_vector(31 downto 0);-- instructions, value for writes to register or memory
 signal proc_dbg_data_1: std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
+signal proc_dbg_data_2: std_logic_vector(31 downto 0);-- value for reading register or memory
 signal proc_dbg_sr: std_logic;-- set register enable
 signal proc_dbg_gr: std_logic;-- get register enable
 signal proc_dbg_sm: std_logic;-- set memory enable
@@ -1679,8 +1682,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 		------CPU DBG ITFC---------
 		clk_out => proc_clk_out,--TODO: must be processor internal clock
-        dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes, value for reading
-        dbg_data_1 => proc_dbg_data_1,--address for memory access, register for reg_file access
+		dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes to register or memory
+		dbg_data_1 => proc_dbg_data_1,-- address for memory access, register for reg_file access
+		dbg_data_2 => proc_dbg_data_2,-- value for reading memory or register
 		dbg_sr => proc_dbg_sr,-- set register enable
 		dbg_gr => proc_dbg_gr,-- get register enable
 		dbg_sm => proc_dbg_sm,-- set memory enable
@@ -1847,8 +1851,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		rst => rst,
 		------CPU ITFC---------
 		clk => proc_dbg_clk,--must run while processor is halted, but need to be extended by processor during memory reading/writing
-		dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes, value for reading
-		dbg_data_1 => proc_dbg_data_1,--address for memory access, register for reg_file access
+		dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes to memory or register
+		dbg_data_1 => proc_dbg_data_1,-- address for memory access, register for reg_file access
+		dbg_data_2 => proc_dbg_data_2,-- value for reading of register or memory
 		dbg_sr => proc_dbg_sr,-- set register enable
 		dbg_gr => proc_dbg_gr,-- get register enable
 		dbg_sm => proc_dbg_sm,-- set memory enable

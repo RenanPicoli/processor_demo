@@ -10,8 +10,9 @@ entity uart_debugger is
         rst: in std_logic;
 		------CPU ITFC---------
 		clk: in std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
-		dbg_data_0: inout std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
-		dbg_data_1: out std_logic_vector(31 downto 0);--address for memory access, register for reg_file access
+		dbg_data_0: out std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+		dbg_data_1: out std_logic_vector(31 downto 0);-- address for memory access, register for reg_file access
+		dbg_data_2: in std_logic_vector(31 downto 0);-- values for reading
 		dbg_sr: out std_logic;-- set register enable
 		dbg_gr: out std_logic;-- get register enable
 		dbg_sm: out std_logic;-- set memory enable
@@ -418,7 +419,7 @@ begin
 					dbg_data_0(7 downto 0)   <= uart_data_out;
 				end if;
 			else		
-				dbg_data_0   <= (others=>'Z');
+				dbg_data_0   <= (others=>'0');
 			end if;
 		end if;
 	end process;
@@ -471,7 +472,7 @@ begin
             wren => uart_wren,
             rden => uart_rden,
             Q => uart_data_out,
-			iack => iack,
+				iack => iack,
             data_sent => uart_data_sent,
             data_received => uart_data_received,
             stop_error => uart_stop_error,
@@ -487,7 +488,7 @@ begin
 		elsif(rising_edge(clk))then
 			if(get_reg_cmd='1')then
 				if(dbg_irq='1')then
-					uart_cache_write_data <= dbg_data_0;--sends to uart value of register
+					uart_cache_write_data <= dbg_data_2;--sends to uart value of register
 				end if;
 				if(uart_cache_wren='0')then
 					uart_cache_wren <= '1';
@@ -496,7 +497,7 @@ begin
 				end if;
 			elsif(get_mem_cmd='1')then
 				if(dbg_irq='1')then
-					uart_cache_write_data <= dbg_data_0;--sends to uart value of memory
+					uart_cache_write_data <= dbg_data_2;--sends to uart value of memory
 				end if;
 				if(uart_cache_wren='0')then
 					uart_cache_wren <= '1';
