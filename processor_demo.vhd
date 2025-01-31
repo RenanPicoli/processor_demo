@@ -571,6 +571,7 @@ component uart_debugger
 		dbg_data_0: out std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
 		dbg_data_1: out std_logic_vector(31 downto 0);-- address for memory access, register for reg_file access
 		dbg_data_2: in std_logic_vector(31 downto 0);-- values for reading
+		--command ports bellow must be asserted only for 1 clk cycle, together with dbg_irq
 		dbg_sr: out std_logic;-- set register enable
 		dbg_gr: out std_logic;-- get register enable
 		dbg_sm: out std_logic;-- set memory enable
@@ -579,7 +580,8 @@ component uart_debugger
 		dbg_inj: out std_logic;--inject instruction
 		dbg_nxt: out std_logic;--next instruction
 		dbg_cont: out std_logic;--continue instruction
-		dbg_irq: out std_logic;-- debug irq
+		dbg_irq: out std_logic;-- debug irq, must be asserted for 1 clk cycle (which can be extended)
+		
 		IACK: in std_logic;--interrupt acknowledgement
 		next_pc: in std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
 		------UART PHY---------
@@ -1854,6 +1856,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes to memory or register
 		dbg_data_1 => proc_dbg_data_1,-- address for memory access, register for reg_file access
 		dbg_data_2 => proc_dbg_data_2,-- value for reading of register or memory
+		--command ports bellow must be asserted only for 1 clk cycle, together with dbg_irq
 		dbg_sr => proc_dbg_sr,-- set register enable
 		dbg_gr => proc_dbg_gr,-- get register enable
 		dbg_sm => proc_dbg_sm,-- set memory enable
@@ -1862,7 +1865,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		dbg_inj=> proc_dbg_inj,--inject instruction
 		dbg_nxt=> proc_dbg_nxt,--next instruction		
 		dbg_cont=> proc_dbg_cont,--continue instruction
-		dbg_irq => proc_dbg_irq,-- debug irq
+		dbg_irq => proc_dbg_irq,-- debug irq, must be asserted for 1 clk cycle (which can be extended)
+		
 		IACK => proc_dbg_iack,--interrupt acknowledgement
 		next_pc => proc_next_pc,-- TODO: monitor PC (pc_in) for breakpoints
 		------UART PHY---------
