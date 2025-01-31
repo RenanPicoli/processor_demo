@@ -245,7 +245,7 @@ begin
 						next_dbg_state <= D3;
 					elsif (set_mem_cmd='1' or get_mem_cmd='1') then
 						next_dbg_state <= A3;
-					elsif (next_cmd='1') then
+					elsif (next_cmd='1' or breakpt_cmd='1' or continue_cmd='1') then
 						next_dbg_state <= CMD;
 					else--when set_reg_cmd='1' or get_reg_cmd='1'
 						next_dbg_state <= A0;
@@ -290,7 +290,8 @@ begin
 		if(rst='1')then
 			dbg_gr <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and get_reg_cmd='1')then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and get_reg_cmd='1' and  dbg_gr='0')then
 				dbg_gr <= '1';--cpu receives a instruction to get a register value during one clock cycle
 			else
 				dbg_gr <= '0';
@@ -303,7 +304,8 @@ begin
 		if(rst='1')then
 			dbg_sr <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and set_reg_cmd='1')then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and set_reg_cmd='1' and  dbg_sr='0')then
 				dbg_sr <= '1';--cpu receives a instruction to set a register during one clock cycle
 			else
 				dbg_sr <= '0';
@@ -316,7 +318,8 @@ begin
 		if(rst='1')then
 			dbg_gm <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and get_mem_cmd='1')then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and get_mem_cmd='1' and  dbg_gm='0')then
 				dbg_gm <= '1';--cpu receives a instruction to get a memory value during one clock cycle (might be extended by processor)
 			else
 				dbg_gm <= '0';
@@ -329,7 +332,8 @@ begin
 		if(rst='1')then
 			dbg_sm <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and set_mem_cmd='1')then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and set_mem_cmd='1' and  dbg_sm='0')then
 				dbg_sm <= '1';--cpu receives a instruction to set a register during one clock cycle (might be extended by processor)
 			else
 				dbg_sm <= '0';
@@ -342,7 +346,8 @@ begin
 		if(rst='1')then
 			dbg_inj <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and inject_cmd='1')then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and inject_cmd='1' and  dbg_inj='0')then
 				dbg_inj <= '1';--cpu receives a instruction (might be extended by processor)
 			else
 				dbg_inj <= '0';
@@ -355,7 +360,8 @@ begin
 		if(rst='1')then
 			dbg_nxt <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and next_cmd='1')then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and next_cmd='1' and  dbg_nxt='0')then
 				dbg_nxt <= '1';--cpu executes the next instruction (might be extended by processor)
 			else
 				dbg_nxt <= '0';
@@ -368,7 +374,8 @@ begin
 		if(rst='1')then
 			dbg_brk <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and breakpt_cmd='1')then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and breakpt_cmd='1' and  dbg_brk='0')then
 				dbg_brk <= '1';--cpu executes the next instruction (might be extended by processor)
 			else
 				dbg_brk <= '0';
@@ -381,7 +388,8 @@ begin
 		if(rst='1')then
 			dbg_cont <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and continue_cmd='1')then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and continue_cmd='1' and  dbg_cont='0')then
 				dbg_cont <= '1';--cpu resumes program normal execution
 			else
 				dbg_cont <= '0';
@@ -395,7 +403,8 @@ begin
 		if(rst='1')then
 			dbg_irq <= '0';
 		elsif(rising_edge(clk))then
-			if(next_dbg_state=CMD and cmd_one_hot/="000000")then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and cmd_one_hot/="000000" and  dbg_irq='0')then
 				dbg_irq <= '1';
 			else
 				dbg_irq <= '0';
