@@ -13,6 +13,7 @@ entity uart_debugger is
 		dbg_data_0: out std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
 		dbg_data_1: out std_logic_vector(31 downto 0);-- address for memory access, register for reg_file access
 		dbg_data_2: in std_logic_vector(31 downto 0);-- values for reading
+		--command ports bellow must be asserted only for 1 clk cycle, together with dbg_irq
 		dbg_sr: out std_logic;-- set register enable
 		dbg_gr: out std_logic;-- get register enable
 		dbg_sm: out std_logic;-- set memory enable
@@ -21,7 +22,8 @@ entity uart_debugger is
 		dbg_brk: out std_logic;--instruction break
 		dbg_nxt: out std_logic;--next instruction
 		dbg_cont: out std_logic;--continue instruction
-		dbg_irq: out std_logic;-- debug irq
+		dbg_irq: out std_logic;-- debug irq, must be asserted for 1 clk cycle (which can be extended)
+		
 		IACK: in std_logic;--interrupt acknowledgement
 		next_pc: in std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
 		------UART PHY---------
@@ -206,28 +208,30 @@ begin
 	breakpt_cmd	<= cmd_one_hot(6);
 	continue_cmd<= cmd_one_hot(7);
 	
-	process(rst,clk,uart_data_out,dbg_state,uart_data_received)
+	process(rst,clk,uart_data_out,dbg_state,uart_data_received,dbg_irq)
 	begin
 		if(rst='1')then
 				cmd_one_hot <= 	"00000000";
-		elsif(rising_edge(clk) and (dbg_state=CMD or dbg_state=IDLE) and uart_data_received='1')then
-			if uart_data_out="10000000"  then
-				cmd_one_hot <= 	"10000000";--continue_cmd
-			elsif uart_data_out="01000000"  then
-				cmd_one_hot <= 	"01000000";--breakpt_cmd
-			elsif uart_data_out="00100000"  then
-				cmd_one_hot <= 	"00100000";--next_cmd
-			elsif uart_data_out="00010000"  then
-				cmd_one_hot <= 	"00010000";--inject_cmd
-			elsif uart_data_out="00001000" then
-				cmd_one_hot <= 	"00001000";--set_reg_cmd
-			elsif uart_data_out="00000100" then
-				cmd_one_hot <= 	"00000100";--get_reg_cmd
-			elsif uart_data_out="00000010" then
-				cmd_one_hot <= 	"00000010";--set_mem_cmd
-			elsif uart_data_out="00000001" then
-				cmd_one_hot <= 	"00000001";--get_mem_cmd
-			else
+		elsif(rising_edge(clk))then
+			if((dbg_state=CMD or dbg_state=IDLE) and uart_data_received='1')then
+				if uart_data_out="10000000"  then
+					cmd_one_hot <= 	"10000000";--continue_cmd
+				elsif uart_data_out="01000000"  then
+					cmd_one_hot <= 	"01000000";--breakpt_cmd
+				elsif uart_data_out="00100000"  then
+					cmd_one_hot <= 	"00100000";--next_cmd
+				elsif uart_data_out="00010000"  then
+					cmd_one_hot <= 	"00010000";--inject_cmd
+				elsif uart_data_out="00001000" then
+					cmd_one_hot <= 	"00001000";--set_reg_cmd
+				elsif uart_data_out="00000100" then
+					cmd_one_hot <= 	"00000100";--get_reg_cmd
+				elsif uart_data_out="00000010" then
+					cmd_one_hot <= 	"00000010";--set_mem_cmd
+				elsif uart_data_out="00000001" then
+					cmd_one_hot <= 	"00000001";--get_mem_cmd
+				end if;
+			elsif(dbg_irq='1')then
 				cmd_one_hot <= 	"00000000";
 			end if;
 		end if;
