@@ -22,7 +22,7 @@ entity uart_debugger is
 		dbg_brk: out std_logic;--instruction break
 		dbg_nxt: out std_logic;--next instruction
 		dbg_cont: out std_logic;--continue instruction
-		dbg_irq: out std_logic;-- debug irq, must be asserted for 1 clk cycle (which can be extended)
+		dbg_irq: buffer std_logic;-- debug irq, must be asserted for 1 clk cycle (which can be extended)
 		
 		IACK: in std_logic;--interrupt acknowledgement
 		next_pc: in std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
@@ -144,6 +144,7 @@ architecture Behavioral of uart_debugger is
 	
 	signal data_received_evt: std_logic;
 	signal prev_uart_data_received: std_logic;
+	signal uart_data_received_nak: std_logic;
 	
 	--flags to indicate which cmd is being processed
 	--valid until the next cmd is latched
@@ -208,12 +209,28 @@ begin
 	breakpt_cmd	<= cmd_one_hot(6);
 	continue_cmd<= cmd_one_hot(7);
 	
+	process(uart_data_received,clk,dbg_state,dbg_irq)
+	begin
+		if(uart_data_received='1')then
+			uart_data_received_nak <='1';
+		elsif(rising_edge(clk))then
+			if(dbg_irq='1' or dbg_state=IDLE)then
+				uart_data_received_nak <= '0';				
+			end if;
+		end if;
+	end process;
+	
 	process(rst,clk,uart_data_out,dbg_state,uart_data_received,dbg_irq)
 	begin
 		if(rst='1')then
 				cmd_one_hot <= 	"00000000";
 		elsif(rising_edge(clk))then
-			if((dbg_state=CMD or dbg_state=IDLE) and uart_data_received='1')then
+			--this is tested before the conditions for setting cmd_one_hot
+			--because cmd_one_hot must be cleared after one command is done
+			--sometimes dbg_state keeps at CMD between two conescutive commands, this would cause the first command to repeat forever
+			if(dbg_irq='1')then
+				cmd_one_hot <= 	"00000000";
+			elsif((dbg_state=CMD or dbg_state=IDLE) and uart_data_received='1')then
 				if uart_data_out="10000000"  then
 					cmd_one_hot <= 	"10000000";--continue_cmd
 				elsif uart_data_out="01000000"  then
@@ -231,8 +248,6 @@ begin
 				elsif uart_data_out="00000001" then
 					cmd_one_hot <= 	"00000001";--get_mem_cmd
 				end if;
-			elsif(dbg_irq='1')then
-				cmd_one_hot <= 	"00000000";
 			end if;
 		end if;
 	end process;
@@ -485,7 +500,7 @@ begin
             wren => uart_wren,
             rden => uart_rden,
             Q => uart_data_out,
-				iack => iack,
+				iack => dbg_irq,
             data_sent => uart_data_sent,
             data_received => uart_data_received,
             stop_error => uart_stop_error,
