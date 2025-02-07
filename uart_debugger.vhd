@@ -53,24 +53,6 @@ architecture Behavioral of uart_debugger is
         );
     end component;
 	
---	component address_decoder_memory_map
---	--N: word address width in bits
---	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
---	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
---	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
---	generic	(N: natural; B: boundaries);
---	port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
---			RDEN: in std_logic;-- input
---			WREN: in std_logic;-- input
---			data_in: in array32;-- input: outputs of all peripheral
---			ready_in: in std_logic_vector(B'length-1 downto 0);-- input: ready signals of all peripheral
---			RDEN_OUT: out std_logic_vector;-- output
---			WREN_OUT: out std_logic_vector;-- output
---			ready_out: out std_logic;-- output
---			data_out: out std_logic_vector(31 downto 0)-- data read
---	);
---    end component;
-	
 	component cache
 	--REQUESTED_SIZE: user requested cache size, in 32 bit words;
 	--MEM_LATENCY: latency of program memory in MEM_CLK cycles
@@ -93,20 +75,6 @@ architecture Behavioral of uart_debugger is
 		);
 	end component;
 	
---	component sdp_ram
---		generic (N: natural; L: natural);--N: data width in bits; L: address width in bits
---		port (	--WRITE PORT
---				WCLK: in std_logic;
---				WDAT: in std_logic_vector(N-1 downto 0);--data for write
---				WADDR: in std_logic_vector(L-1 downto 0);--address for write
---				WREN: in std_logic;--enables write on port A
---				--READ PORT
---				RCLK: in std_logic;
---				RADDR: in std_logic_vector(L-1 downto 0);--address for read
---				RDAT: out std_logic_vector(N-1 downto 0)
---		);
---	end component;
-
 	component dc_fifo
 		generic (N: natural; REQUESTED_FIFO_DEPTH: natural);--REQUESTED_FIFO_DEPTH does NOT need to be power of TWO
 		port (
@@ -132,9 +100,9 @@ architecture Behavioral of uart_debugger is
 	
 	signal	uart_wren: std_logic;
 	signal	uart_rden: std_logic;
-    signal	uart_data_out: std_logic_vector(7 downto 0);
-    signal	uart_data_in: std_logic_vector(7 downto 0);
-	
+	signal	uart_data_out: std_logic_vector(7 downto 0);
+	signal	uart_data_in: std_logic_vector(7 downto 0);
+
 	signal status_wren:	std_logic;
 	signal status_rden:	std_logic;	
 		
@@ -144,7 +112,6 @@ architecture Behavioral of uart_debugger is
 	
 	signal data_received_evt: std_logic;
 	signal prev_uart_data_received: std_logic;
-	signal uart_data_received_nak: std_logic;
 	
 	--flags to indicate which cmd is being processed
 	--valid until the next cmd is latched
@@ -171,11 +138,15 @@ architecture Behavioral of uart_debugger is
 	signal req_wren: std_logic;--write requested
 	signal req_ready_sr: std_logic_vector(1 downto 0);
 	signal dc_fifo_empty:	std_logic;
+	signal dc_fifo_empty_prev:	std_logic;
 	signal dc_fifo_full:	std_logic;
 	signal dc_fifo_pop:		std_logic;
 	signal dc_fifo_ovf:		std_logic;
---	signal dc_fifo_data_out:std_logic_vector(32+D-1 downto 0);
 	signal dc_fifo_data_out:std_logic_vector(31 downto 0);
+	
+constant log2_FIFO_DEPTH: natural := natural(ceil(log2(real(REQUESTED_FIFO_DEPTH))));--number of bits needed to select all fifo locations
+signal write_addr: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- NEXT position to write on
+signal read_addr: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- CURRENT position read
 
 	--signal word_idx: natural;--index of the word being written to program memory (0,1,...,2**W-1)
 	subtype word_idx_t is natural range 0 to 2**W-1;
@@ -205,21 +176,11 @@ begin
 	get_reg_cmd <= cmd_one_hot(2);
 	set_reg_cmd <= cmd_one_hot(3);
 	inject_cmd	<= cmd_one_hot(4);
-	next_cmd	<= cmd_one_hot(5);
+	next_cmd 	<= cmd_one_hot(5);
 	breakpt_cmd	<= cmd_one_hot(6);
 	continue_cmd<= cmd_one_hot(7);
 	
-	process(uart_data_received,clk,dbg_state,dbg_irq)
-	begin
-		if(uart_data_received='1')then
-			uart_data_received_nak <='1';
-		elsif(rising_edge(clk))then
-			if(dbg_irq='1' or dbg_state=IDLE)then
-				uart_data_received_nak <= '0';				
-			end if;
-		end if;
-	end process;
-	
+
 	process(rst,clk,uart_data_out,dbg_state,uart_data_received,dbg_irq)
 	begin
 		if(rst='1')then
@@ -417,13 +378,17 @@ begin
 	end process;
 	
 	--dbg_irq <= '1' when (next_dbg_state=CMD and cmd_one_hot/="000000") else '0';
-	process(rst,clk,data_received_evt,next_dbg_state,dbg_state,cmd_one_hot)
+	process(rst,clk,data_received_evt,next_dbg_state,dbg_state,cmd_one_hot,
+				breakpt_cmd,next_cmd,continue_cmd,set_mem_cmd,get_mem_cmd,set_reg_cmd,get_reg_cmd,inject_cmd)
 	begin
 		if(rst='1')then
 			dbg_irq <= '0';
 		elsif(rising_edge(clk))then
-			--must be '1' for only one clock cycle
-			if(next_dbg_state=CMD and cmd_one_hot/="000000" and  dbg_irq='0')then
+			--dbg_irq must be '1' for only one clock cycle, after receiving the last byte of the command
+			if((next_dbg_state=CMD and (breakpt_cmd='1' or continue_cmd='1' or next_cmd='1') and dbg_irq='0') or --single byte commands
+				((dbg_state=A0 and next_dbg_state=CMD) and (get_reg_cmd='1' or get_mem_cmd='1') and dbg_irq='0') or -- only opcode and register or address
+				((dbg_state=D0 and next_dbg_state=CMD) and (inject_cmd='1' or set_reg_cmd='1' or set_mem_cmd='1') and dbg_irq='0')--opcode and two values or opcode and instruction
+				)then
 				dbg_irq <= '1';
 			else
 				dbg_irq <= '0';
@@ -446,17 +411,15 @@ begin
 				elsif(dbg_state=D0)then
 					dbg_data_0(7 downto 0)   <= uart_data_out;
 				end if;
-			else		
-				dbg_data_0   <= (others=>'0');
 			end if;
 		end if;
 	end process;
 	
-	process(rst,clk,dbg_state,inject_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd)
+	process(rst,clk,dbg_state,data_received_evt,inject_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd)
 	begin
 		if(rst='1')then
 			dbg_data_1 <= (others=>'0');
-		elsif(rising_edge(clk))then
+		elsif(rising_edge(clk) and data_received_evt='1')then
 			if(set_reg_cmd='1' or get_reg_cmd='1' or set_mem_cmd='1' or get_mem_cmd='1')then
 				if(dbg_state=A3)then
 					dbg_data_1(31 downto 24) <= uart_data_out;
@@ -516,33 +479,19 @@ begin
 		elsif(rising_edge(clk))then
 			if(get_reg_cmd='1')then
 				if(dbg_irq='1')then
-					uart_cache_write_data <= dbg_data_2;--sends to uart value of register
-				end if;
-				if(uart_cache_wren='0')then
+					uart_cache_write_data <= dbg_data_2;--sends to dc_fifo value of register
 					uart_cache_wren <= '1';
-				else
-					uart_cache_wren <= '0';
 				end if;
 			elsif(get_mem_cmd='1')then
 				if(dbg_irq='1')then
-					uart_cache_write_data <= dbg_data_2;--sends to uart value of memory
-				end if;
-				if(uart_cache_wren='0')then
+					uart_cache_write_data <= dbg_data_2;--sends to dc_fifo value of memory
 					uart_cache_wren <= '1';
-				else
-					uart_cache_wren <= '0';
 				end if;
-			else
-				uart_cache_write_data <= (others=>'0');--sends to uart value of register
-				uart_cache_wren <= '0';
+			elsif(uart_cache_wren='1')then
+					uart_cache_wren <= '0';
 			end if;
 		end if;
 	end process;	
-	
-	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
-	--to an instruction address (starting at 0)
-	-- UART plays the role of the instruction memory
-	
 	
 		-- stores the writes made to cache
 		fifo: dc_fifo	generic map (N=> 32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
@@ -552,26 +501,49 @@ begin
 								WCLK => CLK,
 								WREN => uart_cache_wren,
 								FULL => dc_fifo_full,
-								EMPTY => dc_fifo_empty,
+								EMPTY => open,--takes too long to update, synchronized with uart_phy_clk
 								OVF => dc_fifo_ovf,
 								RCLK => uart_phy_clk,
 								POP => dc_fifo_pop,
 								DATA_OUT => dc_fifo_data_out);
-		dc_fifo_wren <= '1' when (get_mem_cmd='1' or get_reg_cmd='1') else '0';
+--		dc_fifo_wren <= '1' when (get_mem_cmd='1' or get_reg_cmd='1') else '0';
 
 		--dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1) and full='1') else '0';
-		dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1)) else '0';
+		--dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1)) else '0';
+		
+		--should be active only for one uart_phy_clk cycle
+		--after a pop, word_idx should update and pop will clear
+		process(rst,uart_phy_clk,dc_fifo_empty,word_idx,uart_data_sent)
+		begin
+			if(rst='1')then
+				dc_fifo_pop <='0';
+				dc_fifo_empty_prev <='1';
+			elsif(rising_edge(uart_phy_clk))then
+				--first write, uart_data_sent is zeroed
+				if((dc_fifo_empty='0') and (word_idx=2**W-1) and dc_fifo_empty_prev='1' and uart_data_sent='0' and dc_fifo_pop='0')then
+					dc_fifo_pop <= '1';
+				--other writes
+				elsif((dc_fifo_empty='0') and (word_idx=0) and uart_data_sent='1' and dc_fifo_pop='0')then
+					dc_fifo_pop <= '1';
+				else
+					dc_fifo_pop <= '0';
+				end if;
+				dc_fifo_empty_prev <= dc_fifo_empty;
+			end if;
+		end process;
 		
 		uart_data_in <= dc_fifo_data_out((word_idx+1)*8-1 downto word_idx*8);
 
-		process(RST,uart_phy_clk,dc_fifo_pop,word_idx)
+		process(RST,uart_phy_clk,dc_fifo_pop,word_idx,uart_data_sent)
 		begin
 			if(RST='1')then
 				uart_wren <= '0';
 			elsif(rising_edge(uart_phy_clk))then
 				if(dc_fifo_pop='1')then
-					uart_wren <= '1';
-				elsif(word_idx=2**W-1 and dc_fifo_pop='0')then
+					uart_wren <= '1';--loads uart_core with byte 0 (LSB)
+				elsif(uart_data_sent='1' and uart_wren='0' and (word_idx /= 0))then
+					uart_wren <= '1';--loads uart_core with byte 1, 2 or 3
+				else
 					uart_wren <= '0';
 				end if;
 			end if;
@@ -584,10 +556,35 @@ begin
 			elsif(rising_edge(uart_phy_clk) and (uart_wren='1' or dc_fifo_pop='1'))then
 				if(word_idx /= 2**W-1)then
 					word_idx <= word_idx + 1;
-				elsif(word_idx = 2**W-1 and dc_fifo_empty='0')then
+				elsif(word_idx = 2**W-1)then
 					word_idx <= 0;
 				end if;
 			end if;
 		end process;
+
+	--write pointer
+	process(RST,CLK,uart_cache_wren,FULL)
+	begin
+		if(RST='1') then
+			write_addr <= (others=>'0');
+			--SOFTWARE MUST CHECK the (almost) FULL flag before writing
+		elsif (rising_edge(CLK) and uart_cache_wren='1') then-- and FULL='0') then		
+			write_addr <= write_addr + '1';
+		end if;
+	end process;
+	
+	--read pointer
+	process(RST,uart_phy_clk,dc_fifo_pop)
+	begin
+		if(RST='1') then
+			read_addr <= (others=>'1');--read_addr = -1, goes to 0 at first reading
+			--SOFTWARE MUST CHECK the (almost) EMPTY flag before reading
+		elsif (rising_edge(uart_phy_clk) and dc_fifo_pop='1') then-- and EMPTY='0') then		
+			read_addr <= read_addr + '1';
+		end if;
+	end process;
+	
+	--reproduces partially the logic of EMPTY output of dc_fifo, but write pointer is not synchronized whth reading clock (uart_phy_clk)
+	dc_fifo_empty	<= '1' when (read_addr + 1 = write_addr) else '0';--next position to read is the next to write (contains invalid data)
 
 end Behavioral;
