@@ -125,10 +125,15 @@ def shell():
        binary = b+reg.to_bytes(1, 'big')#+enter
        barr = bytearray(binary)
        ser.write(barr)
+	   
+       response_bytearray = ser.read(4) # reads 4 bytes
        
        text = txt_edit.get(1.0, tk.END)+"> get_reg "+\
                str(reg)+"\n"+\
                ' '.join(list(map(hex,binary)))+'\n'
+       # reverses the byte array (LSB is received first) then prints in hex
+       text =  text+'0x'+response_bytearray[::-1].hex()+'\n'
+	   
        txt_edit.delete(1.0, tk.END)
        txt_edit.insert(1.0, text)
        return
@@ -146,6 +151,7 @@ def shell():
        text = txt_edit.get(1.0, tk.END)+"> set_mem "+\
                hex(memory_address)+" "+hex(value)+"\n"+\
                ' '.join(list(map(hex,binary)))+'\n'
+	   
        txt_edit.delete(1.0, tk.END)
        txt_edit.insert(1.0, text)
        return
@@ -157,10 +163,15 @@ def shell():
        binary = b+memory_address.to_bytes(4, 'big')#+enter
        barr = bytearray(binary)
        ser.write(barr)
+	   
+       response_bytearray = ser.read(4) # reads 4 bytes
        
        text = txt_edit.get(1.0, tk.END)+"> get_mem "+\
                hex(memory_address)+"\n"+\
                ' '.join(list(map(hex,binary)))+'\n'
+       # reverses the byte array (LSB is received first) then prints in hex
+       text =  text+'0x'+response_bytearray[::-1].hex()+'\n'
+	   
        txt_edit.delete(1.0, tk.END)
        txt_edit.insert(1.0, text)
        return
@@ -223,7 +234,7 @@ def shell():
    global ser
    
    try:
-       ser = serial.Serial("COM7",2400)
+       ser = serial.Serial("COM7",2400,timeout=1)
    except:
        ser = serial.Serial("/dev/pts/4",9600)
    
