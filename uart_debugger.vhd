@@ -102,6 +102,8 @@ architecture Behavioral of uart_debugger is
 	signal	uart_rden: std_logic;
 	signal	uart_data_out: std_logic_vector(7 downto 0);
 	signal	uart_data_in: std_logic_vector(7 downto 0);
+	
+	signal	uart_word_sent: std_logic;
 
 	signal status_wren:	std_logic;
 	signal status_rden:	std_logic;	
@@ -143,10 +145,10 @@ architecture Behavioral of uart_debugger is
 	signal dc_fifo_pop:		std_logic;
 	signal dc_fifo_ovf:		std_logic;
 	signal dc_fifo_data_out:std_logic_vector(31 downto 0);
-	
-constant log2_FIFO_DEPTH: natural := natural(ceil(log2(real(REQUESTED_FIFO_DEPTH))));--number of bits needed to select all fifo locations
-signal write_addr: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- NEXT position to write on
-signal read_addr: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- CURRENT position read
+
+	constant log2_FIFO_DEPTH: natural := natural(ceil(log2(real(REQUESTED_FIFO_DEPTH))));--number of bits needed to select all fifo locations
+	signal write_addr: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- NEXT position to write on
+	signal read_addr: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- CURRENT position read
 
 	--signal word_idx: natural;--index of the word being written to program memory (0,1,...,2**W-1)
 	subtype word_idx_t is natural range 0 to 2**W-1;
@@ -523,7 +525,7 @@ begin
 				if((dc_fifo_empty='0') and (word_idx=2**W-1) and dc_fifo_empty_prev='1' and uart_data_sent='0' and dc_fifo_pop='0')then
 					dc_fifo_pop <= '1';
 				--other writes
-				elsif((dc_fifo_empty='0') and (word_idx=0) and uart_data_sent='1' and dc_fifo_pop='0')then
+				elsif((dc_fifo_empty='0') and (word_idx=2**W-1) and uart_data_sent='1' and dc_fifo_pop='0')then
 					dc_fifo_pop <= '1';
 				else
 					dc_fifo_pop <= '0';
@@ -534,14 +536,14 @@ begin
 		
 		uart_data_in <= dc_fifo_data_out((word_idx+1)*8-1 downto word_idx*8);
 
-		process(RST,uart_phy_clk,dc_fifo_pop,word_idx,uart_data_sent)
+		process(RST,uart_phy_clk,dc_fifo_pop,word_idx,uart_data_sent,uart_word_sent)
 		begin
 			if(RST='1')then
 				uart_wren <= '0';
 			elsif(rising_edge(uart_phy_clk))then
 				if(dc_fifo_pop='1')then
 					uart_wren <= '1';--loads uart_core with byte 0 (LSB)
-				elsif(uart_data_sent='1' and uart_wren='0' and (word_idx /= 0))then
+				elsif(uart_data_sent='1' and uart_wren='0' and (word_idx /= 0) and uart_word_sent='0')then
 					uart_wren <= '1';--loads uart_core with byte 1, 2 or 3
 				else
 					uart_wren <= '0';
@@ -553,11 +555,24 @@ begin
 		begin
 			if(RST='1')then
 				word_idx <= 2**W-1;
-			elsif(rising_edge(uart_phy_clk) and (uart_wren='1' or dc_fifo_pop='1'))then
-				if(word_idx /= 2**W-1)then
+			elsif(rising_edge(uart_phy_clk))then
+				if(word_idx /= 2**W-1 and (uart_wren='1' or dc_fifo_pop='1'))then
 					word_idx <= word_idx + 1;
-				elsif(word_idx = 2**W-1)then
+				elsif(word_idx = 2**W-1 and dc_fifo_pop='1')then
 					word_idx <= 0;
+				end if;
+			end if;
+		end process;
+		
+		process(RST,uart_phy_clk,word_idx,dc_fifo_pop)
+		begin
+			if(RST='1')then
+				uart_word_sent <= '0';
+			elsif(rising_edge(uart_phy_clk))then
+				if(dc_fifo_pop='1')then
+					uart_word_sent <= '0';
+				elsif(uart_data_sent='1' and (word_idx = 2**W-1))then
+					uart_word_sent <= '1';
 				end if;
 			end if;
 		end process;
