@@ -128,6 +128,9 @@ architecture Behavioral of uart_debugger is
 	signal breakpt_cmd:	std_logic;
 	signal continue_cmd:std_logic;
 	
+	signal get_mem_cmd_delayed: std_logic;
+	signal dbg_irq_delayed: std_logic;
+	
 	signal cmd_one_hot: std_logic_vector(7 downto 0);
 
 	constant REQUESTED_SIZE: natural := 128;
@@ -473,7 +476,7 @@ begin
             rx => rx
         );	
 	
-	process(rst,clk,dbg_state,get_reg_cmd,get_mem_cmd,dbg_irq)
+	process(rst,clk,dbg_state,get_reg_cmd,get_mem_cmd_delayed,dbg_irq,dbg_irq_delayed)
 	begin
 		if(rst='1')then
 			uart_cache_write_data <= (others=>'0');--sends to uart value of register
@@ -484,8 +487,9 @@ begin
 					uart_cache_write_data <= dbg_data_2;--sends to dc_fifo value of register
 					uart_cache_wren <= '1';
 				end if;
-			elsif(get_mem_cmd='1')then
-				if(dbg_irq='1')then
+			--these signals must be delayed because get_mem takes 2 clock cycles too complete
+			elsif(get_mem_cmd_delayed='1')then
+				if(dbg_irq_delayed='1')then
 					uart_cache_write_data <= dbg_data_2;--sends to dc_fifo value of memory
 					uart_cache_wren <= '1';
 				end if;
@@ -493,7 +497,18 @@ begin
 					uart_cache_wren <= '0';
 			end if;
 		end if;
-	end process;	
+	end process;
+	
+	process(rst,clk,get_mem_cmd,dbg_irq)
+	begin
+		if(rst='1')then
+			get_mem_cmd_delayed <= '0';
+			dbg_irq_delayed <= '0';
+		elsif(rising_edge(clk))then
+			get_mem_cmd_delayed <= get_mem_cmd;
+			dbg_irq_delayed <= dbg_irq;
+		end if;
+	end process;
 	
 		-- stores the writes made to cache
 		fifo: dc_fifo	generic map (N=> 32, REQUESTED_FIFO_DEPTH => REQUESTED_FIFO_DEPTH)
