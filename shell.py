@@ -175,6 +175,50 @@ def shell():
        txt_edit.delete(1.0, tk.END)
        txt_edit.insert(1.0, text)
        return
+       
+   def set_brk_fn():
+       b=0x03.to_bytes(1,'big')
+       enter="\r\n".encode('utf-8')
+       instruction_value=get_32bit_hex()
+       binary = b+instruction_value.to_bytes(4, 'big')#+enter
+       barr = bytearray(binary)
+       ser.write(barr)
+       
+       text = txt_edit.get(1.0, tk.END)+"> set_brk "+\
+               hex(instruction_value)+"\n"+\
+               ' '.join(list(map(hex,binary)))+'\n'
+       txt_edit.delete(1.0, tk.END)
+       txt_edit.insert(1.0, text)
+       return
+       
+   def clr_brk_fn():
+       b=0x05.to_bytes(1,'big')
+       enter="\r\n".encode('utf-8')
+       brk=get_8bit_int_brk()
+       binary = b+brk.to_bytes(1, 'big')#+enter
+       barr = bytearray(binary)
+       ser.write(barr)
+	          
+       text = txt_edit.get(1.0, tk.END)+"> clr_brk "+\
+               str(brk)+"\n"+\
+               ' '.join(list(map(hex,binary)))+'\n'
+	   
+       txt_edit.delete(1.0, tk.END)
+       txt_edit.insert(1.0, text)
+       return
+       
+   def clr_all_brk_fn():
+       b=0x06.to_bytes(1,'big')
+       enter="\r\n".encode('utf-8')
+       binary = b#+enter
+       barr = bytearray(binary)
+       ser.write(barr)
+       
+       text = txt_edit.get(1.0, tk.END)+"> clr_all_brk\n"+\
+           ' '.join(list(map(hex,binary)))+'\n'
+       txt_edit.delete(1.0, tk.END)
+       txt_edit.insert(1.0, text)
+       return
    
    # returns a int
    def get_32bit_hex():
@@ -215,6 +259,15 @@ def shell():
        return value   
 
    # returns a int
+   def get_8bit_int_brk():
+       
+       value = simpledialog.askinteger("Breakpoint", "Digite índice do breakpoint\n(0 a 7)")
+       
+       while(value < 0 or value > 7):
+           value = simpledialog.askinteger("Breakpoint", "Digite índice do breakpoint\n(0 a 7)")
+       return value   
+
+   # returns a int
    def get_8bit_int():
        
        value = simpledialog.askinteger("registrador", "Digite número do registrador\n(0 a 31)")
@@ -222,14 +275,6 @@ def shell():
        while(value < 0 or value > 31):
            value = simpledialog.askinteger("registrador", "Digite número do registrador\n(0 a 31)")
        return value
-   
-# =============================================================================
-#    def button_cmd(i):
-#        return
-#        global value
-#        value.set(i)
-# =============================================================================
-     
 
    global ser
    
@@ -255,6 +300,9 @@ def shell():
    btn_get_reg = tk.Button(fr_buttons, text="get register",command=get_reg_fn)
    btn_set_mem = tk.Button(fr_buttons, text="set memory",command=set_mem_fn)
    btn_get_mem = tk.Button(fr_buttons, text="get memory",command=get_mem_fn)
+   btn_set_brk = tk.Button(fr_buttons, text="set breakpoint",command=set_brk_fn)
+   btn_clr_brk = tk.Button(fr_buttons, text="clear breakpoint",command=clr_brk_fn)
+   btn_clr_all_brk = tk.Button(fr_buttons, text="clear all bkpt",command=clr_all_brk_fn)
 
    btn_open.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
    btn_save.grid(row=1, column=0, sticky='ew', padx=5)
@@ -266,6 +314,9 @@ def shell():
    btn_get_reg.grid(row=7, column=0, sticky='ew', padx=5)
    btn_set_mem.grid(row=8, column=0, sticky='ew', padx=5)
    btn_get_mem.grid(row=9, column=0, sticky='ew', padx=5)
+   btn_set_brk.grid(row=10, column=0, sticky='ew', padx=5)
+   btn_clr_brk.grid(row=11, column=0, sticky='ew', padx=5)
+   btn_clr_all_brk.grid(row=12, column=0, sticky='ew', padx=5)
 
    fr_buttons.grid(row=0, column=0, sticky='ns')
    txt_edit.grid(row=0, column=1, sticky='nsew')
