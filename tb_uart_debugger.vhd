@@ -62,9 +62,13 @@ begin
 			tx => tx,
 			rx => rx
 		);
-	uart_data_in <= x"04", x"02" after 4.1 ms, x"04" after 40 ms, x"02" after 44.1 ms;-- get_register r2 command
+--	uart_data_in <= x"04", x"02" after 4.1 ms, x"04" after 40 ms, x"02" after 44.1 ms;-- get_register r2 command
+	uart_data_in <= x"03", x"02" after 4.1 ms, x"04" after 40 ms, x"02" after 44.1 ms, x"d4" after 80 ms;-- set breakpoint to 0204_02d4 command
+--	uart_wren <= '0', '1' after 4.048	ms, '0' after 4.1 ms, '1' after 9.022 ms, '0' after 9.074 ms,
+--						'1' after 44.048	ms, '0' after 44.1 ms, '1' after 49.022 ms, '0' after 49.074 ms;
 	uart_wren <= '0', '1' after 4.048	ms, '0' after 4.1 ms, '1' after 9.022 ms, '0' after 9.074 ms,
-						'1' after 44.048	ms, '0' after 44.1 ms, '1' after 49.022 ms, '0' after 49.074 ms;
+						'1' after 44.048	ms, '0' after 44.1 ms, '1' after 49.022 ms, '0' after 49.074 ms,
+						'1' after 84.048	ms, '0' after 84.1 ms, '1' after 89.022 ms, '0' after 89.074 ms;
 	uart_rden <= '1';
 	iack <= '0';
 	--rx <= '1', '0' after 1 ms, '1' after 4800 us;
@@ -101,7 +105,7 @@ begin
 	proc_dbg_data_2 <= x"0000_003E";--value of r2;
 	proc_dbg_clk_en <= '1';--no d-cache miss
 	proc_dbg_clk <= CLK and proc_dbg_clk_en;
-	proc_next_pc <= (others=>'0');
+	proc_next_pc <= x"020402D4";
         
 	uart_clock: process
 	begin
