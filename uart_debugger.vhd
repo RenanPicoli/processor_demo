@@ -2,16 +2,17 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+--use ieee.numeric_std.all;--to_integer, unsigned
 use work.my_types.all;--array32, boundaries
 use ieee.math_real.all;--ceil and log2
 
 entity uart_debugger is
     port (
-        rst: in std_logic;
+		rst: in std_logic;
 		------CPU ITFC---------
 		clk: in std_logic;--same as CPU clock (might be extended by processor during memory reading/writing)
-		dbg_data_0: out std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
-		dbg_data_1: out std_logic_vector(31 downto 0);-- address for memory access, register for reg_file access
+		dbg_data_0: buffer std_logic_vector(31 downto 0);-- instructions, value for writes, value for reading
+		dbg_data_1: buffer std_logic_vector(31 downto 0);-- address for memory access, register for reg_file access
 		dbg_data_2: in std_logic_vector(31 downto 0);-- values for reading
 		--command ports bellow must be asserted only for 1 clk cycle, together with dbg_irq
 		dbg_sr: out std_logic;-- set register enable
@@ -28,9 +29,9 @@ entity uart_debugger is
 		next_pc: in std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
 		------UART PHY---------
 		uart_phy_clk: in std_logic;--bit clock (not transmitted)
-        rx: in std_logic;
-        tx: out std_logic
-    );
+		rx: in std_logic;
+		tx: out std_logic
+	);
 end uart_debugger;
 
 architecture Behavioral of uart_debugger is
@@ -43,8 +44,8 @@ architecture Behavioral of uart_debugger is
             wren: in std_logic;
             rden: in std_logic;
             Q: out std_logic_vector(7 downto 0);
-			--INTERRUPT ACK
-			IACK: in std_logic;--resets all flags!
+				--INTERRUPT ACK
+				IACK: in std_logic;--resets all flags!
             data_sent: out std_logic;
             data_received: out std_logic;
             stop_error: out std_logic;
@@ -52,28 +53,6 @@ architecture Behavioral of uart_debugger is
             rx: in std_logic
         );
     end component;
-	
-	component cache
-	--REQUESTED_SIZE: user requested cache size, in 32 bit words;
-	--MEM_LATENCY: latency of program memory in MEM_CLK cycles
-	--MEM_WIDTH: data width of program memory in bits
-		generic (REQUESTED_SIZE: natural; MEM_WIDTH: natural :=32; MEM_LATENCY: natural := 0; REQUESTED_FIFO_DEPTH: natural:= 4; REGISTER_ADDR: boolean);
-		port (
-				req_ADDR: in std_logic_vector;--address of requested data
-				req_rden: in std_logic;--read requested
-				req_wren: in std_logic:='0';--write requested
-				req_data_in: in std_logic_vector(31 downto 0):=(others=>'0');--data for write request
-				CLK: in std_logic;--processor clock for reading/writing data, must run even if cache is not ready
-				mem_I: in std_logic_vector(MEM_WIDTH-1 downto 0);--data coming from program memory
-				mem_CLK: in std_logic;--clock for reading program memory
-				RST: in std_logic;--reset to prevent reading while program memory is written (must be synchronous to mem_CLK)
-				mem_ADDR: out std_logic_vector(7 downto 0);--address for memory read/write
-				mem_WREN: out std_logic:='0';
-				req_ready: out std_logic;--indicates that data already contains the requested data
-				mem_O: out std_logic_vector(MEM_WIDTH-1 downto 0);--data to be written in program memory
-				data: buffer std_logic_vector(31 downto 0)--fetched data
-		);
-	end component;
 	
 	component dc_fifo
 		generic (N: natural; REQUESTED_FIFO_DEPTH: natural);--REQUESTED_FIFO_DEPTH does NOT need to be power of TWO
@@ -102,6 +81,7 @@ architecture Behavioral of uart_debugger is
 	signal	uart_rden: std_logic;
 	signal	uart_data_out: std_logic_vector(7 downto 0);
 	signal	uart_data_in: std_logic_vector(7 downto 0);
+	signal	uart_iack: std_logic;--it is necessary to clear uart_data_received after single byte commands (to avoid repeating forever)
 	
 	signal	uart_word_sent: std_logic;
 
@@ -121,8 +101,9 @@ architecture Behavioral of uart_debugger is
 	signal set_mem_cmd: std_logic;
 	signal get_reg_cmd: std_logic;
 	signal set_reg_cmd: std_logic;
---	signal set_brk_cmd:	std_logic;
---	signal clr_brk_cmd:	std_logic;
+	signal set_brk_cmd:	std_logic;
+	signal clr_brk_cmd:	std_logic;
+	signal clr_all_brk_cmd:	std_logic;
 	signal inject_cmd:	std_logic;
 	signal next_cmd:	std_logic;
 	signal breakpt_cmd:	std_logic;
@@ -131,7 +112,7 @@ architecture Behavioral of uart_debugger is
 	signal get_mem_cmd_delayed: std_logic;
 	signal dbg_irq_delayed: std_logic;
 	
-	signal cmd_one_hot: std_logic_vector(7 downto 0);
+	signal cmd_one_hot: std_logic_vector(10 downto 0);
 
 	constant REQUESTED_SIZE: natural := 128;
 	constant REQUESTED_FIFO_DEPTH: natural := 4;
@@ -165,6 +146,19 @@ architecture Behavioral of uart_debugger is
 	signal uart_cache_req_addr: std_logic_vector(31 downto 0);
 	signal uart_cache_mem_addr: std_logic_vector(7 downto 0);
 	
+	--signals for setting/clearing the breakpoints
+	type reg_array is array (0 to 7) of std_logic_vector(31 downto 0);
+	signal breakpoints : reg_array := (others => (others => '0'));
+	signal valid_bits  : std_logic_vector(7 downto 0) := (others => '0');
+	signal index       : integer range 0 to 8 := 0;
+   signal set_bp     : std_logic;
+   signal clear_bp   : std_logic_vector(7 downto 0);
+	signal clear_all  : std_logic;
+   signal bp_valid   : std_logic_vector(7 downto 0);
+	signal bp_match	: std_logic;--next_pc matches one of the VALID breakpoints
+   signal match   	: std_logic_vector(7 downto 0);
+	signal tmp_matches_ored: std_logic_vector(8 downto 0);
+	
 	--preserving signals during synthesis for debugging
 	attribute preserve : boolean;
 	attribute preserve of cmd_one_hot: signal is true;
@@ -174,45 +168,64 @@ architecture Behavioral of uart_debugger is
 	attribute preserve of data_received_evt: signal is true;
 	attribute preserve of dbg_state: signal is true;
 	attribute preserve of next_dbg_state: signal is true;
+	attribute preserve of bp_match: signal is true;
+	attribute preserve of bp_valid: signal is true;
+	attribute preserve of breakpoints: signal is true;
+	attribute preserve of set_brk_cmd: signal is true;
+	attribute preserve of clr_brk_cmd: signal is true;
+	attribute preserve of clr_all_brk_cmd: signal is true;
+	attribute preserve of index: signal is true;
 	
 begin
-	get_mem_cmd <= cmd_one_hot(0);
-	set_mem_cmd <= cmd_one_hot(1);
-	get_reg_cmd <= cmd_one_hot(2);
-	set_reg_cmd <= cmd_one_hot(3);
-	inject_cmd	<= cmd_one_hot(4);
-	next_cmd 	<= cmd_one_hot(5);
-	breakpt_cmd	<= cmd_one_hot(6);
-	continue_cmd<= cmd_one_hot(7);
+	get_mem_cmd 	<= cmd_one_hot(0);
+	set_mem_cmd 	<= cmd_one_hot(1);
+	get_reg_cmd 	<= cmd_one_hot(2);
+	set_reg_cmd 	<= cmd_one_hot(3);
+	inject_cmd		<= cmd_one_hot(4);
+	next_cmd 		<= cmd_one_hot(5);
+	breakpt_cmd		<= cmd_one_hot(6);
+	continue_cmd	<= cmd_one_hot(7);
+	set_brk_cmd		<= cmd_one_hot(8);
+	clr_brk_cmd		<= cmd_one_hot(9);
+	clr_all_brk_cmd<= cmd_one_hot(10);
 	
 
 	process(rst,clk,uart_data_out,dbg_state,uart_data_received,dbg_irq)
 	begin
 		if(rst='1')then
-				cmd_one_hot <= 	"00000000";
+				cmd_one_hot <= 	"00000000000";
 		elsif(rising_edge(clk))then
 			--this is tested before the conditions for setting cmd_one_hot
 			--because cmd_one_hot must be cleared after one command is done
-			--sometimes dbg_state keeps at CMD between two conescutive commands, this would cause the first command to repeat forever
+			--sometimes dbg_state keeps at CMD between two consecutive commands, this would cause the first command to repeat forever
 			if(dbg_irq='1')then
-				cmd_one_hot <= 	"00000000";
+				cmd_one_hot <= 	"00000000000";
+			--these commands don't produce dbg_irq pulse
+			elsif((set_brk_cmd='1' and set_bp='1') or (clr_brk_cmd='1' and clear_bp/=x"00") or (clr_all_brk_cmd='1' and clear_all='1'))then
+				cmd_one_hot <= 	"00000000000";
 			elsif((dbg_state=CMD or dbg_state=IDLE) and uart_data_received='1')then
 				if uart_data_out="10000000"  then
-					cmd_one_hot <= 	"10000000";--continue_cmd
+					cmd_one_hot <= 	"00010000000";--continue_cmd
 				elsif uart_data_out="01000000"  then
-					cmd_one_hot <= 	"01000000";--breakpt_cmd
+					cmd_one_hot <= 	"00001000000";--breakpt_cmd
 				elsif uart_data_out="00100000"  then
-					cmd_one_hot <= 	"00100000";--next_cmd
+					cmd_one_hot <= 	"00000100000";--next_cmd
 				elsif uart_data_out="00010000"  then
-					cmd_one_hot <= 	"00010000";--inject_cmd
+					cmd_one_hot <= 	"00000010000";--inject_cmd
 				elsif uart_data_out="00001000" then
-					cmd_one_hot <= 	"00001000";--set_reg_cmd
+					cmd_one_hot <= 	"00000001000";--set_reg_cmd
 				elsif uart_data_out="00000100" then
-					cmd_one_hot <= 	"00000100";--get_reg_cmd
+					cmd_one_hot <= 	"00000000100";--get_reg_cmd
 				elsif uart_data_out="00000010" then
-					cmd_one_hot <= 	"00000010";--set_mem_cmd
+					cmd_one_hot <= 	"00000000010";--set_mem_cmd
 				elsif uart_data_out="00000001" then
-					cmd_one_hot <= 	"00000001";--get_mem_cmd
+					cmd_one_hot <= 	"00000000001";--get_mem_cmd
+				elsif uart_data_out="00000110" then
+					cmd_one_hot <= 	"10000000000";--clr_all_brk_cmd
+				elsif uart_data_out="00000101" then
+					cmd_one_hot <= 	"01000000000";--clr_brk_cmd
+				elsif uart_data_out="00000011" then
+					cmd_one_hot <= 	"00100000000";--set_brk_cmd
 				end if;
 			end if;
 		end if;
@@ -226,13 +239,13 @@ begin
 		elsif(rising_edge(clk) and data_received_evt='1')then
 			case dbg_state is
 				when CMD|IDLE =>
-					if (inject_cmd='1') then
+					if (inject_cmd='1' or set_brk_cmd='1') then
 						next_dbg_state <= D3;
 					elsif (set_mem_cmd='1' or get_mem_cmd='1') then
 						next_dbg_state <= A3;
-					elsif (next_cmd='1' or breakpt_cmd='1' or continue_cmd='1') then
+					elsif (next_cmd='1' or breakpt_cmd='1' or continue_cmd='1' or clr_all_brk_cmd='1') then
 						next_dbg_state <= CMD;
-					else--when set_reg_cmd='1' or get_reg_cmd='1'
+					else--when set_reg_cmd='1' or get_reg_cmd='1' or clr_brk_cmd='1'
 						next_dbg_state <= A0;
 					end if;
 				when D3 =>
@@ -354,13 +367,15 @@ begin
 		end if;
 	end process;
 	
-	process(rst,clk,next_dbg_state,breakpt_cmd)
+	process(rst,clk,next_dbg_state,breakpt_cmd, bp_match)
 	begin
 		if(rst='1')then
 			dbg_brk <= '0';
 		elsif(rising_edge(clk))then
 			--must be '1' for only one clock cycle
-			if(next_dbg_state=CMD and breakpt_cmd='1' and  dbg_brk='0')then
+			--  first part is to check if there was break command
+			-- the second is to check if one the configured breakpoints was reached
+			if(((next_dbg_state=CMD and breakpt_cmd='1') or bp_match='1') and  dbg_brk='0')then
 				dbg_brk <= '1';--cpu executes the next instruction (might be extended by processor)
 			else
 				dbg_brk <= '0';
@@ -392,7 +407,8 @@ begin
 			--dbg_irq must be '1' for only one clock cycle, after receiving the last byte of the command
 			if((next_dbg_state=CMD and (breakpt_cmd='1' or continue_cmd='1' or next_cmd='1') and dbg_irq='0') or --single byte commands
 				((dbg_state=A0 and next_dbg_state=CMD) and (get_reg_cmd='1' or get_mem_cmd='1') and dbg_irq='0') or -- only opcode and register or address
-				((dbg_state=D0 and next_dbg_state=CMD) and (inject_cmd='1' or set_reg_cmd='1' or set_mem_cmd='1') and dbg_irq='0')--opcode and two values or opcode and instruction
+				((dbg_state=D0 and next_dbg_state=CMD) and (inject_cmd='1' or set_reg_cmd='1' or set_mem_cmd='1') and dbg_irq='0') or--opcode and two values or opcode and instruction
+				(bp_match='1' and dbg_irq='0')--next_pc matches one of the valid breakpoints
 				)then
 				dbg_irq <= '1';
 			else
@@ -401,12 +417,12 @@ begin
 		end if;
 	end process;
 	
-	process(rst,clk,uart_data_out,data_received_evt,dbg_state,inject_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd)
+	process(rst,clk,uart_data_out,data_received_evt,dbg_state,inject_cmd,set_brk_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd)
 	begin
 		if(rst='1')then
 			dbg_data_0 <= (others=>'0');
 		elsif(rising_edge(clk) and data_received_evt='1')then
-			if(inject_cmd='1' or set_reg_cmd='1' or set_mem_cmd='1')then
+			if(inject_cmd='1' or set_reg_cmd='1' or set_mem_cmd='1' or set_brk_cmd='1')then
 				if(dbg_state=D3)then
 					dbg_data_0(31 downto 24) <= uart_data_out;
 				elsif(dbg_state=D2)then
@@ -420,12 +436,12 @@ begin
 		end if;
 	end process;
 	
-	process(rst,clk,dbg_state,data_received_evt,inject_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd)
+	process(rst,clk,dbg_state,data_received_evt,inject_cmd,set_reg_cmd,get_reg_cmd,set_mem_cmd,get_mem_cmd,clr_brk_cmd)
 	begin
 		if(rst='1')then
 			dbg_data_1 <= (others=>'0');
 		elsif(rising_edge(clk) and data_received_evt='1')then
-			if(set_reg_cmd='1' or get_reg_cmd='1' or set_mem_cmd='1' or get_mem_cmd='1')then
+			if(set_reg_cmd='1' or get_reg_cmd='1' or set_mem_cmd='1' or get_mem_cmd='1' or clr_brk_cmd='1')then
 				if(dbg_state=A3)then
 					dbg_data_1(31 downto 24) <= uart_data_out;
 				elsif(dbg_state=A2)then
@@ -459,6 +475,7 @@ begin
 	end process;
 
 	uart_rden <= '1';
+	uart_iack <= dbg_irq or clear_all;--it is necessary to clear uart_data_received after single byte commands (to avoid repeating forever)
     -- Instanciação do UART Core
     uart_inst: uart_core
         port map (
@@ -468,7 +485,7 @@ begin
             wren => uart_wren,
             rden => uart_rden,
             Q => uart_data_out,
-				iack => dbg_irq,
+				iack => uart_iack,--it is necessary to clear uart_data_received after single byte commands (to avoid repeating forever)
             data_sent => uart_data_sent,
             data_received => uart_data_received,
             stop_error => uart_stop_error,
@@ -523,10 +540,6 @@ begin
 								RCLK => uart_phy_clk,
 								POP => dc_fifo_pop,
 								DATA_OUT => dc_fifo_data_out);
---		dc_fifo_wren <= '1' when (get_mem_cmd='1' or get_reg_cmd='1') else '0';
-
-		--dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1) and full='1') else '0';
-		--dc_fifo_pop <= '1' when ((dc_fifo_empty='0') and (word_idx=2**W-1)) else '0';
 		
 		--should be active only for one uart_phy_clk cycle
 		--after a pop, word_idx should update and pop will clear
@@ -616,5 +629,110 @@ begin
 	
 	--reproduces partially the logic of EMPTY output of dc_fifo, but write pointer is not synchronized whth reading clock (uart_phy_clk)
 	dc_fifo_empty	<= '1' when (read_addr + 1 = write_addr) else '0';--next position to read is the next to write (contains invalid data)
+
+	process(rst,clk,next_dbg_state,clr_all_brk_cmd)
+	begin
+		if(rst='1')then
+			clear_all <= '0';
+		elsif(rising_edge(clk))then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and clr_all_brk_cmd='1' and  clear_all='0')then
+				clear_all <= '1';--clears all breakpoints and valid bits
+			else
+				clear_all <= '0';
+			end if;
+		end if;
+	end process;
+
+	process(rst,clk,next_dbg_state,dbg_state,set_brk_cmd)
+	begin
+		if(rst='1')then
+			set_bp <= '0';
+		elsif(rising_edge(clk))then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and dbg_state=D0 and set_brk_cmd='1' and  set_bp='0')then
+				set_bp <= '1';--sets breakpoint specified in dbg_data_0 and valid bits
+			else
+				set_bp <= '0';
+			end if;
+		end if;
+	end process;
+
+	process(rst,clk,next_dbg_state,clr_brk_cmd,dbg_data_1)
+	begin
+		if(rst='1')then
+			clear_bp <= (others=>'0');
+		elsif(rising_edge(clk))then
+			--must be '1' for only one clock cycle
+			if(next_dbg_state=CMD and clr_brk_cmd='1' and  clear_bp="00000000")then				 
+				 for i in 0 to 7 loop
+					  if i = conv_integer(unsigned(dbg_data_1)) then
+							clear_bp(i) <= '1';--clears breakpoint specified by dbg_data_1(7 downto 0)
+						else
+							clear_bp(i) <= '0';
+					  end if;
+				 end loop;
+			else
+				clear_bp <= (others=>'0');
+			end if;
+		end if;
+	end process;
+	
+	bkpts: process (clk, rst, clear_all, set_bp, clear_bp, index, data_received_evt, set_brk_cmd, uart_data_out)
+	begin
+--	  if rst = '1' then
+--			breakpoints <= (others => (others => '0'));
+--			valid_bits  <= (others => '0');
+--			index       <= 0;
+--	  elsif rising_edge(clk) then
+	  if rising_edge(clk) then
+			if clear_all = '1' then
+				 breakpoints <= (others => (others => '0'));
+				 valid_bits  <= (others => '0');
+				 index       <= 0;
+			else
+				if(data_received_evt='1' and set_brk_cmd='1')then
+					if(dbg_state=D3)then
+						breakpoints(index)(31 downto 24) <= uart_data_out;
+					elsif(dbg_state=D2)then
+						breakpoints(index)(23 downto 16) <= uart_data_out;
+					elsif(dbg_state=D1)then
+						breakpoints(index)(15 downto 8)  <= uart_data_out;
+					elsif(dbg_state=D0)then
+						breakpoints(index)(7 downto 0)   <= uart_data_out;
+					end if;
+				end if;
+				
+				 if set_bp = '1' and index < 8 then
+					  valid_bits(index)  <= '1';
+				 end if;
+				 
+				 for i in 0 to 7 loop
+					  if clear_bp(i) = '1' then
+							breakpoints(i) <= (others => '0');
+							valid_bits(i)  <= '0';
+					  end if;
+				 end loop;
+				 
+				 -- Atualiza index para apontar ao menor índice livre ou 8 se cheio
+				 index <= 8;
+				 for i in 0 to 7 loop
+					  if valid_bits(i) = '0' then
+							index <= i;
+							exit;
+					  end if;
+				 end loop;
+			end if;
+	  end if;
+	end process;
+
+	bp_valid <= valid_bits;
+	
+	tmp_matches_ored(0) <= '0';
+	bp_matches: for i in 0 to 7 generate
+		match(i) <= '1' when next_pc=breakpoints(i) and valid_bits(i)='1' else '0';
+		tmp_matches_ored(i+1) <= tmp_matches_ored(i) or match(i);
+	end generate bp_matches;
+	bp_match <= tmp_matches_ored(8);
 
 end Behavioral;
