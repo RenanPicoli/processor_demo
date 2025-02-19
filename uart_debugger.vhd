@@ -658,15 +658,15 @@ begin
 		end if;
 	end process;
 
-	process(rst,clk,next_dbg_state,clr_brk_cmd,dbg_data_1)
+	process(rst,clk,next_dbg_state,dbg_state,clr_brk_cmd,dbg_data_1)
 	begin
 		if(rst='1')then
 			clear_bp <= (others=>'0');
 		elsif(rising_edge(clk))then
 			--must be '1' for only one clock cycle
-			if(next_dbg_state=CMD and clr_brk_cmd='1' and  clear_bp="00000000")then				 
+			if(next_dbg_state=CMD and dbg_state=A0 and clr_brk_cmd='1' and  clear_bp="00000000")then
 				 for i in 0 to 7 loop
-					  if i = conv_integer(unsigned(dbg_data_1)) then
+					  if i = conv_integer(unsigned(dbg_data_1(7 downto 0))) then
 							clear_bp(i) <= '1';--clears breakpoint specified by dbg_data_1(7 downto 0)
 						else
 							clear_bp(i) <= '0';
