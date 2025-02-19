@@ -90,7 +90,7 @@ port (CLK_IN: in std_logic;
 		dbg_cont: in std_logic;--continue instruction
 		dbg_irq: in std_logic;-- debug irq
 		dbg_iack: out std_logic;--interrupt acknowledgement
-		dbg_next_pc: out std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
+		dbg_next_pc: out std_logic_vector(31 downto 0);-- monitor PC (pc_in) for breakpoints
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(31 downto 0);--addr é endereço de word
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to i_cache)
@@ -583,7 +583,7 @@ component uart_debugger
 		dbg_irq: out std_logic;-- debug irq, must be asserted for 1 clk cycle (which can be extended)
 		
 		IACK: in std_logic;--interrupt acknowledgement
-		next_pc: in std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
+		next_pc: in std_logic_vector(31 downto 0);-- monitor PC (pc_in) for breakpoints
 		------UART PHY---------
 		uart_phy_clk: in std_logic;--bit clock (not transmitted)
         rx: in std_logic;
@@ -932,7 +932,7 @@ signal proc_dbg_nxt: std_logic;-- next instruction
 signal proc_dbg_cont: std_logic;-- continue instruction
 signal proc_dbg_irq: std_logic;-- debug irq
 signal proc_dbg_iack: std_logic;--interrupt acknowledgement
-signal proc_next_pc: std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
+signal proc_next_pc: std_logic_vector(31 downto 0);-- monitor PC (pc_in) for breakpoints
 
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
@@ -1697,7 +1697,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		dbg_cont=> proc_dbg_cont,--continue instruction
 		dbg_irq => proc_dbg_irq,-- debug irq
 		dbg_iack => proc_dbg_iack,--interrupt acknowledgement
-		dbg_next_pc => proc_next_pc,-- TODO: monitor PC (pc_in) for breakpoints
+		dbg_next_pc => proc_next_pc,-- monitor PC (pc_in) for breakpoints
 		
 		ADDR_rom => instruction_memory_address,
 		i_cache_ready => i_cache_ready_sync,--synchronized to rising_edge(CLK)
@@ -1868,7 +1868,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		dbg_irq => proc_dbg_irq,-- debug irq, must be asserted for 1 clk cycle (which can be extended)
 		
 		IACK => proc_dbg_iack,--interrupt acknowledgement
-		next_pc => proc_next_pc,-- TODO: monitor PC (pc_in) for breakpoints
+		next_pc => proc_next_pc,-- monitor PC (pc_in) for breakpoints
 		------UART PHY---------
 		uart_phy_clk=> uart_phy_clk,
 		tx => uart_tx,
