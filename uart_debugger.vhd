@@ -163,7 +163,8 @@ architecture Behavioral of uart_debugger is
 	attribute preserve : boolean;
 	attribute preserve of cmd_one_hot: signal is true;
 	attribute preserve of uart_cache_write_data: signal is true;
-	attribute preserve of uart_data_in: signal is true;	
+	attribute preserve of uart_data_in: signal is true;
+	attribute preserve of uart_data_received: signal is true;
 	attribute preserve of prev_uart_data_received: signal is true;
 	attribute preserve of data_received_evt: signal is true;
 	attribute preserve of dbg_state: signal is true;
@@ -475,7 +476,9 @@ begin
 	end process;
 
 	uart_rden <= '1';
-	uart_iack <= dbg_irq or clear_all;--it is necessary to clear uart_data_received after single byte commands (to avoid repeating forever)
+	
+	--it is necessary to clear uart_data_received after commands that don't pulse dbg_irq (to avoid repeating forever)
+	uart_iack <= '1' when (dbg_irq='1' or set_bp='1' or clear_all='1' or (clear_bp/=x"00")) else '0';
     -- Instanciação do UART Core
     uart_inst: uart_core
         port map (
