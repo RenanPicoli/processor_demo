@@ -1,0 +1,187 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.std_logic_arith.all;
+use ieee.std_logic_unsigned.all;
+
+entity dma_controller is
+    port (
+        clk       : in  std_logic;
+        reset     : in  std_logic;
+
+        -- Barramento de CPU para configuração
+        addr      : in  std_logic_vector(1 downto 0);  -- Seleção de registrador (2 bits para 4 registradores)
+        D         : in  std_logic_vector(31 downto 0); -- Dados de entrada (escrita)
+        Q         : out std_logic_vector(31 downto 0); -- Dados de saída (leitura)
+        wr_en     : in  std_logic; -- Sinal de escrita nos registradores
+
+        -- Interface única de memória
+        mem_addr  : out std_logic_vector(31 downto 0);
+        mem_data  : inout std_logic_vector(31 downto 0);
+        mem_rden  : out std_logic;
+        mem_wren  : out std_logic;
+
+        -- Sinal de interrupção ao final da transferência
+        irq       : out std_logic;
+        iack      : in std_logic
+    );
+end entity;
+
+architecture behavior of dma_controller is
+    -- Registradores internos
+    signal src_addr  : std_logic_vector(31 downto 0);
+    signal dst_addr  : std_logic_vector(31 downto 0);
+    signal length    : std_logic_vector(31 downto 0);
+    signal count     : std_logic_vector(31 downto 0) := (others => '0');
+    
+    -- CR agora tem 32 bits com SINC e DINC
+    signal CR        : std_logic_vector(31 downto 0) := (others => '0');
+
+    -- FIFO para armazenar dados temporariamente
+    type fifo_type is array (0 to 15) of std_logic_vector(31 downto 0);
+    signal fifo      : fifo_type := (others => (others => '0'));
+    signal fifo_head : integer range 0 to 15 := 0;
+    signal fifo_tail : integer range 0 to 15 := 0;
+    signal fifo_count: integer range 0 to 16 := 0; -- Capacidade da FIFO = 16 palavras
+
+    signal state     : std_logic_vector(1 downto 0) := "00"; -- 00 = Idle, 01 = Reading, 10 = Writing
+begin
+
+    -- Lógica de leitura/escrita nos registradores via CPU
+    process (clk, reset, count, length, fifo_count)
+    begin
+        if reset = '1' then
+            src_addr  <= (others => '0');
+            dst_addr  <= (others => '0');
+            length    <= (others => '0');
+            CR        <= (others => '0');
+
+        elsif rising_edge(clk) then
+            if wr_en = '1' then
+                case addr is
+                    when "00" => src_addr <= D;
+                    when "01" => dst_addr <= D;
+                    when "10" => length   <= D;
+                    when "11" => CR       <= D;
+                    when others => null;
+                end case;
+            end if;		
+				
+			  -- Ao transferir o ultimo item, finaliza
+			  if count = length and length /= 0 and fifo_count = 1 then
+					CR(1) <= '1'; -- finished = 1
+				end if;
+			  if CR(1) = '1' then
+					CR(0) <= '0'; -- started = 1
+				end if;
+
+        end if;
+    end process;
+
+	 process(addr)
+	 begin
+		case addr is
+			 when "00" => Q <= src_addr;
+			 when "01" => Q <= dst_addr;
+			 when "10" => Q <= length;
+			 when "11" => Q <= CR;
+			 when others => Q <= (others => '0');
+		end case;
+	end process;
+
+    -- Máquina de estados para leitura e escrita usando FIFO
+    process (clk, reset, iack)
+    begin
+        if reset = '1' then
+            count     <= (others => '0');
+            fifo_head <= 0;
+            fifo_tail <= 0;
+            fifo_count <= 0;
+            state     <= "00";-- IDLE
+            irq       <= '0';
+			elsif(iack='1')then
+            irq       <= '0';
+        elsif rising_edge(clk) then
+            case state is
+                when "00" =>  -- IDLE
+                    if CR(0) = '1' and CR(1) = '0' then
+                        state <= "01"; -- Inicia leitura
+                    end if;
+
+                when "01" =>  -- READING
+                    if fifo_count < 16 and count < length then
+                        -- Inicia leitura
+
+                        -- Armazena na FIFO após leitura
+                        fifo(fifo_head) <= mem_data;
+                        fifo_head <= (fifo_head + 1) mod 16;
+                        fifo_count <= fifo_count + 1;                        
+
+                        -- Incrementa `count`
+                        count <= count + 1;
+
+                        -- Se FIFO cheia, troca para escrita
+                        if fifo_count + 1 = 16 then
+                            state <= "10";
+                        end if;
+
+                    elsif count = length then
+                        -- Se terminou a leitura, começa a escrita
+                        state <= "10";
+                    end if;
+
+                when "10" =>  -- WRITING
+                    if fifo_count > 0 then
+                        -- Escreve na memória
+                        mem_data <= fifo(fifo_tail);
+
+                        -- Atualiza FIFO
+                        fifo_tail <= (fifo_tail + 1) mod 16;
+                        fifo_count <= fifo_count - 1;
+
+                        -- Se FIFO vazia, volta a ler
+                        if fifo_count = 0 and count < length then
+                            state <= "01";
+                        end if;
+                    end if;
+
+                    -- Ao transferir o ultimo item, finaliza
+                    if count = length and fifo_count = 1 then
+                        irq   <= '1';
+                        state <= "00";
+                    end if;
+
+                when others =>
+                    state <= "00";
+            end case;
+        end if;
+    end process;
+	 
+	 addr_proc: process (state, CR, count, fifo_count, src_addr, dst_addr)
+	 begin
+		case state is
+			when "01" =>  -- READING
+				 -- Incrementa `src_addr` se SINC estiver ativado
+				if CR(2) = '1' then
+					mem_addr <= src_addr+count;
+				else
+					mem_addr <= src_addr;
+				end if;
+				mem_rden <= '1';
+				mem_wren  <= '0';
+			when "10" =>  -- WRITING
+				-- Incrementa `dst_addr` se DINC estiver ativado
+				if CR(3) = '1' then
+					 mem_addr <= dst_addr + 16 - fifo_count;
+				else
+					mem_addr <= dst_addr;
+				end if;
+				mem_wren <= '1';
+				mem_rden <= '0';
+			when others =>
+				mem_addr <= (others=>'0');
+				mem_rden <= '0';
+				mem_wren  <= '0';
+		end case;		
+	end process addr_proc;
+
+end architecture;
