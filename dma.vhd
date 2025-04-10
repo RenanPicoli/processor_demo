@@ -137,12 +137,12 @@ begin
                         -- Atualiza FIFO
                         fifo_tail <= (fifo_tail + 1) mod 16;
                         fifo_count <= fifo_count - 1;
-
-                        -- Se FIFO vazia, volta a ler
-                        if fifo_count = 0 and count < length then
-                            state <= "01";
-                        end if;
                     end if;
+
+							-- Se FIFO vazia, volta a ler
+							if fifo_count = 0 and count < length then
+								 state <= "01";
+							end if;
 
                     -- Ao transferir o ultimo item, finaliza
                     if count = length and fifo_count = 1 then
@@ -171,7 +171,7 @@ begin
 			when "10" =>  -- WRITING
 				-- Incrementa `dst_addr` se DINC estiver ativado
 				if CR(3) = '1' then
-					 mem_addr <= dst_addr + 16 - fifo_count;
+					 mem_addr <= dst_addr + count - fifo_count;
 				else
 					mem_addr <= dst_addr;
 				end if;

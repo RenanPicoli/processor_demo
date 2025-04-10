@@ -71,7 +71,7 @@ begin
     -- Geração de clock
     process
     begin
-        while now < 1000 ns loop
+        while now < 1500 ns loop
             clk <= '0';
             wait for clk_period / 2;
             clk <= '1';
@@ -106,8 +106,8 @@ begin
         wr_en <= '1';
         
         addr <= "00"; D <= x"00000000"; wait for 10 ns; -- src_addr = 0x00000000
-        addr <= "01"; D <= x"00000010"; wait for 10 ns; -- dst_addr = 0x00000010
-        addr <= "10"; D <= x"00000010"; wait for 10 ns; -- length = 16 (16 palavras)
+        addr <= "01"; D <= x"000000D0"; wait for 10 ns; -- dst_addr = 0x00000010
+        addr <= "10"; D <= x"00000030"; wait for 10 ns; -- length = 48 (48 palavras)
         addr <= "11"; D <= x"0000000D"; wait for 10 ns; -- CR: Start = 1, SINC = 1, DINC = 1
 
         wr_en <= '0';
