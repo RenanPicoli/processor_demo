@@ -115,12 +115,32 @@ begin
 	begin
 		case init_state is
 			when PWRUP|NOP0|NOP1|NOP2|NOP3|NOP4|NOP5|NOP6|NOP7|NOPF => --NOP
-				CAS_N	<= '1';
 				RAS_N	<= '1';
+				CAS_N	<= '1';
 				WE_N	<= '1';
-			when others => --NOP
+			when PRE => -- precharge all banks
+				RAS_N	<= '0';
 				CAS_N	<= '1';
+				WE_N	<= '0';
+				A(10)	<= '1';
+			when AR0|AR1|AR2|AR3|AR4|AR5|AR6|AR7 => --auto refresh
+				RAS_N	<= '0';
+				CAS_N	<= '0';
+				WE_N	<= '1';
+			when LOAD => --load mode register:
+				RAS_N	<= '0';
+				CAS_N	<= '0';
+				WE_N	<= '0';
+				BA		<= "00";
+				A(12 downto 10)	<= "000";
+				A(9)	<= '0';--writes in burst (the same burst length for reading)
+				A(8 downto 7)	<= "00";--Standard Operation
+				A(6 downto 4)	<= "010";-- CAS latency: 2 cycles
+				A(3)	<= '0';--sequencial burst
+				A(2 downto 0)	<= "011";--reading in bursts of 8 words
+			when others => --NOP
 				RAS_N	<= '1';
+				CAS_N	<= '1';
 				WE_N	<= '1';				
 		end case;
 		CS_N	<= '0';
