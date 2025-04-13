@@ -13,9 +13,8 @@ entity sdram_controller is
         D         : in  std_logic_vector(31 downto 0); -- Dados de entrada (escrita)
         Q         : out std_logic_vector(31 downto 0); -- Dados de saída (leitura)
         wr_en     : in  std_logic; -- Sinal de escrita nos registradores
-        -- Sinal de interrupção ao final da transferência (de/para CPU)
-        irq       : out std_logic;
-        iack      : in std_logic;
+        -- signal to indicate to CPU/DMA the data on Q is invalid
+        ready		: out std_logic;
 
         -- Interface com a SDRAM
         A  : out std_logic_vector(12 downto 0);
@@ -37,10 +36,21 @@ architecture behavior of sdram_controller is
 	signal PWRUP_counter: natural;--conta ciclos de PWRUP (200us)
 	signal ref_counter: natural;--conta ciclos em NOP entre dois REFRESHs
 	signal tRP_counter: natural;--conta ciclos em NOP entre PRE e ACT
+	
+	--operation states
+	type op_state_t is (
+        IDLE, START_READ, READING,
+        BURST_STOP, PRECHARGE,
+        ACTIVATE
+    );
+	signal op_state, nxt_op_state: op_state_t;
+	signal read_count      : integer range 0 to 2 := 0;
+	signal precharge_count : integer range 0 to 2 := 0;
+	signal act_count       : integer range 0 to 2 := 0;
 begin
 	DQM <= "0000";--all bytes are enabled
 	
-	--intialization FSM
+	----------------intialization FSM--------------------------
 	process(clk, rst, PWRUP_counter, tRP_counter, ref_counter)
 	begin
 		if(rst='1')then
@@ -111,7 +121,80 @@ begin
 		end if;
 	end process;
 	
-	process(clk,rst,init_state)
+	------------operation FSM---------
+	process(rst, clk, op_state, RDEN, ADDR_VALID, read_count, precharge_count, act_count)
+		 begin
+			if(rst='1')then
+					nxt_op_state <= IDLE;
+			elsif(rising_edge(clk))then
+
+				case op_state is
+
+					when IDLE =>
+						 read_count <= 0;
+						 act_count <= 0;
+						 precharge_count <= 0;
+						 if RDEN = '1' then
+							  CMD <= "001"; -- READ
+							  nxt_op_state <= START_READ;
+						 end if;
+
+					when START_READ =>
+						 if read_count < 2 then
+							  read_count <= read_count + 1;
+						 else
+							  nxt_op_state <= READING;
+						 end if;
+
+					when READING =>
+						 READY <= '1';
+						 if RDEN = '0' then
+							  nxt_op_state <= IDLE;
+						 elsif ADDR_VALID = '0' then
+							  nxt_op_state <= BURST_STOP;
+						 end if;
+
+					when BURST_STOP =>
+						 CMD <= "010"; -- BST
+						 precharge_count <= 0;
+						 nxt_op_state <= PRECHARGE;
+
+					when PRECHARGE =>
+						 CMD <= "011"; -- PRE
+						 if precharge_count < 2 then
+							  precharge_count <= precharge_count + 1;
+						 else
+							  act_count <= 0;
+							  nxt_op_state <= ACTIVATE;
+						 end if;
+
+					when ACTIVATE =>
+						 CMD <= "100"; -- ACT
+						 if act_count < 2 then
+							  act_count <= act_count + 1;
+						 else
+							  read_count <= 0;
+							  nxt_op_state <= START_READ;
+						 end if;
+
+					when others =>
+						 nxt_op_state <= IDLE;
+
+			  end case;
+			end if;
+	end process;
+	
+	process(clk, rst, nxt_op_state)
+	begin
+		if(rst='1')then
+			op_state <= IDLE;
+		elsif(rising_edge(clk))then
+			op_state <= nxt_op_state;
+		end if;
+	end process;
+	
+	-----------------output driving--------------------	
+	process(clk,rst,init_state,op_state)
 	begin
 		case init_state is
 			when PWRUP|NOP0|NOP1|NOP2|NOP3|NOP4|NOP5|NOP6|NOP7|NOPF => --NOP
@@ -137,7 +220,46 @@ begin
 				A(8 downto 7)	<= "00";--Standard Operation
 				A(6 downto 4)	<= "010";-- CAS latency: 2 cycles
 				A(3)	<= '0';--sequencial burst
-				A(2 downto 0)	<= "011";--reading in bursts of 8 words
+				A(2 downto 0)	<= "111";--full-page bursts (entire row of 1024 columns)
+			when INITIALIZED =>
+				case op_state is
+					when IDLE => --NOP
+						RAS_N	<= '1';
+						CAS_N	<= '1';
+						WE_N	<= '1';
+					when START_READ =>					
+						if RDEN = '1' then
+							-- READ column without precharge
+							RAS_N	<= '1';
+							CAS_N	<= '0';
+							WE_N	<= '1';
+							A(10) <= '0';
+							--TODO: add bank and column address
+						else--NOP
+							RAS_N	<= '1';
+							CAS_N	<= '1';
+							WE_N	<= '1';
+						end if;
+					when READING =>--NOP
+							RAS_N	<= '1';
+							CAS_N	<= '1';
+							WE_N	<= '1';
+					when BURST_STOP =>--BST
+							RAS_N	<= '1';
+							CAS_N	<= '1';
+							WE_N	<= '0';
+					when PRECHARGE => --precharge selected bank
+							RAS_N	<= '0';
+							CAS_N	<= '1';
+							WE_N	<= '0';
+							A(10) <= '0';
+							--TODO: add bank
+					when ACTIVATE => --activate a row
+							RAS_N	<= '0';
+							CAS_N	<= '1';
+							WE_N	<= '1';
+							--TODO: add bank and row address
+				end case;
 			when others => --NOP
 				RAS_N	<= '1';
 				CAS_N	<= '1';
@@ -145,6 +267,20 @@ begin
 		end case;
 		CS_N	<= '0';
 		CKE	<= '1';--activate clk
+	end process;
+	
+	-----------------ready driving--------------------
+	process(op_state)
+	begin
+		case op_state is
+			when READING =>
+				ready <='1';
+				if(RDEN='0' or ADDR_VALID='0') then
+					ready <= '0';
+				end if;
+			when others =>
+				ready <= '0';
+		end case;
 	end process;
 	
 end architecture;
