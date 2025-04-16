@@ -9,10 +9,11 @@ entity sdram_controller is
         rst    : in  std_logic;
 
         -- Barramento de acesso por CPU/DMA (access request)
-        addr      : in  std_logic_vector(31 downto 0);  -- Seleção de registrador (2 bits para 4 registradores)
-        D         : in  std_logic_vector(31 downto 0); -- Dados de entrada (escrita)
-        Q         : out std_logic_vector(31 downto 0); -- Dados de saída (leitura)
-        wr_en     : in  std_logic; -- Sinal de escrita nos registradores
+        addr      : in  std_logic_vector(31 downto 0);  -- address requested
+        D         : in  std_logic_vector(31 downto 0); -- input data (write)
+        Q         : out std_logic_vector(31 downto 0); -- output data (read)
+        wren		: in  std_logic; --write request to memory
+        rden		: in  std_logic; --reading request to memory
         -- signal to indicate to CPU/DMA the data on Q is invalid
         ready		: out std_logic;
 
@@ -47,6 +48,10 @@ architecture behavior of sdram_controller is
 	signal read_count      : integer range 0 to 2 := 0;
 	signal precharge_count : integer range 0 to 2 := 0;
 	signal act_count       : integer range 0 to 2 := 0;
+	
+	signal ADDR_VALID	: std_logic := '0';
+	signal offset: std_logic_vector(31 downto 10);--current offset (aka page address, selects a row and a bank)
+	signal previous_offset: std_logic_vector(31 downto 10);--offset during previous accesses
 begin
 	DQM <= "0000";--all bytes are enabled
 	
@@ -122,7 +127,7 @@ begin
 	end process;
 	
 	------------operation FSM---------
-	process(rst, clk, op_state, RDEN, ADDR_VALID, read_count, precharge_count, act_count)
+	process(rst, clk, op_state, init_state, RDEN, ADDR_VALID, read_count, precharge_count, act_count)
 		 begin
 			if(rst='1')then
 					nxt_op_state <= IDLE;
@@ -134,9 +139,12 @@ begin
 						 read_count <= 0;
 						 act_count <= 0;
 						 precharge_count <= 0;
-						 if RDEN = '1' then
-							  CMD <= "001"; -- READ
-							  nxt_op_state <= START_READ;
+						 if(init_state = INITIALIZED)then
+							 if RDEN = '1' and ADDR_VALID='1' then
+								  nxt_op_state <= START_READ;
+							 elsif RDEN = '1' and ADDR_VALID='0' then
+								  nxt_op_state <= PRECHARGE;
+							 end if;
 						 end if;
 
 					when START_READ =>
@@ -147,20 +155,17 @@ begin
 						 end if;
 
 					when READING =>
-						 READY <= '1';
 						 if RDEN = '0' then
 							  nxt_op_state <= IDLE;
-						 elsif ADDR_VALID = '0' then
+						 elsif ADDR_VALID = '0' then--"miss": bank or row changed during burst
 							  nxt_op_state <= BURST_STOP;
 						 end if;
 
 					when BURST_STOP =>
-						 CMD <= "010"; -- BST
 						 precharge_count <= 0;
 						 nxt_op_state <= PRECHARGE;
 
 					when PRECHARGE =>
-						 CMD <= "011"; -- PRE
 						 if precharge_count < 2 then
 							  precharge_count <= precharge_count + 1;
 						 else
@@ -169,7 +174,6 @@ begin
 						 end if;
 
 					when ACTIVATE =>
-						 CMD <= "100"; -- ACT
 						 if act_count < 2 then
 							  act_count <= act_count + 1;
 						 else
@@ -283,4 +287,32 @@ begin
 		end case;
 	end process;
 	
+	-----------------ADDR_VALID driving--------------------
+	process(rden,wren,offset,previous_offset,nxt_op_state,init_state)
+	begin
+		if(init_state/=INITIALIZED)then
+			ADDR_VALID <= '0';--this default value causes an additional PRECHARGE after INITIALIZED
+		elsif ((wren='1' or rden='1') and (nxt_op_state=START_READ or op_state=READING)) then--starting burst reading
+			if (offset=previous_offset) then
+				ADDR_VALID <= '1';
+			else
+				ADDR_VALID <= '0';
+			end if;
+		end if;
+	end process;
+	
+	--previous_offset generation
+	--registers address for correct operation of flag req_ready
+	process(CLK,offset,ADDR_VALID,RST)
+	begin
+		if(RST='1')then
+			previous_offset <= (others=>'0');
+		elsif(rising_edge(CLK) and (rden='1' or wren='1') and nxt_op_state=START_READ) then
+			if(ADDR_VALID='0') then
+				previous_offset <= offset;--update offset
+			end if;
+		end if;
+	end process;
+	
+	offset <= ADDR(31 downto 10);--current offset (aka page address, selects a row and a bank)
 end architecture;
