@@ -369,9 +369,9 @@ begin
 	end process;
 	
 	-----------------ADDR_VALID driving--------------------
-	process(rden,wren,offset,previous_offset,nxt_op_state,init_state)
+	process(rden,wren,offset,previous_offset,nxt_op_state,op_state,init_state)
 	begin
-		if(init_state/=INITIALIZED)then
+		if(init_state/=INITIALIZED or op_state=PALL)then
 			ADDR_VALID <= '0';--this default value causes an additional PRECHARGE after INITIALIZED
 		elsif ((wren='1' or rden='1') and (nxt_op_state=START_READ or op_state=READING)) then--starting burst reading
 			if (offset=previous_offset) then
