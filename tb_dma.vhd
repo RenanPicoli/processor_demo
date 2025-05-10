@@ -93,7 +93,7 @@ begin
             end if;
         end if;
     end process;
-	 mem_ready <= '1', '0' after 145ns, '1' after 200ns, '0' after 700ns, '1' after 900ns;
+	 mem_ready <= '1', '0' after 145ns, '1' after 205ns, '0' after 695ns, '1' after 905ns;
 
     -- Teste principal
     process
