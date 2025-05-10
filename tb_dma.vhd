@@ -20,6 +20,7 @@ architecture test of tb_dma is
     -- Interface de memória única
     signal mem_addr  : std_logic_vector(31 downto 0);
     signal mem_data  : std_logic_vector(31 downto 0) := (others => '0');
+	 signal mem_ready	: std_logic;
     signal mem_rden  : std_logic;
     signal mem_wren  : std_logic;
     
@@ -62,6 +63,7 @@ begin
         wr_en     => wr_en,
         mem_addr  => mem_addr,
         mem_data  => mem_data,
+		  mem_ready	=> mem_ready,
         mem_rden  => mem_rden,
         mem_wren  => mem_wren,
         irq       => irq,
@@ -91,6 +93,7 @@ begin
             end if;
         end if;
     end process;
+	 mem_ready <= '1', '0' after 145ns, '1' after 200ns, '0' after 700ns, '1' after 900ns;
 
     -- Teste principal
     process
@@ -106,7 +109,7 @@ begin
         wr_en <= '1';
         
         addr <= "00"; D <= x"00000000"; wait for 10 ns; -- src_addr = 0x00000000
-        addr <= "01"; D <= x"000000D0"; wait for 10 ns; -- dst_addr = 0x00000010
+        addr <= "01"; D <= x"000000D0"; wait for 10 ns; -- dst_addr = 0x000000D0
         addr <= "10"; D <= x"00000030"; wait for 10 ns; -- length = 48 (48 palavras)
         addr <= "11"; D <= x"0000000D"; wait for 10 ns; -- CR: Start = 1, SINC = 1, DINC = 1
 
