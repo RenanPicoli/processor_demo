@@ -41,7 +41,7 @@ architecture behavior of sdram_controller is
 	
 	--operation states
 	type op_state_t is (
-        IDLE, START_READ, READING,
+        IDLE, START_READ, READING, WRITING,
         BURST_STOP, PRECHARGE,
         ACTIVATE, PALL, AR
     );
@@ -132,7 +132,7 @@ begin
 	end process;
 	
 	------------operation FSM---------
-	process(rst, clk, op_state, init_state, RDEN, ADDR_VALID, read_count, precharge_count, act_count, ref_count_op)
+	process(rst, clk, op_state, init_state, RDEN, WREN, ADDR_VALID, read_count, precharge_count, act_count, ref_count_op)
 		 begin
 			if(rst='1')then
 					nxt_op_state <= IDLE;
@@ -144,6 +144,10 @@ begin
 							 if RDEN = '1' and ADDR_VALID='1' then
 								  nxt_op_state <= START_READ;
 							 elsif RDEN = '1' and ADDR_VALID='0' then
+								  nxt_op_state <= PRECHARGE;
+							 elsif WREN = '1' and ADDR_VALID='1' then
+								  nxt_op_state <= WRITING;
+							 elsif WREN = '1' and ADDR_VALID='0' then
 								  nxt_op_state <= PRECHARGE;
 							 end if;
 						 end if;
@@ -159,6 +163,9 @@ begin
 						 elsif ADDR_VALID = '0' then--"miss": bank or row changed during burst
 							  nxt_op_state <= BURST_STOP;
 						 end if;
+						 
+					when WRITING =>
+						 nxt_op_state <= IDLE;
 
 					when BURST_STOP =>
 						 nxt_op_state <= PRECHARGE;
@@ -170,7 +177,13 @@ begin
 
 					when ACTIVATE =>
 						 if act_count>= 1 then
+							if(RDEN='1')then
 							  nxt_op_state <= START_READ;
+							elsif(WREN='1')then
+							  nxt_op_state <= WRITING;
+							else							
+							  nxt_op_state <= IDLE;
+							end if;
 						 end if;
 
 					when PALL =>
@@ -223,6 +236,11 @@ begin
 					read_count <= read_count;
 					act_count  <= act_count;
 					precharge_count <= precharge_count;
+					
+				when WRITING =>
+					 read_count <= 0;
+					 act_count <= 0;
+					 precharge_count <= 0;				
 				
 				when BURST_STOP =>
 					 read_count <= 0;
@@ -288,7 +306,8 @@ begin
 			WE_N	<= '0';
 			BA		<= "00";
 			A(12 downto 10)	<= "000";
-			A(9)	<= '0';--writes in burst (the same burst length for reading)
+--			A(9)	<= '0';--writes in burst (the same burst length for reading)
+			A(9)	<= '1';--writes in single location
 			A(8 downto 7)	<= "00";--Standard Operation
 			A(6 downto 4)	<= "010";-- CAS latency: 2 cycles
 			A(3)	<= '0';--sequencial burst
@@ -305,7 +324,7 @@ begin
 					CAS_N	<= '0';
 					WE_N	<= '1';
 					A(10) <= '0';
-					--TODO: add bank and column address
+					--bank and column address
 					BA		<= addr(24 downto 23);
 					A(9 downto 0)<= addr(9 downto 0);
 				else--NOP
@@ -317,6 +336,14 @@ begin
 					RAS_N	<= '1';
 					CAS_N	<= '1';
 					WE_N	<= '1';
+			elsif op_state = WRITING then--write (no precharge)
+					RAS_N	<= '1';
+					CAS_N	<= '0';
+					WE_N	<= '0';
+					A(10) <= '0';
+					--bank and column address
+					BA		<= addr(24 downto 23);
+					A(9 downto 0)<= addr(9 downto 0);
 			elsif op_state = BURST_STOP then--BST
 					RAS_N	<= '1';
 					CAS_N	<= '1';
@@ -370,6 +397,12 @@ begin
 				else
 					ready <= '1';
 				end if;
+			when WRITING =>
+--				if(WREN='0' or ADDR_VALID='0') then
+--					ready <= '0';
+--				else
+					ready <= '1';
+--				end if;
 			when others =>
 				ready <= '0';
 		end case;
@@ -380,7 +413,7 @@ begin
 	begin
 		if(init_state/=INITIALIZED or op_state=PALL)then
 			ADDR_VALID <= '0';--this default value causes an additional PRECHARGE after INITIALIZED
-		elsif ((wren='1' or rden='1') and (nxt_op_state=START_READ or op_state=READING)) then--starting burst reading
+		elsif ((wren='1') or ( rden='1' and (nxt_op_state=START_READ or op_state=READING))) then--starting burst reading or write
 			if (offset=previous_offset) then
 				ADDR_VALID <= '1';
 			else
@@ -395,7 +428,7 @@ begin
 	begin
 		if(RST='1')then
 			previous_offset <= (others=>'0');
-		elsif(rising_edge(CLK) and (rden='1' or wren='1') and nxt_op_state=START_READ) then
+		elsif(rising_edge(CLK) and ((rden='1' and nxt_op_state=START_READ) or wren='1')) then
 			if(ADDR_VALID='0') then
 				previous_offset <= offset;--update offset
 			end if;
