@@ -132,11 +132,48 @@ begin
 		rden <= '0';
 		--------------------
 		wait for 199845ns;
-		rden <= '1';--reads on the same offset (row=2), but will interrupt by reading on offset 0 (row=0)
+		rden <= '1';--reads on the same offset (row=2), but will be interrupted by reading on offset 0 (row=0)
 		addr <= x"0000_0880";
 		wait until ready='1';
 		wait for clk_period;
 		addr <= x"0000_0040";
+		wait until ready='1';
+		wait for clk_period;
+		rden <= '0';
+		--------------------
+		wait for 6605ns+10ns;
+		rden <= '1';--reads on the same offset (row=0), but will be interrupted by an auto-refresh
+		addr <= x"0000_004E";
+		wait until ready='1';
+		wait for clk_period;
+		rden <= '0';
+		--------------------
+		wait for 7560ns;
+		rden <= '1';--reads on offset (row=0), but will be interrupted by an auto-refresh during burst stop to read row 1
+		addr <= x"0000_0040";
+		wait until ready='1';
+		wait for clk_period;
+		addr <= x"0000_0439";
+		wait until ready='1';
+		wait for clk_period;
+		rden <= '0';
+		--------------------
+		wait for 7530ns;
+		rden <= '1';--reads on offset (row=1), but will be interrupted by an auto-refresh during activate before reading row 3
+		addr <= x"0000_0440";
+		wait until ready='1';
+		wait for clk_period;
+		addr <= x"0000_0C39";
+		wait until ready='1';
+		wait for clk_period;
+		rden <= '0';
+		--------------------
+		wait for 7540ns;
+		rden <= '1';--reads on offset (row=3), but will be interrupted by an auto-refresh during precharge before reading row 1
+		addr <= x"0000_0C40";
+		wait until ready='1';
+		wait for clk_period;
+		addr <= x"0000_0439";
 		wait until ready='1';
 		wait for clk_period;
 		rden <= '0';
@@ -146,9 +183,9 @@ begin
 	process(rst,mem_clk,mem_data)
 	begin
 		mem_data_delayed(0) <= mem_data;
-		mem_rden_delayed(0) <= mem_rden;
 		if(rst='1')then
 		elsif(rising_edge(mem_clk))then
+			mem_rden_delayed(0) <= mem_rden;--reading commando to SDRAM must be sampled
 			for i in 0 to CAS_latency-1 loop
 				mem_data_delayed(i+1) <= mem_data_delayed(i);
 				mem_rden_delayed(i+1) <= mem_rden_delayed(i);				
@@ -159,14 +196,14 @@ begin
     -- Processo para simular memória RAM
 	 mem_clk <= CLK_OUT and CKE;
 	 mem_addr <= A(7 downto 0);
-	 mem_rden <= '1' when (RAS_N = '1' and CAS_N	= '0' and WE_N	= '1') else '0';
-	 mem_wren <= '1' when (RAS_N = '1' and CAS_N	= '0' and WE_N	= '0') else '0';
+	 mem_rden <= '1' after 1ps when (RAS_N = '1' and CAS_N	= '0' and WE_N	= '1') else '0' after 1ps;--delay just for simulation
+	 mem_wren <= '1' after 1ps when (RAS_N = '1' and CAS_N	= '0' and WE_N	= '0') else '0'after 1ps ;--delay just for simulation
 --	 mem_data <= DQ when mem_wren='1' else (others=>'Z');
-	 DQ <= mem_data_delayed(cAS_latency) when mem_rden_delayed(CAS_latency)='1' else (others=>'Z');
+	 DQ <= mem_data_delayed(cAS_latency) when mem_rden_delayed(CAS_latency)='1' else (others=>'Z');--taking into account CAS latency
     process (mem_clk)
     begin
         if rising_edge(mem_clk) then
-            if mem_rden = '1' then--NOT OK: take into account CAS latency
+            if mem_rden = '1' then
                 mem_data <= RAM(conv_integer(mem_addr));
             elsif mem_wren = '1' then--OK
                 RAM(conv_integer(mem_addr)) <= mem_data;
