@@ -4,6 +4,7 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
 entity dma_controller is
+	 generic (FIFO_LEN: natural := 32);
     port (
         clk       : in  std_logic;
         reset     : in  std_logic;
@@ -38,11 +39,11 @@ architecture behavior of dma_controller is
     signal CR        : std_logic_vector(31 downto 0) := (others => '0');
 
     -- FIFO para armazenar dados temporariamente
-    type fifo_type is array (0 to 15) of std_logic_vector(31 downto 0);
+    type fifo_type is array (0 to FIFO_LEN-1) of std_logic_vector(31 downto 0);
     signal fifo      : fifo_type := (others => (others => '0'));
-    signal fifo_head : integer range 0 to 15 := 0;
-    signal fifo_tail : integer range 0 to 15 := 0;
-    signal fifo_count: integer range 0 to 16 := 0; -- Capacidade da FIFO = 16 palavras
+    signal fifo_head : integer range 0 to FIFO_LEN-1 := 0;
+    signal fifo_tail : integer range 0 to FIFO_LEN-1 := 0;
+    signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Capacidade da FIFO = FIFO_LEN palavras
 
     signal state     : std_logic_vector(1 downto 0) := "00"; -- 00 = Idle, 01 = Reading, 10 = Writing
 begin
@@ -109,19 +110,19 @@ begin
                     end if;
 
                 when "01" =>  -- READING
-                    if fifo_count < 16 and count < length and mem_ready='1' then
+                    if fifo_count < FIFO_LEN and count < length and mem_ready='1' then
                         -- Inicia leitura
 
                         -- Armazena na FIFO após leitura
                         fifo(fifo_head) <= mem_data;
-                        fifo_head <= (fifo_head + 1) mod 16;
+                        fifo_head <= (fifo_head + 1) mod FIFO_LEN;
                         fifo_count <= fifo_count + 1;                        
 
                         -- Incrementa `count`
                         count <= count + 1;
 
                         -- Se FIFO cheia, troca para escrita
-                        if fifo_count + 1 = 16 then
+                        if fifo_count + 1 = FIFO_LEN then
                             state <= "10";
                         end if;
 
@@ -138,7 +139,7 @@ begin
 								--update pointers/counters
 								if(mem_ready = '1')then
                         -- Atualiza FIFO
-									fifo_tail <= (fifo_tail + 1) mod 16;
+									fifo_tail <= (fifo_tail + 1) mod FIFO_LEN;
 									fifo_count <= fifo_count - 1;
 								end if;
                     end if;
