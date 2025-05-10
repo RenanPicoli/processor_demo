@@ -73,7 +73,7 @@ begin
     -- Geração de clock
     process
     begin
-        while now < 70000 us loop
+        while now < 1000 us loop
             clk <= '0';
             wait for clk_period / 2;
             clk <= '1';
@@ -177,6 +177,26 @@ begin
 		wait until ready='1';
 		wait for clk_period;
 		rden <= '0';
+		--------------------
+		wait for 20ns;
+		wren <= '1';--writes on same offset (row=1), then will write on row 3
+		addr <= x"0000_0440";
+		D	<= x"ABCD_EF12";
+		wait until ready='1';
+		wait for clk_period;
+		addr <= x"0000_0C39";
+		D	<= x"FFFF_FFFF";
+		wait until ready='1';
+		wait for clk_period;
+		wren <= '0';
+		--------------------
+		wait for 7510ns;
+		wren <= '1';--writes on same offset (row=3), but will be interrupted by auto refresh
+		addr <= x"0000_0C40";
+		D	<= x"AAAA_BBBB";
+		wait until ready='1';
+		wait for clk_period;
+		wren <= '0';
 		wait;
 	end process;
 	
@@ -206,7 +226,7 @@ begin
             if mem_rden = '1' then
                 mem_data <= RAM(conv_integer(mem_addr));
             elsif mem_wren = '1' then--OK
-                RAM(conv_integer(mem_addr)) <= mem_data;
+                RAM(conv_integer(mem_addr)) <= DQ;
             end if;
         end if;
     end process;
