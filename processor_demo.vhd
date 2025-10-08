@@ -46,6 +46,17 @@ port (CLK_IN: in std_logic;--50MHz input
 		sram_WE_n: buffer std_logic;--write enable, active LOW, HIGH enables reading
 		sram_UB_n: buffer std_logic;--upper IO byte access, active LOW
 		sram_LB_n: buffer std_logic; --lower	IO byte access, active LOW
+		-- 128 MB SDRAM ----
+        sdram_A  : out std_logic_vector(12 downto 0);
+        sdram_BA  : out std_logic_vector(1 downto 0);
+        sdram_DQM  : out std_logic_vector(3 downto 0);
+        sdram_DQ  : inout std_logic_vector(31 downto 0);
+        sdram_CKE  : out std_logic;
+        sdram_CLK_OUT  : out std_logic;
+        sdram_WE_N  : out std_logic;
+        sdram_CAS_N  : out std_logic;
+        sdram_RAS_N  : out std_logic;
+        sdram_CS_N  : out std_logic;
 		-- 7 segments displays
 		segments: out array7(7 downto 0);
 		--LCD
@@ -591,6 +602,36 @@ component uart_debugger
     );
 end component;
 
+-------------- 128 MB SDRAM -------------------
+component sdram_controller
+	generic(CAS_LATENCY	: natural := 2);
+    port (
+        clk    : in  std_logic;
+        rst    : in  std_logic;
+
+        -- Barramento de acesso por CPU/DMA (access request)
+        addr      : in  std_logic_vector(31 downto 0);  -- address requested
+        D         : in  std_logic_vector(31 downto 0); -- input data (write)
+        Q         : out std_logic_vector(31 downto 0); -- output data (read)
+        wren		: in  std_logic; --write request to memory
+        rden		: in  std_logic; --reading request to memory
+        -- signal to indicate to CPU/DMA the data on Q is invalid
+        ready		: out std_logic;
+
+        -- Interface com a SDRAM
+        A  : out std_logic_vector(12 downto 0);
+        BA  : out std_logic_vector(1 downto 0);
+        DQM  : out std_logic_vector(3 downto 0);
+        DQ  : inout std_logic_vector(31 downto 0);
+        CKE  : out std_logic;
+        CLK_OUT  : out std_logic;
+        WE_N  : out std_logic;
+        CAS_N  : out std_logic;
+        RAS_N  : out std_logic;
+        CS_N  : out std_logic
+    );
+end component;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -837,24 +878,25 @@ signal filter_output_sync: std_logic_vector(31 downto 0);--filter output synchro
 
 -----------signals for memory map interfacing----------------
 constant ranges: boundaries := 	(--notation: base#value#
-											(16#00#,16#07#),--filter coeffs
-											(16#08#,16#0F#),--filter xN
-											(16#10#,16#1F#),--cache
-											(16#20#,16#3F#),--inner_product
-											(16#40#,16#5F#),--VMAC
-											(16#60#,16#67#),--I2C
-											(16#68#,16#6F#),--I2S
-											(16#70#,16#70#),--current filter output
-											(16#71#,16#71#),--desired response
-											(16#72#,16#72#),--filter status
-											(16#73#,16#73#),--converted_out
+											(16#00#,16#07#),-- filter coeffs
+											(16#08#,16#0F#),-- filter xN
+											(16#10#,16#1F#),-- cache
+											(16#20#,16#3F#),-- inner_product
+											(16#40#,16#5F#),-- VMAC
+											(16#60#,16#67#),-- I2C
+											(16#68#,16#6F#),-- I2S
+											(16#70#,16#70#),-- current filter output
+											(16#71#,16#71#),-- desired response
+											(16#72#,16#72#),-- filter status
+											(16#73#,16#73#),-- converted_out
 											(16#74#,16#74#),-- 7-segments display DR
 											(16#75#,16#75#),-- LCD controller
 											(16#76#,16#77#),-- general purpose fp32_to_int32
 											(16#78#,16#79#),-- UART
-											(16#80#,16#FF#),--interrupt controller
-											(16#100#,16#10F#),--tmp_vector
-											(16#800#,16#FFF#)--instruction memory
+											(16#80#,16#FF#),-- interrupt controller
+											(16#100#,16#10F#),-- tmp_vector
+											(16#800#,16#FFF#),-- instruction memory
+											(16#2000000#,16#3FFFFFF#) -- SDRAM
 											);
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
@@ -934,6 +976,12 @@ signal proc_dbg_irq: std_logic;-- debug irq
 signal proc_dbg_iack: std_logic;--interrupt acknowledgement
 signal proc_next_pc: std_logic_vector(31 downto 0);-- monitor PC (pc_in) for breakpoints
 
+--------- SDRAM controller interface--------
+signal sdram_ctrl_Q: std_logic_vector(31 downto 0);
+signal sdram_ctrl_wren: std_logic;
+signal sdram_ctrl_rden: std_logic;
+signal sdram_ctrl_ready: std_logic;
+
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
@@ -952,7 +1000,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
 	--to an instruction address (starting at 0)
-	program_data_address <= ram_addr(18 downto 0) - ranges(17)(0);
+	program_data_address <= ram_addr(18 downto 0) - ranges(18)(0);
 	d_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
@@ -1608,14 +1656,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (17=> program_data_ready, 15=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (17=> program_data_Q, 16=> tmp_vector_Q, 15 => irq_ctrl_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready		<= (18=> program_data_ready, 17=> sdram_ctrl_ready, 15=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
+	all_periphs_output	<= (18=> program_data_Q 17=> sdram_ctrl_Q, 16=> tmp_vector_Q, 15 => irq_ctrl_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	program_data_rden			<= all_periphs_rden(17);-- not used, just to keep form
+	program_data_rden			<= all_periphs_rden(18);-- not used, just to keep form
+	sdram_ctrl_rden			<= all_periphs_rden(17);
 	tmp_vector_rden			<= all_periphs_rden(16);-- not used, just to keep form
 	irq_ctrl_rden				<= all_periphs_rden(15);-- not used, just to keep form
 	uart_rden				<= all_periphs_rden(14);
@@ -1634,7 +1683,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	program_data_wren			<= all_periphs_wren(17);
+	program_data_wren			<= all_periphs_wren(18);
+	sdram_ctrl_wren			<= all_periphs_wren(17);
 	tmp_vector_wren			<= all_periphs_wren(16);
 	irq_ctrl_wren				<= all_periphs_wren(15);
     uart_wren				<= all_periphs_wren(14);
@@ -1658,8 +1708,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
 	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
-	generic map (N => 12, B => ranges)
-	port map (	ADDR => ram_addr(11 downto 0),-- input, it is a word address
+	generic map (N => 26, B => ranges)
+	port map (	ADDR => ram_addr(25 downto 0),-- input, it is a word address
 			RDEN => ram_rden,-- input
 			WREN => ram_wren,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
@@ -1771,27 +1821,52 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		D	=> disp_7seg_DR_out,
 		segments => segments		
 	);
+
+	sdram_ctrl: sdram_controller
+	generic map (CAS_LATENCY => 2 )
+	port map (
+		----CPU/DMA itfc-----
+		clk	=> ram_clk,
+		rst	=> rst,
+		addr	=> ram_addr(24 downto 0),--32M words
+		D		=> ram_write_data,
+		Q		=> sdram_ctrl_Q,
+		wren	=> sdram_ctrl_wren,
+		rden	=> sdram_ctrl_rden,
+		ready	=> sdram_ctrl_ready,
+		------SDRAM itfc-----
+		A		=> sdram_A,
+		BA		=> sdram_BA,
+		DQM		=> sdram_DQM,
+		DQ		=> sdram_DQ,
+		CKE		=> sdram_CKE,
+		CLK_OUT	=> sdram_CLK_OUT,
+		WE_N	=> sdram_WE_N,
+		CAS_N	=> sdram_CAS_N,
+		RAS_N	=> sdram_RAS_N,
+		CS_N	=> sdram_CS_N
+    );
 	
---	lcd_ctrl: LCD_Controller
---	generic map (F => 4)
---	port map (
---		clk => ram_CLK,--for timing, internal FSM
---		rst => rst,
---		-- interface with CPU
---		D => ram_write_data,
---		wren => lcd_wren,
---		Q => lcd_Q,
---		ready => lcd_ready,
---		  
---		  -- LCD control signals
---		RS => lcd_rs,
---		RW => lcd_rw,
---		E  => lcd_en_Q(0),
---		VO => lcd_on,
---		DB => lcd_data
---	);
---	lcd_en <= lcd_en_Q(0);
---	lcd_blon <= '1';
+	-- lcd_ctrl: LCD_Controller
+	-- generic map (F => 4)
+	-- port map (
+	-- 	clk => ram_CLK,--for timing, internal FSM
+	-- 	rst => rst,
+	-- 	-- interface with CPU
+	-- 	D => ram_write_data,
+	-- 	wren => lcd_wren,
+	-- 	Q => lcd_Q,
+	-- 	ready => lcd_ready,
+		  
+	-- 	  -- LCD control signals
+	-- 	RS => lcd_rs,
+	-- 	RW => lcd_rw,
+	-- 	E  => lcd_en_Q(0),
+	-- 	VO => lcd_on,
+	-- 	DB => lcd_data
+	-- );
+	-- lcd_en <= lcd_en_Q(0);
+	-- lcd_blon <= '1';
 
 	--component by Gerry O'Brien
 	lcd_ctrl: LCD_DISPLAY_nty
