@@ -352,7 +352,11 @@ begin
 					RAS_N	<= '0';
 					CAS_N	<= '1';
 					WE_N	<= '0';
-					A(10) <= '0' when op_state = PRECHARGE else '1';--PRECHARGE closes the row of only one bank
+					if(op_state = PRECHARGE)then
+						A(10) <= '0';--PRECHARGE closes the row of only one bank
+					else
+						A(10) <= '1';
+					end if;
 					--TODO: add bank
 					BA		<= previous_offset(24 downto 23);
 					--if PALL will interrupt a Precharge (single bank), PALL must be forwarded (because they use the same counter)
