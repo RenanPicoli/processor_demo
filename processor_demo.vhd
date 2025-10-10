@@ -1657,7 +1657,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
 	all_periphs_ready		<= (18=> program_data_ready, 17=> sdram_ctrl_ready, 15=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (18=> program_data_Q 17=> sdram_ctrl_Q, 16=> tmp_vector_Q, 15 => irq_ctrl_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_output	<= (18=> program_data_Q, 17=> sdram_ctrl_Q, 16=> tmp_vector_Q, 15 => irq_ctrl_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
@@ -1828,7 +1828,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		----CPU/DMA itfc-----
 		clk	=> ram_clk,
 		rst	=> rst,
-		addr	=> ram_addr(24 downto 0),--32M words
+		addr	=> ram_addr,--32M words
 		D		=> ram_write_data,
 		Q		=> sdram_ctrl_Q,
 		wren	=> sdram_ctrl_wren,
