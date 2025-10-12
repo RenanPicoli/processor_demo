@@ -895,7 +895,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#78#,16#79#),-- UART
 											(16#80#,16#FF#),-- interrupt controller
 											(16#100#,16#10F#),-- tmp_vector
-											(16#800#,16#FFF#),-- instruction memory
+											(16#800#,16#FFF#),-- instruction memory (aka program_data)
 											(16#2000000#,16#3FFFFFF#) -- SDRAM
 											);
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
@@ -1000,7 +1000,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
 	--to an instruction address (starting at 0)
-	program_data_address <= ram_addr(18 downto 0) - ranges(18)(0);
+	program_data_address <= ram_addr(18 downto 0) - ranges(17)(0);
 	d_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
@@ -1656,18 +1656,18 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (18=> program_data_ready, 17=> sdram_ctrl_ready, 15=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (18=> program_data_Q, 17=> sdram_ctrl_Q, 16=> tmp_vector_Q, 15 => irq_ctrl_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready		<= (18=> sdram_ctrl_ready, 17=> program_data_ready, 15=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
+	all_periphs_output	<= (18=> sdram_ctrl_Q, 17=> program_data_Q, 16=> tmp_vector_Q, 15 => irq_ctrl_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	program_data_rden			<= all_periphs_rden(18);-- not used, just to keep form
-	sdram_ctrl_rden			<= all_periphs_rden(17);
+	sdram_ctrl_rden			<= all_periphs_rden(18);
+	program_data_rden			<= all_periphs_rden(17);-- not used, just to keep form
 	tmp_vector_rden			<= all_periphs_rden(16);-- not used, just to keep form
 	irq_ctrl_rden				<= all_periphs_rden(15);-- not used, just to keep form
-	uart_rden				<= all_periphs_rden(14);
+	uart_rden					<= all_periphs_rden(14);
 	gp_fp32_to_int32_rden	<= all_periphs_rden(13);-- not used, just to keep form
 	lcd_rden						<= all_periphs_rden(12);-- not used, just to keep form
 	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
@@ -1683,11 +1683,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	program_data_wren			<= all_periphs_wren(18);
-	sdram_ctrl_wren			<= all_periphs_wren(17);
+	sdram_ctrl_wren			<= all_periphs_wren(18);
+	program_data_wren			<= all_periphs_wren(17);
 	tmp_vector_wren			<= all_periphs_wren(16);
 	irq_ctrl_wren				<= all_periphs_wren(15);
-    uart_wren				<= all_periphs_wren(14);
+    uart_wren					<= all_periphs_wren(14);
 	gp_fp32_to_int32_wren	<= all_periphs_wren(13);
 	lcd_wren						<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
