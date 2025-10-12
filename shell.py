@@ -279,7 +279,7 @@ def shell():
    global ser
    
    try:
-       ser = serial.Serial("COM7",2400,timeout=1)
+       ser = serial.Serial("COM3",2400,timeout=1)
    except:
        ser = serial.Serial("/dev/pts/4",9600)
    
