@@ -101,7 +101,7 @@ port (CLK_IN: in std_logic;
 		dbg_cont: in std_logic;--continue instruction
 		dbg_irq: in std_logic;-- debug irq
 		dbg_iack: out std_logic;--interrupt acknowledgement
-		dbg_next_pc: out std_logic_vector(31 downto 0);-- monitor PC (pc_in) for breakpoints
+		dbg_next_pc: out std_logic_vector(31 downto 0);-- monitor PC (pc_in) for breakpoints, --byte address
 		-----ROM----------
 		ADDR_rom: out std_logic_vector(31 downto 0);--addr é endereço de word
 		CLK_rom: out std_logic;--clock for mini_rom (is like moving a PC register duplicate to i_cache)
@@ -981,6 +981,8 @@ signal sdram_ctrl_Q: std_logic_vector(31 downto 0);
 signal sdram_ctrl_wren: std_logic;
 signal sdram_ctrl_rden: std_logic;
 signal sdram_ctrl_ready: std_logic;
+signal sdram_ctrl_clk: std_logic;--100MHz for SDRAM control and IO
+signal sdram_addr: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
 
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
@@ -1822,13 +1824,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		segments => segments		
 	);
 
+	
+	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
+	--to an word address (starting at 0)
+	sdram_addr <= ram_addr - ranges(18)(0);
 	sdram_ctrl: sdram_controller
 	generic map (CAS_LATENCY => 2 )
 	port map (
 		----CPU/DMA itfc-----
-		clk	=> ram_clk,
+		clk	=> sdram_ctrl_clk,--100MHz
 		rst	=> rst,
-		addr	=> ram_addr,--32M words
+		addr	=> sdram_addr,--32M words
 		D		=> ram_write_data,
 		Q		=> sdram_ctrl_Q,
 		wren	=> sdram_ctrl_wren,
@@ -1943,7 +1949,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		dbg_irq => proc_dbg_irq,-- debug irq, must be asserted for 1 clk cycle (which can be extended)
 		
 		IACK => proc_dbg_iack,--interrupt acknowledgement
-		next_pc => proc_next_pc,-- monitor PC (pc_in) for breakpoints
+		next_pc => proc_next_pc,-- monitor PC (pc_in) for breakpoints, byte address
 		------UART PHY---------
 		uart_phy_clk=> uart_phy_clk,
 		tx => uart_tx,
@@ -1958,7 +1964,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c0		=> CLK_dbg,--produces 48MHz for debugging
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
-		c3		=> lcd_clk,--1MHz for LCD timing and FSM
+		c3		=> sdram_ctrl_clk,--100MHz for SDRAM control and IO
 		locked=> open
 	);
 
