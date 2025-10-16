@@ -53,8 +53,10 @@ create_generated_clock -name {clk_uart_dbg} -source [get_pins {clk_12MHz|altpll_
 
 create_generated_clock -name {uproc_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 25 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[1]}] 
 create_generated_clock -name {sram_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 8 -divide_by 5 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[2]}]
-# clk_dbg: 160MHz
-create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 16 -divide_by 5 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
+# sdram_ctrl_clk: 100MHz
+create_generated_clock -name {sdram_ctrl_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 1 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[3]}] 
+# clk_dbg: 200MHz
+create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 4 -divide_by 1 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
 
 
 create_generated_clock -name {clk_fs} -source [get_pins {clk_fs_sckin|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 1 -divide_by 544 -master_clock {clk_12M} [get_pins { clk_fs_sckin|altpll_component|auto_generated|pll1|clk[0] }] 
@@ -129,19 +131,7 @@ set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pin
 # Set Multicycle Path
 #**************************************************************
 
-#set_multicycle_path -setup -end -from [get_pins {i2s|i2s|WS|combout}] -to [get_cells {i2s|l_fifo|OVF i2s|r_fifo|OVF}] 2
-#relaxing time to I2S generic perceive I2S_EN assertion
-#set_multicycle_path -setup -end -from [get_registers i2s|CR|Q[*]] -to [get_registers {i2s|sync_chain_CR|Q[0][*]} ] 2
-#relaxing time to I2S generic perceive l_fifo output
-#set_multicycle_path -setup -end -from [get_registers i2s|l_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_l_fifo|Q[0][*]} ] 2
-#relaxing time to I2S generic perceive r_fifo output
-#set_multicycle_path -setup -end -from [get_registers i2s|r_fifo|fifo[0][*]] -to [get_registers {i2s|sync_chain_r_fifo|Q[0][*]} ] 2
-#relaxing time to I2S generic perceive IACK assertion
-#set_multicycle_path -setup -end -from [get_pins i2s|irq_ctrl|IACK_OUT[0]|combout] -to [get_registers {i2s|sync_chain_iack|Q[0][*]} ] 2
-#set_multicycle_path -setup -end -from [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:\A_i:*:d_ff_A|Q[*]}] -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
-#set_multicycle_path -setup -end -from [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:\B_i:*:d_ff_B|Q[*]}] -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
-#set_multicycle_path -setup -end -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 3
-#set_multicycle_path -hold -end -to [get_registers {inner_product_calculation_unit:inner_product|d_flip_flop:d_ff_result|Q[*]}] 2
+
 
 #**************************************************************
 # Set Maximum Delay
