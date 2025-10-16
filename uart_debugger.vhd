@@ -26,7 +26,7 @@ entity uart_debugger is
 		dbg_irq: buffer std_logic;-- debug irq, must be asserted for 1 clk cycle (which can be extended)
 		
 		IACK: in std_logic;--interrupt acknowledgement
-		next_pc: in std_logic_vector(31 downto 0);-- TODO: monitor PC (pc_in) for breakpoints
+		next_pc: in std_logic_vector(31 downto 0);-- byte address: monitor PC (pc_in) for breakpoints
 		------UART PHY---------
 		uart_phy_clk: in std_logic;--bit clock (not transmitted)
 		rx: in std_logic;
