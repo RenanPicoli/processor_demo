@@ -158,7 +158,7 @@ begin
 						 end if;
 
 					when READING =>
-						 if RDEN = '0' then
+						 if RDEN = '0' then--reading finished (cpu/dma already latched the data)
 							  nxt_op_state <= IDLE;
 						 elsif ADDR_VALID = '0' then--"miss": bank or row changed during burst
 							  nxt_op_state <= BURST_STOP;
@@ -217,6 +217,9 @@ begin
 		elsif(rising_edge(clk))then
 			if(init_state=INITIALIZED)then
 				ref_count_op <= ref_count_op+1;
+				if(ref_count_op = 780)then --last cycle before end of 64ms/8192
+					ref_count_op <= 0;
+				end if;
 			end if;
 			case op_state is
 
@@ -265,9 +268,6 @@ begin
 					read_count <= 0;
 					act_count <= 0;
 					precharge_count <= 0;
-					if(ref_count_op = 780)then --last cycle before end of 64ms/8192
-						ref_count_op <= 0;
-					end if;
 			end case;
 		end if;
 	end process;
