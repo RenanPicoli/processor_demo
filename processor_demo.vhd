@@ -983,6 +983,11 @@ signal sdram_ctrl_rden: std_logic;
 signal sdram_ctrl_ready: std_logic;
 signal sdram_ctrl_clk: std_logic;--100MHz for SDRAM control and IO
 signal sdram_addr: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
+--delayed signais to avoid glitches in SDRAM control signals (clock much faster than cpu/dma clock)
+--these signals are activated only on the negative portion of cpu clock to allow signal settling
+signal sdram_ctrl_wren_del: std_logic;
+signal sdram_ctrl_rden_del: std_logic;
+signal sdram_addr_del: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
 
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
@@ -1735,7 +1740,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		ISR_addr => ISR_ADDR,--address for interrupt handler, loaded when irq is asserted, it is valid one clock cycle after the IRQ detection
 
 		------CPU DBG ITFC---------
-		clk_out => proc_clk_out,--TODO: must be processor internal clock
+		clk_out => proc_clk_out,-- processor internal clock
 		dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes to register or memory
 		dbg_data_1 => proc_dbg_data_1,-- address for memory access, register for reg_file access
 		dbg_data_2 => proc_dbg_data_2,-- value for reading memory or register
@@ -1828,17 +1833,33 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
 	--to an word address (starting at 0)
 	sdram_addr <= ram_addr - ranges(18)(0);
+	
+	--delayed signais to avoid glitches in SDRAM control signals (clock much faster than cpu/dma clock)
+	--these signals are activated only on the negative portion of cpu clock to allow signal settling
+	sdram_ctrl_signals_PROC : process(proc_clk_out, rst, sdram_addr, sdram_ctrl_wren, sdram_ctrl_rden)
+	begin
+		if rst = '1' then--internal cpu clock
+			sdram_addr_del <= (others => '0');
+			sdram_ctrl_wren_del <= '0';
+			sdram_ctrl_rden_del <= '0';	
+		elsif falling_edge(proc_clk_out) then --allow cpu outputs to settle down
+			sdram_addr_del <= sdram_addr;
+			sdram_ctrl_wren_del <= sdram_ctrl_wren;
+			sdram_ctrl_rden_del <= sdram_ctrl_rden;
+		end if;
+	end process;
+	
 	sdram_ctrl: sdram_controller
 	generic map (CAS_LATENCY => 2 )
 	port map (
 		----CPU/DMA itfc-----
 		clk	=> sdram_ctrl_clk,--100MHz
 		rst	=> rst,
-		addr	=> sdram_addr,--32M words
+		addr	=> sdram_addr_del,--32M words
 		D		=> ram_write_data,
 		Q		=> sdram_ctrl_Q,
-		wren	=> sdram_ctrl_wren,
-		rden	=> sdram_ctrl_rden,
+		wren	=> sdram_ctrl_wren_del,
+		rden	=> sdram_ctrl_rden_del,
 		ready	=> sdram_ctrl_ready,
 		------SDRAM itfc-----
 		A		=> sdram_A,
