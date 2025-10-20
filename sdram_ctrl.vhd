@@ -58,37 +58,38 @@ begin
 	DQM <= "0000";--all bytes are enabled
 	CLK_OUT <= CLK;
 	DQ <= D when wren='1' else (others=>'Z');
-	Q <= DQ when rden='1' and ready='1' else (others=>'0');
+	Q <= DQ when rden='1' else (others=>'0');
 	
 	----------------intialization FSM--------------------------
-	process(clk, rst, PWRUP_counter, tRP_counter, ref_counter)
-	begin
+	process(clk, rst, PWRUP_counter, tRP_counter, ref_counter, init_state)
+	begin		
+		nxt_init_state <= init_state;--default value so we don't get a latch
 		if(rst='1')then
-				nxt_init_state <= PWRUP;
+			nxt_init_state <= PWRUP;
 		else
-			 case init_state is
-				when PWRUP => if (PWRUP_counter = 20_000)then nxt_init_state <= PRE; end if;
-				when PRE => if (tRP_counter = 1)then nxt_init_state <= AR0; end if;
-				when AR0 => nxt_init_state <= NOP0;
-				when NOP0 => if (ref_counter = 6)then nxt_init_state <= AR1; end if;
-				when AR1 => nxt_init_state <= NOP1;
-				when NOP1 => if (ref_counter = 6)then nxt_init_state <= AR2; end if;
-				when AR2 => nxt_init_state <= NOP2;
-				when NOP2 =>if (ref_counter = 6)then nxt_init_state <= AR3; end if;
-				when AR3 => nxt_init_state <= NOP3;
-				when NOP3 => if (ref_counter = 6)then nxt_init_state <= AR4; end if;
-				when AR4 => nxt_init_state <= NOP4;
-				when NOP4 => if (ref_counter = 6)then nxt_init_state <= AR5; end if;
-				when AR5 => nxt_init_state <= NOP5;
-				when NOP5 => if (ref_counter = 6)then nxt_init_state <= AR6; end if;
-				when AR6 => nxt_init_state <= NOP6;
-				when NOP6 => if (ref_counter = 6)then nxt_init_state <= AR7; end if;
-				when AR7 => nxt_init_state <= NOP7;
-				when NOP7 => if (ref_counter = 6)then nxt_init_state <= LOAD; end if;
-				when LOAD => nxt_init_state <= NOPF;
-				when NOPF => nxt_init_state <= INITIALIZED;
-				when INITIALIZED => nxt_init_state <= INITIALIZED;
-			 end case;
+			case init_state is
+			when PWRUP => if (PWRUP_counter = 20_000)then nxt_init_state <= PRE; end if;
+			when PRE => if (tRP_counter = 1)then nxt_init_state <= AR0; end if;
+			when AR0 => nxt_init_state <= NOP0;
+			when NOP0 => if (ref_counter = 6)then nxt_init_state <= AR1; end if;
+			when AR1 => nxt_init_state <= NOP1;
+			when NOP1 => if (ref_counter = 6)then nxt_init_state <= AR2; end if;
+			when AR2 => nxt_init_state <= NOP2;
+			when NOP2 =>if (ref_counter = 6)then nxt_init_state <= AR3; end if;
+			when AR3 => nxt_init_state <= NOP3;
+			when NOP3 => if (ref_counter = 6)then nxt_init_state <= AR4; end if;
+			when AR4 => nxt_init_state <= NOP4;
+			when NOP4 => if (ref_counter = 6)then nxt_init_state <= AR5; end if;
+			when AR5 => nxt_init_state <= NOP5;
+			when NOP5 => if (ref_counter = 6)then nxt_init_state <= AR6; end if;
+			when AR6 => nxt_init_state <= NOP6;
+			when NOP6 => if (ref_counter = 6)then nxt_init_state <= AR7; end if;
+			when AR7 => nxt_init_state <= NOP7;
+			when NOP7 => if (ref_counter = 6)then nxt_init_state <= LOAD; end if;
+			when LOAD => nxt_init_state <= NOPF;
+			when NOPF => nxt_init_state <= INITIALIZED;
+			when INITIALIZED => nxt_init_state <= INITIALIZED;
+			end case;
 		end if;
 	end process;
 	
@@ -134,77 +135,78 @@ begin
 	------------operation FSM---------
 	process(rst, clk, op_state, init_state, RDEN, WREN, ADDR_VALID, read_count, precharge_count, act_count, ref_count_op)
 		 begin
+			nxt_op_state <= op_state;--default value so we don't get a latch
 			if(rst='1')then
-					nxt_op_state <= IDLE;
+				nxt_op_state <= IDLE;
 			else
 				case op_state is
 
 					when IDLE =>
-						 if(init_state = INITIALIZED)then
-							 if RDEN = '1' and ADDR_VALID='1' then
-								  nxt_op_state <= START_READ;
-							 elsif RDEN = '1' and ADDR_VALID='0' then
-								  nxt_op_state <= PRECHARGE;
-							 elsif WREN = '1' and ADDR_VALID='1' then
-								  nxt_op_state <= WRITING;
-							 elsif WREN = '1' and ADDR_VALID='0' then
-								  nxt_op_state <= PRECHARGE;
-							 end if;
-						 end if;
+						if(init_state = INITIALIZED)then
+							if RDEN = '1' and ADDR_VALID='1' then
+								nxt_op_state <= START_READ;
+							elsif RDEN = '1' and ADDR_VALID='0' then
+								nxt_op_state <= PRECHARGE;
+							elsif WREN = '1' and ADDR_VALID='1' then
+								nxt_op_state <= WRITING;
+							elsif WREN = '1' and ADDR_VALID='0' then
+								nxt_op_state <= PRECHARGE;
+							end if;
+						end if;
 
 					when START_READ =>
-						 if read_count >= CAS_LATENCY then
-							  nxt_op_state <= READING;
-						 end if;
+						if read_count >= CAS_LATENCY then
+							nxt_op_state <= READING;
+						end if;
 
 					when READING =>
-						 if RDEN = '0' then--reading finished (cpu/dma already latched the data)
-							  nxt_op_state <= IDLE;
-						 elsif ADDR_VALID = '0' then--"miss": bank or row changed during burst
-							  nxt_op_state <= BURST_STOP;
-						 end if;
-						 
+						if RDEN = '0' then--reading finished (cpu/dma already latched the data)
+							nxt_op_state <= IDLE;
+						elsif ADDR_VALID = '0' then--"miss": bank or row changed during burst
+							nxt_op_state <= BURST_STOP;
+						end if;
+						
 					when WRITING =>
-						 nxt_op_state <= IDLE;
+						nxt_op_state <= IDLE;
 
 					when BURST_STOP =>
-						 nxt_op_state <= PRECHARGE;
+						nxt_op_state <= PRECHARGE;
 
 					when PRECHARGE =>
-						 if precharge_count >= 1 then
-							  nxt_op_state <= ACTIVATE;
-						 end if;
+						if precharge_count >= 1 then
+							nxt_op_state <= ACTIVATE;
+						end if;
 
 					when ACTIVATE =>
-						 if act_count>= 1 then
+						if act_count>= 1 then
 							if(RDEN='1')then
-							  nxt_op_state <= START_READ;
+							nxt_op_state <= START_READ;
 							elsif(WREN='1')then
-							  nxt_op_state <= WRITING;
+							nxt_op_state <= WRITING;
 							else							
-							  nxt_op_state <= IDLE;
+							nxt_op_state <= IDLE;
 							end if;
-						 end if;
+						end if;
 
 					when PALL =>
-						 if precharge_count >= 1 then
-							  nxt_op_state <= AR;
-						 end if;
-						 
+						if precharge_count >= 1 then
+							nxt_op_state <= AR;
+						end if;
+						
 					when AR =>
 						if ref_count_op = 780 then
 							nxt_op_state <= IDLE;
 						end if;
 
 					when others =>
-						 nxt_op_state <= IDLE;
+						nxt_op_state <= IDLE;
 
-			  end case;
-			  --in case of approximating the next auto refresh, overrides the state determined by case statement
-			  if(ref_count_op = 770)then --last cycle before end of 64ms/8192
+			end case;
+			--in case of approximating the next auto refresh, overrides the state determined by case statement
+			if(ref_count_op = 770)then --last cycle before end of 64ms/8192
 					nxt_op_state <= PALL;
-			  end if;
 			end if;
+		end if;
 	end process;
 	
 	process(rst,clk,op_state,init_state)
@@ -282,8 +284,12 @@ begin
 	end process;
 	
 	-----------------output driving--------------------	
-	process(clk,rst,init_state,op_state)
+	process(clk,rst,init_state,op_state,tRP_counter,read_count,RDEN,addr,precharge_count,previous_offset,nxt_op_state,act_count,ref_count_op)
 	begin
+		--default values sowe don't synthesize latches
+		A <= (others => '0');
+		BA <= (others => '0');
+
 		if init_state = PWRUP or init_state=NOP0 or init_state= NOP1 or init_state=NOP2 or
 			init_state=NOP3 or init_state=NOP4 or init_state= NOP5 or init_state=NOP6 or init_state = NOP7 or 
 			init_state=NOPF then --NOP
@@ -392,7 +398,7 @@ begin
 	end process;
 	
 	-----------------ready driving--------------------
-	process(op_state)
+	process(op_state,RDEN,ADDR_VALID)
 	begin
 		case op_state is
 			when READING =>
@@ -415,20 +421,25 @@ begin
 	-----------------ADDR_VALID driving--------------------
 	process(rden,wren,offset,previous_offset,nxt_op_state,op_state,init_state)
 	begin
-		if(init_state/=INITIALIZED or op_state=PALL)then
-			ADDR_VALID <= '0';--this default value causes an additional PRECHARGE after INITIALIZED
-		elsif ((wren='1') or ( rden='1' and (nxt_op_state=START_READ or op_state=READING))) then--starting burst reading or write
+--		ADDR_VALID <= '0';--default value so we don't get a latch
+--		if(init_state/=INITIALIZED or op_state=PALL)then
+--			ADDR_VALID <= '0';--this default value causes an additional PRECHARGE after INITIALIZED
+		if ((wren='1') or ( rden='1' and (nxt_op_state=START_READ or nxt_op_state=READING))) then--starting burst reading or write
 			if (offset=previous_offset) then
 				ADDR_VALID <= '1';
 			else
 				ADDR_VALID <= '0';
 			end if;
+--		elsif then
+--			ADDR_VALID <= '1';
+		else
+			ADDR_VALID <= '0';
 		end if;
 	end process;
 	
 	--previous_offset generation
 	--registers address for correct operation of flag req_ready
-	process(CLK,offset,ADDR_VALID,RST)
+	process(CLK,offset,ADDR_VALID,RST,RDEN,WREN,nxt_op_state)
 	begin
 		if(RST='1')then
 			previous_offset <= (others=>'0');
