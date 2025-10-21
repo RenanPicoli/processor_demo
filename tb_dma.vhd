@@ -18,9 +18,10 @@ architecture test of tb_dma is
     signal wr_en     : std_logic := '0';
 
     -- Interface de memória única
+    signal mem_CLK   : std_logic;
     signal mem_addr  : std_logic_vector(31 downto 0);
     signal mem_data  : std_logic_vector(31 downto 0) := (others => '0');
-	 signal mem_ready	: std_logic;
+	signal mem_ready	: std_logic;
     signal mem_rden  : std_logic;
     signal mem_wren  : std_logic;
     
@@ -29,8 +30,8 @@ architecture test of tb_dma is
     signal iack      : std_logic;
 
     -- Simulação de uma memória RAM
-	 constant ram_depth : natural := 256;
-	 constant ram_width : natural := 32;
+	constant ram_depth : natural := 256;
+	constant ram_width : natural := 32;
     type ram_type is array (0 to ram_depth-1) of std_logic_vector(ram_width-1 downto 0);
 	 
 	--code from https://vhdlwhiz.com/initialize-ram-from-file/
@@ -49,7 +50,9 @@ architecture test of tb_dma is
     signal RAM       : ram_type := init_ram_hex;--(others => (others => '0'));
 
     -- Clock de 10 ns (100 MHz)
-    constant clk_period : time := 10 ns;
+    constant mem_clk_period : time := 10 ns;
+    -- Clock de 10 ns (4 MHz)
+    constant clk_period : time := 250 ns;
 
 begin
     -- Instância do DMA
@@ -61,19 +64,20 @@ begin
         D         => D,
         Q         => Q,
         wr_en     => wr_en,
+        mem_clk   => mem_clk,
         mem_addr  => mem_addr,
         mem_data  => mem_data,
-		  mem_ready	=> mem_ready,
+		mem_ready	=> mem_ready,
         mem_rden  => mem_rden,
         mem_wren  => mem_wren,
         irq       => irq,
-		  iack		=> iack
+		iack		=> iack
     );
 
     -- Geração de clock
     process
     begin
-        while now < 1500 ns loop
+        while now < 2000 ns loop
             clk <= '0';
             wait for clk_period / 2;
             clk <= '1';
@@ -82,10 +86,21 @@ begin
         wait;
     end process;
 
-    -- Processo para simular memória RAM
-    process (clk)
+    process
     begin
-        if rising_edge(clk) then
+        while now < 2000 ns loop
+            mem_clk <= '0';
+            wait for mem_clk_period / 2;
+            mem_clk <= '1';
+            wait for mem_clk_period / 2;
+        end loop;
+        wait;
+    end process;
+
+    -- Processo para simular memória RAM
+    process (mem_clk)
+    begin
+        if rising_edge(mem_clk) then
             if mem_rden = '1' then
                 mem_data <= RAM(conv_integer(mem_addr));
             elsif mem_wren = '1' then
@@ -93,7 +108,7 @@ begin
             end if;
         end if;
     end process;
-	 mem_ready <= '1', '0' after 145ns, '1' after 205ns, '0' after 695ns, '1' after 905ns;
+	mem_ready <= '1', '0' after 145ns, '1' after 205ns, '0' after 695ns, '1' after 905ns;
 
     -- Teste principal
     process
@@ -108,17 +123,17 @@ begin
         wait for 10 ns;
         wr_en <= '1';
         
-        addr <= "00"; D <= x"00000000"; wait for 10 ns; -- src_addr = 0x00000000
-        addr <= "01"; D <= x"000000D0"; wait for 10 ns; -- dst_addr = 0x000000D0
-        addr <= "10"; D <= x"00000030"; wait for 10 ns; -- length = 48 (48 palavras)
-        addr <= "11"; D <= x"0000000D"; wait for 10 ns; -- CR: Start = 1, SINC = 1, DINC = 1
+        addr <= "00"; D <= x"00000000"; wait for 250 ns; -- src_addr = 0x00000000
+        addr <= "01"; D <= x"000000D0"; wait for 250 ns; -- dst_addr = 0x000000D0
+        addr <= "10"; D <= x"00000030"; wait for 250 ns; -- length = 48 (48 palavras)
+        addr <= "11"; D <= x"0000000D"; wait for 250 ns; -- CR: Start = 1, SINC = 1, DINC = 1
 
         wr_en <= '0';
 
         -- Aguarda a interrupção (fim da transferência)
         wait until irq = '1';
-        wait for 10 ns;
-		  iack <= '1';
+        wait for 250 ns;
+		iack <= '1';
 
         -- Verifica se os dados foram transferidos corretamente
         for i in 0 to 15 loop

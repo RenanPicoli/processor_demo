@@ -6,19 +6,20 @@ use ieee.std_logic_unsigned.all;
 entity dma_controller is
 	 generic (FIFO_LEN: natural := 32);
     port (
-        clk       : in  std_logic;
         reset     : in  std_logic;
 
         -- Barramento de CPU para configuração
+        clk       : in  std_logic; -- cpu clock
         addr      : in  std_logic_vector(1 downto 0);  -- Seleção de registrador (2 bits para 4 registradores)
         D         : in  std_logic_vector(31 downto 0); -- Dados de entrada (escrita)
         Q         : out std_logic_vector(31 downto 0); -- Dados de saída (leitura)
         wr_en     : in  std_logic; -- Sinal de escrita nos registradores
 
         -- Interface única de memória
+        mem_clk   : in  std_logic;--memory clock (e.g. SDRAM)
         mem_addr  : out std_logic_vector(31 downto 0);
         mem_data  : inout std_logic_vector(31 downto 0);
-		  mem_ready	: in std_logic;
+		mem_ready : in std_logic;
         mem_rden  : out std_logic;
         mem_wren  : out std_logic;
 
@@ -91,7 +92,7 @@ begin
 	end process;
 
     -- Máquina de estados para leitura e escrita usando FIFO
-    process (clk, reset, iack, mem_ready)
+    process (mem_clk, reset, iack, mem_ready)
     begin
         if reset = '1' then
             count     <= (others => '0');
@@ -102,7 +103,7 @@ begin
             irq       <= '0';
 			elsif(iack='1')then
             irq       <= '0';
-        elsif rising_edge(clk) then
+        elsif rising_edge(mem_clk) then
             case state is
                 when "00" =>  -- IDLE
                     if CR(0) = '1' and CR(1) = '0' then
