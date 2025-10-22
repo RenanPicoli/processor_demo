@@ -9,18 +9,21 @@ entity arbiter is
         rst : in std_logic;
         -----
         cpu_addr: in std_logic_vector(31 downto 0);
+        cpu_write_data: in std_logic_vector(31 downto 0);
         cpu_rden: in std_logic;
         cpu_wren: in std_logic;
         cpu_ready: out std_logic;
         cpu_Q: out std_logic_vector(31 downto 0);
         -----
         dma_addr: in std_logic_vector(31 downto 0);
+        dma_write_data: in std_logic_vector(31 downto 0);
         dma_rden: in std_logic;
         dma_wren: in std_logic;
         dma_ready: out std_logic;
         dma_Q: out std_logic_vector(31 downto 0);
         -----
         mem_addr: out std_logic_vector(31 downto 0);
+        mem_write_data: out std_logic_vector(31 downto 0);
         mem_rden: out std_logic;
         mem_wren: out std_logic;
         mem_ready: in std_logic;
@@ -40,6 +43,7 @@ begin
     
         when '1' =>
             mem_addr <= dma_addr;
+            mem_write_data <= dma_write_data;
             mem_wren <= dma_wren;
             mem_rden <= dma_rden;
             dma_ready <= mem_ready;
@@ -48,6 +52,7 @@ begin
             cpu_Q <= (others => '0');
         when others =>
             mem_addr <= cpu_addr;
+            mem_write_data <= cpu_write_data;
             mem_wren <= cpu_wren;
             mem_rden <= cpu_rden;
             cpu_ready <= mem_ready;
