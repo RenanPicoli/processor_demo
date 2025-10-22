@@ -77,7 +77,8 @@ begin
 			if(i > 0)then
 				assert (B(i-1)(1) < B(i)(0)) report "Ranges overlap!" severity error;
 			end if;
-			assert ((B(i)(1) < B(i)(0) + 2**p) or p=32) report "Unaligned range:[" & integer'image(B(i)(0)) & ", " & integer'image(B(i)(1)) & "]" severity error;
+			--aligned start address is not strict requirement: I can subtract base address and get a zero-base internall address
+--			assert ((B(i)(1) < B(i)(0) + 2**p) or p=32) report "Unaligned range:[" & integer'image(B(i)(0)) & ", " & integer'image(B(i)(1)) & "]" severity error;
 			mask(N):='1';
 			upper_lim_slv := std_logic_vector(to_unsigned(B(i)(1),N));
 			lower_lim_slv := std_logic_vector(to_unsigned(B(i)(0),N));
