@@ -18,7 +18,8 @@ entity dma_controller is
         -- Interface única de memória
         mem_clk   : in  std_logic;--memory clock (e.g. SDRAM)
         mem_addr  : out std_logic_vector(31 downto 0);
-        mem_data  : inout std_logic_vector(31 downto 0);
+        mem_data_in: in std_logic_vector(31 downto 0);
+        mem_data_out: out std_logic_vector(31 downto 0);
 		mem_ready : in std_logic;
         mem_rden  : out std_logic;
         mem_wren  : out std_logic;
@@ -115,7 +116,7 @@ begin
                         -- Inicia leitura
 
                         -- Armazena na FIFO após leitura
-                        fifo(fifo_head) <= mem_data;
+                        fifo(fifo_head) <= mem_data_in;
                         fifo_head <= (fifo_head + 1) mod FIFO_LEN;
                         fifo_count <= fifo_count + 1;                        
 
@@ -135,7 +136,7 @@ begin
                 when "10" =>  -- WRITING
                     if fifo_count > 0 then
                         -- Escreve na memória
-                        mem_data <= fifo(fifo_tail);
+                        mem_data_out <= fifo(fifo_tail);
 								
 								--update pointers/counters
 								if(mem_ready = '1')then

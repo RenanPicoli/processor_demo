@@ -677,7 +677,8 @@ component dma_controller
         -- Interface única de memória
         mem_clk   : in  std_logic;--memory clock (e.g. SDRAM)
         mem_addr  : out std_logic_vector(31 downto 0);
-        mem_data  : inout std_logic_vector(31 downto 0);
+        mem_data_in: in std_logic_vector(31 downto 0);
+        mem_data_out: out std_logic_vector(31 downto 0);
 		mem_ready : in std_logic;
         mem_rden  : out std_logic;
         mem_wren  : out std_logic;
@@ -1888,7 +1889,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		  --ports for memory transfers
         mem_clk   => sdram_ctrl_clk,
         mem_addr  => dma_ram_addr,
-        mem_data  => mem_data,--TODO: check this
+        mem_data_in  => dma_ram_Q,
+        mem_data_out  => dma_ram_write_data,
 		mem_ready	=> dma_ram_ready,
         mem_rden  => dma_ram_rden,
         mem_wren  => dma_ram_wren,
