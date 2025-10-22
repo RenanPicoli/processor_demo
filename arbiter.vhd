@@ -43,7 +43,7 @@ begin
             mem_wren <= dma_wren;
             mem_rden <= dma_rden;
             dma_ready <= mem_ready;
-            cpu_ready <= '0'';
+            cpu_ready <= '0';
             dma_Q <= mem_Q;
             cpu_Q <= (others => '0');
         when others =>
@@ -51,7 +51,7 @@ begin
             mem_wren <= cpu_wren;
             mem_rden <= cpu_rden;
             cpu_ready <= mem_ready;
-            dma_ready <= '0'';
+            dma_ready <= '0';
             dma_Q <= (others => '0');
             cpu_Q <= mem_Q;
     
@@ -64,9 +64,9 @@ begin
         dma_access_granted <= '0';--cpu controls memory
 
     elsif rising_edge(clk) then
-        if (dma_rden='1' or dma_wren='1') and cpu_ready='1' and dma_access_granted='0' then
-            dma_access_granted <= '1';--dma assumes control of memory, MAYBE BEFORE cpu latches read data
-        elsif (cpu_rden='1' or cpu_wren='1') and dma_ready='1' and dma_access_granted='1' then            
+        if (dma_rden='1' or dma_wren='1') and (cpu_rden='0' and cpu_wren='0') and dma_access_granted='0' then
+            dma_access_granted <= '1';--dma takes control of memory
+        elsif (cpu_rden='1' or cpu_wren='1') and (dma_rden='0' and dma_wren='0') and dma_access_granted='1' then
             dma_access_granted <= '0';
         end if;
 
