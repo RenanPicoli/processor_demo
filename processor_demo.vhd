@@ -632,6 +632,81 @@ component sdram_controller
     );
 end component;
 
+-------cpu/dma arbiter------------------
+component arbiter
+    port (
+        clk : in std_logic;--memory clock (e.g. SDRAM)
+        rst : in std_logic;
+        -----
+        cpu_addr: in std_logic_vector(31 downto 0);
+        cpu_rden: in std_logic;
+        cpu_wren: in std_logic;
+        cpu_ready: out std_logic;
+        cpu_Q: out std_logic_vector(31 downto 0);
+        -----
+        dma_addr: in std_logic_vector(31 downto 0);
+        dma_rden: in std_logic;
+        dma_wren: in std_logic;
+        dma_ready: out std_logic;
+        dma_Q: out std_logic_vector(31 downto 0);
+        -----
+        mem_addr: out std_logic_vector(31 downto 0);
+        mem_rden: out std_logic;
+        mem_wren: out std_logic;
+        mem_ready: in std_logic;
+        mem_Q: out std_logic_vector(31 downto 0)
+    );
+end component;
+
+-----------dma controller------------
+component dma_controller
+	 generic (FIFO_LEN: natural := 32);
+    port (
+        reset     : in  std_logic;
+
+        -- Barramento de CPU para configuração
+        clk       : in  std_logic; -- cpu clock
+        addr      : in  std_logic_vector(1 downto 0);  -- Seleção de registrador (2 bits para 4 registradores)
+        D         : in  std_logic_vector(31 downto 0); -- Dados de entrada (escrita)
+        Q         : out std_logic_vector(31 downto 0); -- Dados de saída (leitura)
+        wr_en     : in  std_logic; -- Sinal de escrita nos registradores
+
+        -- Interface única de memória
+        mem_clk   : in  std_logic;--memory clock (e.g. SDRAM)
+        mem_addr  : out std_logic_vector(31 downto 0);
+        mem_data  : inout std_logic_vector(31 downto 0);
+		mem_ready : in std_logic;
+        mem_rden  : out std_logic;
+        mem_wren  : out std_logic;
+
+        -- Sinal de interrupção ao final da transferência
+        irq       : out std_logic;
+        iack      : in std_logic
+    );
+end component;
+
+-----------vga controller------------
+component vga_controller
+    port (
+        clk        : in  std_logic;   -- Clock principal
+        rst        : in  std_logic;   -- reset assíncrono
+        PCLK       : in  std_logic;   -- Pixel clock
+        addr       : in  std_logic_vector(5 downto 0);
+        data_in    : in  std_logic_vector(31 downto 0);
+        wren      : in  std_logic;
+
+        SYNC_N     : out std_logic;
+        BLANK_N    : out std_logic;
+
+        hsync      : out std_logic;
+        vsync      : out std_logic;
+
+        R          : out std_logic_vector(7 downto 0);
+        G          : out std_logic_vector(7 downto 0);
+        B          : out std_logic_vector(7 downto 0)
+    );
+end component;
+
 signal rst: std_logic;--active high
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
@@ -1756,20 +1831,25 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		dbg_iack => proc_dbg_iack,--interrupt acknowledgement
 		dbg_next_pc => proc_next_pc,-- monitor PC (pc_in) for breakpoints
 		
+		------instruction memory interface---------
 		ADDR_rom => instruction_memory_address,
 		i_cache_ready => i_cache_ready_sync,--synchronized to rising_edge(CLK)
 		CLK_rom => instruction_clk,
 		Q_rom => instruction_memory_output,
+		
+		------ram interface-------------
 		ADDR_ram => ram_addr,
 		write_data_ram => ram_write_data,
 		rden_ram => ram_rden,
 		wren_ram => ram_wren,
 		d_cache_ready => d_cache_ready_sync,
+		Q_ram => ram_Q_buffer_out,
+
+		---- special control signals------
 		vmac_en => vmac_en,
 		wren_lvec => lvec,
 		lvec_src => lvec_src,
-		lvec_dst_mask => lvec_dst_mask,
-		Q_ram => ram_Q_buffer_out
+		lvec_dst_mask => lvec_dst_mask
 	);	
 
 	--patch replacing deffective sync chain
