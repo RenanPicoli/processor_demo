@@ -639,18 +639,21 @@ component arbiter
         rst : in std_logic;
         -----
         cpu_addr: in std_logic_vector(31 downto 0);
+        cpu_write_data: in std_logic_vector(31 downto 0);
         cpu_rden: in std_logic;
         cpu_wren: in std_logic;
         cpu_ready: out std_logic;
         cpu_Q: out std_logic_vector(31 downto 0);
         -----
         dma_addr: in std_logic_vector(31 downto 0);
+        dma_write_data: in std_logic_vector(31 downto 0);
         dma_rden: in std_logic;
         dma_wren: in std_logic;
         dma_ready: out std_logic;
         dma_Q: out std_logic_vector(31 downto 0);
         -----
         mem_addr: out std_logic_vector(31 downto 0);
+        mem_write_data: out std_logic_vector(31 downto 0);
         mem_rden: out std_logic;
         mem_wren: out std_logic;
         mem_ready: in std_logic;
@@ -797,11 +800,24 @@ signal ram_addr: std_logic_vector(31 downto 0);
 signal ram_rden: std_logic;
 signal ram_wren: std_logic;
 signal ram_write_data: std_logic_vector(31 downto 0);
-signal d_cache_ready: std_logic;
-signal d_cache_ready_sync: std_logic;--d_cache_ready synchronized to rising_edge(CLK)
---signal ram_Q: std_logic_vector(31 downto 0);
-signal ram_Q_buffer_in: std_logic_vector(31 downto 0);
-signal ram_Q_buffer_out: std_logic_vector(31 downto 0);
+signal ram_Q: std_logic_vector(31 downto 0);
+signal ram_ready: std_logic;
+
+-----signals between cpu and arbiter--------
+signal    cpu_ram_addr: std_logic_vector(31 downto 0);
+signal    cpu_ram_write_data: std_logic_vector(31 downto 0);
+signal    cpu_ram_rden: std_logic;
+signal    cpu_ram_wren: std_logic;
+signal    cpu_ram_ready: std_logic;
+signal    cpu_ram_Q: std_logic_vector(31 downto 0);
+
+-----signals between dma and arbiter--------
+signal    dma_ram_addr: std_logic_vector(31 downto 0);
+signal    dma_ram_write_data: std_logic_vector(31 downto 0);
+signal    dma_ram_rden: std_logic;
+signal    dma_ram_wren: std_logic;
+signal    dma_ram_ready: std_logic;
+signal    dma_ram_Q: std_logic_vector(31 downto 0);
 
 -----------signals for (parallel) cache interfacing--------
 signal cache_Q: std_logic_vector(31 downto 0);
@@ -1798,13 +1814,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			ready_in => all_periphs_ready,
 			RDEN_OUT => all_periphs_rden,-- output
 			WREN_OUT => all_periphs_wren,-- output
-			ready_out => d_cache_ready,
-			data_out => ram_Q_buffer_in-- data read
+			ready_out => ram_ready,
+			data_out => ram_Q-- data read
 	);
-	d_cache_ready_sync <= d_cache_ready;
-	
-	ram_Q_buffer_out <= ram_Q_buffer_in;
-	
+		
 	processor: microprocessor
 	port map (
 		CLK_IN => CLK,
@@ -1838,20 +1851,48 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		Q_rom => instruction_memory_output,
 		
 		------ram interface-------------
-		ADDR_ram => ram_addr,
-		write_data_ram => ram_write_data,
-		rden_ram => ram_rden,
-		wren_ram => ram_wren,
-		d_cache_ready => d_cache_ready_sync,
-		Q_ram => ram_Q_buffer_out,
+		ADDR_ram => cpu_ram_addr,
+		write_data_ram => cpu_ram_write_data,
+		rden_ram => cpu_ram_rden,
+		wren_ram => cpu_ram_wren,
+		d_cache_ready => cpu_ram_ready,
+		Q_ram => cpu_ram_Q,
 
 		---- special control signals------
 		vmac_en => vmac_en,
 		wren_lvec => lvec,
 		lvec_src => lvec_src,
 		lvec_dst_mask => lvec_dst_mask
-	);	
-
+	);
+	
+	--decides wether dma or cpu have access to the RAM
+	arb: arbiter
+		 port map(
+			  clk=> sdram_ctrl_clk,--100MHz, must be fast, it is used for selecting the address decoder "master"
+			  rst=> rst,
+			  -----
+			  cpu_addr=> cpu_ram_addr,
+			  cpu_write_data=> cpu_ram_write_data,
+			  cpu_rden=> cpu_ram_rden,
+			  cpu_wren=> cpu_ram_wren,
+			  cpu_ready=> cpu_ram_ready,
+			  cpu_Q=> cpu_ram_Q,
+			  -----
+			  dma_addr=> dma_ram_addr,
+			  dma_write_data=> dma_ram_write_data,
+			  dma_rden=> dma_ram_rden,
+			  dma_wren=> dma_ram_wren,
+			  dma_ready=> dma_ram_ready,
+			  dma_Q=> dma_ram_Q,
+			  -----
+			  mem_addr=> ram_addr,
+			  mem_write_data=> ram_write_data,
+			  mem_rden=> ram_rden,
+			  mem_wren=> ram_wren,
+			  mem_ready=> ram_ready,
+			  mem_Q=> ram_Q
+		 );
+	 
 	--patch replacing deffective sync chain
 	filter_irq_sync <= filter_irq;
 --	-- synchronizes IRQ to rising_edge of CLK, because:
@@ -2014,12 +2055,12 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --		rx => uart_rx
 --	);
 
-	process(CLK,rst,d_cache_ready_sync)
+	process(CLK,rst,ram_ready)
 	begin
 		if(rst='1')then
 			proc_dbg_clk_en <='1';
 		elsif(falling_edge(CLK))then
-			if(d_cache_ready_sync='0')then
+			if(ram_ready='0')then
 				proc_dbg_clk_en <= '0';
 			else
 				proc_dbg_clk_en <= '1';
