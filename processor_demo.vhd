@@ -1864,7 +1864,27 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		lvec_src => lvec_src,
 		lvec_dst_mask => lvec_dst_mask
 	);
-	
+
+    dma: dma_controller
+    port map (
+			--ports for configuration (done by cpu)
+        clk       => clk,
+        reset     => reset,
+        addr      => addr,
+        D         => D,
+        Q         => Q,
+        wr_en     => wr_en,
+		  --ports for memory transfers
+        mem_clk   => sdram_ctrl_clk,
+        mem_addr  => dma_ram_addr,
+        mem_data  => mem_data,
+		mem_ready	=> dma_ram_ready,
+        mem_rden  => dma_ram_rden,
+        mem_wren  => dma_ram_wren,
+        irq       => irq,
+		iack		=> iack
+    );
+	 
 	--decides wether dma or cpu have access to the RAM
 	arb: arbiter
 		 port map(
