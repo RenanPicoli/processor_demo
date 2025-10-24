@@ -657,7 +657,7 @@ component arbiter
         mem_rden: out std_logic;
         mem_wren: out std_logic;
         mem_ready: in std_logic;
-        mem_Q: out std_logic_vector(31 downto 0)
+        mem_Q: in std_logic_vector(31 downto 0)
     );
 end component;
 
