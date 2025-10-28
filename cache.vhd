@@ -253,7 +253,7 @@ begin
 	registered_previous_offset: if REGISTER_ADDR generate
 		--previous_offset generation
 		--registers address for correct operation of flag req_ready
-		process(CLK,offset,req_ready,RST)
+		process(CLK,offset,req_ready,RST,req_rden,req_wren)
 		begin
 			if(RST='1')then
 				previous_offset <= (others=>'0');
@@ -270,7 +270,7 @@ begin
 	unregistered_previous_offset: if not REGISTER_ADDR generate
 		--previous_offset generation
 		--registers address for correct operation of flag req_ready
-		process(CLK,offset,req_ready,miss,RST)
+		process(CLK,offset,req_ready,miss,RST,req_rden,req_wren)
 		begin
 			if(RST='1')then
 				previous_offset <= (others=>'0');
@@ -302,7 +302,7 @@ begin
 	miss <= not hit;--glitches may happen
 	
 	registered_ready: if REGISTER_ADDR generate--when req_ADDR is the NEXT address
-		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren,full)
+		process(RST,CLK,waddr,raddr,miss,req_rden,req_wren,full,dc_fifo_full)
 		begin
 --			if(RST='1' or dc_fifo_full='1' or (waddr_sr(MEM_LATENCY+1)(W+D downto W) <= raddr(D-1 downto 0)))then
 			if(RST='1' or dc_fifo_full='1' or full='0')then

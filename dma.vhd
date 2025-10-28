@@ -81,7 +81,7 @@ begin
         end if;
     end process;
 
-	 process(addr)
+	 process(addr,src_addr,dst_addr,length,CR)
 	 begin
 		case addr is
 			 when "00" => Q <= src_addr;
