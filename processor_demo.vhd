@@ -1645,7 +1645,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				Q => tmp_vector_Q
 		);
 		
-	process(rst,ram_clk)
+	process(rst,ram_clk,gp_fp32_to_int32_wren,ram_addr)
 	begin
 		if(rst='1')then
 			fp_from_proc <= (others=>'0');
