@@ -136,6 +136,11 @@ set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pin
 #**************************************************************
 # Set Maximum Delay
 #**************************************************************
+set_max_delay -from [get_clocks sdram_ctrl_clk] -to [get_clocks uproc_clk] 250
+set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sdram_ctrl_clk] 40
+set_max_delay -from [get_clocks clk_fs] -to [get_clocks uproc_clk] 250
+set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sram_clk] 12.5
+
 
 # Intel recomendation for Clock Domain Crossing (CDC)
 #set_max_skew -from [get_pins i2s|CR|Q[*]|q ] -to [get_pins {i2s|sync_chain_CR|Q[0][*]|asdata} ] -get_skew_value_from_clock_period min_clock_period -skew_value_multiplier 0.8
