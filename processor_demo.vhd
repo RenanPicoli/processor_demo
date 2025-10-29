@@ -2010,11 +2010,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		----CPU/DMA itfc-----
 		clk	=> sdram_ctrl_clk,--100MHz
 		rst	=> rst,
-		addr	=> sdram_addr_del,--32M words
+		addr	=> sdram_addr,--32M words
 		D		=> ram_write_data,
 		Q		=> sdram_ctrl_Q,
-		wren	=> sdram_ctrl_wren_del,
-		rden	=> sdram_ctrl_rden_del,
+		wren	=> sdram_ctrl_wren,
+		rden	=> sdram_ctrl_rden,
 		ready	=> sdram_ctrl_ready,
 		------SDRAM itfc-----
 		A		=> sdram_A,
