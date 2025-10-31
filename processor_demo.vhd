@@ -57,6 +57,15 @@ port (CLK_IN: in std_logic;--50MHz input
         sdram_CAS_N  : out std_logic;
         sdram_RAS_N  : out std_logic;
         sdram_CS_N  : out std_logic;
+		--VGA IO ports
+		vga_R: out std_logic_vector(7 downto 0);
+		vga_G: out std_logic_vector(7 downto 0);
+		vga_B: out std_logic_vector(7 downto 0);
+		vga_clk: out std_logic;
+		vga_sync_n: out std_logic;
+		vga_blank_n: out std_logic;
+		vga_hs: out std_logic;
+		vga_vs: out std_logic;
 		-- 7 segments displays
 		segments: out array7(7 downto 0);
 		--LCD
@@ -264,6 +273,7 @@ component pll_dbg_uproc
 		c1 	: OUT STD_LOGIC ;
 		c2 	: OUT STD_LOGIC ;
 		c3 	: OUT STD_LOGIC ;
+		c4 	: OUT STD_LOGIC ;
 		locked		: OUT STD_LOGIC 
 	);
 END component;
@@ -679,7 +689,7 @@ component dma_controller
         mem_addr  : out std_logic_vector(31 downto 0);
         mem_data_in: in std_logic_vector(31 downto 0);
         mem_data_out: out std_logic_vector(31 downto 0);
-		mem_ready : in std_logic;
+		  mem_ready : in std_logic;
         mem_rden  : out std_logic;
         mem_wren  : out std_logic;
 
@@ -692,12 +702,13 @@ end component;
 -----------vga controller------------
 component vga_controller
     port (
-        clk        : in  std_logic;   -- Clock principal
+        clk        : in  std_logic;   -- Clock principal, mesmo do DMA e SDRAM
         rst        : in  std_logic;   -- reset assíncrono
         PCLK       : in  std_logic;   -- Pixel clock
         addr       : in  std_logic_vector(5 downto 0);
         data_in    : in  std_logic_vector(31 downto 0);
-        wren      : in  std_logic;
+        wren       : in  std_logic;
+        ready      : out  std_logic;
 
         SYNC_N     : out std_logic;
         BLANK_N    : out std_logic;
@@ -993,10 +1004,11 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#76#,16#77#),-- 13: general purpose fp32_to_int32
 											(16#78#,16#79#),-- 14: UART peripheral (IF AVAILABLE)
 											(16#7A#,16#7D#),-- 15: DMA
-											(16#80#,16#FF#),-- 16: interrupt controller
-											(16#100#,16#10F#),-- 17: tmp_vector
-											(16#800#,16#FFF#),-- 18: instruction memory (aka program_data)
-											(16#2000000#,16#3FFFFFF#) --19: SDRAM
+											(16#7E#,16#7F#),-- 16: VGA
+											(16#80#,16#FF#),-- 17: interrupt controller
+											(16#100#,16#10F#),-- 18: tmp_vector
+											(16#800#,16#FFF#),-- 19: instruction memory (aka program_data)
+											(16#2000000#,16#3FFFFFF#) --20: SDRAM
 											);
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
@@ -1089,6 +1101,14 @@ signal sdram_ctrl_wren_del: std_logic;
 signal sdram_ctrl_rden_del: std_logic;
 signal sdram_addr_del: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
 
+--------- VGA controller interface--------
+signal vga_Q: std_logic_vector(31 downto 0);
+signal vga_addr: std_logic_vector(31 downto 0);-- zero-based address for VGA
+signal vga_wren: std_logic;
+signal vga_rden: std_logic;
+signal vga_ready: std_logic;
+signal vga_pclk: std_logic;--25MHZ for PCLK
+
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
@@ -1107,7 +1127,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
 	--to an instruction address (starting at 0)
-	program_data_address <= ram_addr(18 downto 0) - ranges(18)(0);
+	program_data_address <= ram_addr(18 downto 0) - ranges(19)(0);
 	d_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
@@ -1763,18 +1783,19 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
 	
-	all_periphs_ready		<= (19=> sdram_ctrl_ready, 18=> program_data_ready, 16=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (19=> sdram_ctrl_Q, 18=> program_data_Q, 17=> tmp_vector_Q, 16 => irq_ctrl_Q, 15 => dma_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready		<= (20=> sdram_ctrl_ready, 19=> program_data_ready, 17=> irq_ctrl_ready, 16=> vga_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
+	all_periphs_output	<= (20=> sdram_ctrl_Q, 19=> program_data_Q, 18=> tmp_vector_Q, 17 => irq_ctrl_Q, 16=> vga_Q, 15 => dma_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	sdram_ctrl_rden			<= all_periphs_rden(19);
-	program_data_rden			<= all_periphs_rden(18);-- not used, just to keep form
-	tmp_vector_rden			<= all_periphs_rden(17);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden(16);-- not used, just to keep form
-	dma_rden				<= all_periphs_rden(15);-- not used, just to keep form
+	sdram_ctrl_rden			<= all_periphs_rden(20);
+	program_data_rden			<= all_periphs_rden(19);-- not used, just to keep form
+	tmp_vector_rden			<= all_periphs_rden(18);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden(17);-- not used, just to keep form
+	vga_rden						<= all_periphs_rden(16);-- not used, just to keep form
+	dma_rden						<= all_periphs_rden(15);-- not used, just to keep form
 	uart_rden					<= all_periphs_rden(14);
 	gp_fp32_to_int32_rden	<= all_periphs_rden(13);-- not used, just to keep form
 	lcd_rden						<= all_periphs_rden(12);-- not used, just to keep form
@@ -1791,12 +1812,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_xN_rden				<= all_periphs_rden(1);
 	coeffs_mem_rden			<= all_periphs_rden(0);
 
-	sdram_ctrl_wren			<= all_periphs_wren(19);
-	program_data_wren			<= all_periphs_wren(18);
-	tmp_vector_wren			<= all_periphs_wren(17);
-	irq_ctrl_wren				<= all_periphs_wren(16);
-	dma_wren				<= all_periphs_wren(15);
-    uart_wren					<= all_periphs_wren(14);
+	sdram_ctrl_wren			<= all_periphs_wren(20);
+	program_data_wren			<= all_periphs_wren(19);
+	tmp_vector_wren			<= all_periphs_wren(18);
+	irq_ctrl_wren				<= all_periphs_wren(17);
+	vga_wren						<= all_periphs_wren(16);
+	dma_wren						<= all_periphs_wren(15);
+   uart_wren					<= all_periphs_wren(14);
 	gp_fp32_to_int32_wren	<= all_periphs_wren(13);
 	lcd_wren						<= all_periphs_wren(12);
 	disp_7seg_DR_wren			<= all_periphs_wren(11);
@@ -1987,22 +2009,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
 	--to an word address (starting at 0)
-	sdram_addr <= ram_addr - ranges(19)(0);
-	
-	--delayed signais to avoid glitches in SDRAM control signals (clock much faster than cpu/dma clock)
-	--these signals are activated only on the negative portion of cpu clock to allow signal settling
-	sdram_ctrl_signals_PROC : process(proc_clk_out, rst, sdram_addr, sdram_ctrl_wren, sdram_ctrl_rden)
-	begin
-		if rst = '1' then--internal cpu clock
-			sdram_addr_del <= (others => '0');
-			sdram_ctrl_wren_del <= '0';
-			sdram_ctrl_rden_del <= '0';	
-		elsif falling_edge(proc_clk_out) then --allow cpu outputs to settle down
-			sdram_addr_del <= sdram_addr;
-			sdram_ctrl_wren_del <= sdram_ctrl_wren;
-			sdram_ctrl_rden_del <= sdram_ctrl_rden;
-		end if;
-	end process;
+	sdram_addr <= ram_addr - ranges(20)(0);
 	
 	sdram_ctrl: sdram_controller
 	generic map (CAS_LATENCY => 2 )
@@ -2028,7 +2035,31 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		RAS_N	=> sdram_RAS_N,
 		CS_N	=> sdram_CS_N
     );
-	
+	 
+	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
+	--to an word address (starting at 0)
+	vga_addr <= ram_addr - ranges(16)(0);
+	vga: vga_controller
+			  port map (
+					----CPU/DMA itfc-----
+					clk     => sdram_ctrl_clk,--100MHz
+					rst	  => rst,
+					PCLK    => vga_pclk,
+					addr    => vga_addr(5 downto 0),
+					data_in => ram_write_data,
+					wren    => vga_wren,
+					ready   => vga_ready,
+					SYNC_N  => vga_sync_n,
+					BLANK_N => vga_blank_n,
+					hsync   => vga_hs,
+					vsync   => vga_vs,
+					--ADV7123 (video DAC) itfc
+					R       => vga_R,
+					G       => vga_G,
+					B       => vga_B
+			  );
+	vga_clk <= vga_pclk;
+
 	-- lcd_ctrl: LCD_Controller
 	-- generic map (F => 4)
 	-- port map (
@@ -2141,6 +2172,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
 		c3		=> sdram_ctrl_clk,--100MHz for SDRAM control and IO
+		c4		=> vga_pclk,--100MHz for SDRAM control and IO
 		locked=> open
 	);
 
