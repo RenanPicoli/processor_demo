@@ -144,6 +144,7 @@ set_max_delay -from [get_clocks clk_fs] -to [get_clocks uproc_clk] 500
 set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sram_clk] 25
 set_max_delay -from [get_clocks clk_vga_pclk] -to [get_clocks uproc_clk] 500
 set_max_delay -from [get_clocks uproc_clk] -to [get_clocks clk_vga_pclk] 80
+set_max_delay -from [get_clocks sdram_ctrl_clk] -to [get_clocks sram_clk] 25
 
 
 # Intel recomendation for Clock Domain Crossing (CDC)
