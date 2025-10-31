@@ -57,6 +57,8 @@ create_generated_clock -name {sram_clk} -source [get_pins {clk_dbg_uproc|altpll_
 create_generated_clock -name {sdram_ctrl_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 1 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[3]}] 
 # clk_dbg: 200MHz
 create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 4 -divide_by 1 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
+# clk_dbg: 25MHz
+create_generated_clock -name {clk_vga_pclk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 1 -divide_by 2 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[4]}] 
 
 
 create_generated_clock -name {clk_fs} -source [get_pins {clk_fs_sckin|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 1 -divide_by 544 -master_clock {clk_12M} [get_pins { clk_fs_sckin|altpll_component|auto_generated|pll1|clk[0] }] 
@@ -136,10 +138,12 @@ set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pin
 #**************************************************************
 # Set Maximum Delay
 #**************************************************************
-set_max_delay -from [get_clocks sdram_ctrl_clk] -to [get_clocks uproc_clk] 250
+set_max_delay -from [get_clocks sdram_ctrl_clk] -to [get_clocks uproc_clk] 500
 set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sdram_ctrl_clk] 40
-set_max_delay -from [get_clocks clk_fs] -to [get_clocks uproc_clk] 250
-set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sram_clk] 12.5
+set_max_delay -from [get_clocks clk_fs] -to [get_clocks uproc_clk] 500
+set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sram_clk] 25
+set_max_delay -from [get_clocks clk_vga_pclk] -to [get_clocks uproc_clk] 500
+set_max_delay -from [get_clocks uproc_clk] -to [get_clocks clk_vga_pclk] 80
 
 
 # Intel recomendation for Clock Domain Crossing (CDC)
