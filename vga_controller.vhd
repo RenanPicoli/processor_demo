@@ -4,12 +4,13 @@ use ieee.numeric_std.all;
 
 entity vga_controller is
     port (
-        clk        : in  std_logic;   -- Clock principal
+        clk        : in  std_logic;   -- Clock principal, mesmo do DMA e SDRAM
         rst        : in  std_logic;   -- reset assíncrono
         PCLK       : in  std_logic;   -- Pixel clock
         addr       : in  std_logic_vector(5 downto 0);
         data_in    : in  std_logic_vector(31 downto 0);
-        wren      : in  std_logic;
+        wren       : in  std_logic;
+        ready      : out  std_logic;
 
         SYNC_N     : out std_logic;
         BLANK_N    : out std_logic;
@@ -101,6 +102,9 @@ begin
     -- FIFO status
     fifo_empty <= '1' when write_ptr = read_ptr else '0';
     fifo_full  <= '1' when (write_ptr + 1) mod 16 = read_ptr else '0';
+
+    -- ready information to DMA
+    ready <= '0' when fifo_full else '1';        
 
     -- Geração de contadores de linha e coluna
 	 -- por conveniência, começa a contar h_count=0, v_count=0 quando começa a porção visível
