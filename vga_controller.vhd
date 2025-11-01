@@ -26,7 +26,6 @@ end entity;
 
 architecture rtl of vga_controller is
 
-    -- Configuração VGA 640x480 @ 60Hz
     type vga_config_t is record
         h_visible    : natural;
         h_front_porch: natural;
@@ -41,7 +40,8 @@ architecture rtl of vga_controller is
         v_total      : natural;
     end record;
 
-    constant VGA : vga_config_t := (
+    -- Configuração VGA 640x480 @ 60Hz
+    constant VGA_640x480_60Hz : vga_config_t := (
         h_visible     => 640,
         h_front_porch => 16,
         h_sync        => 96,
@@ -53,6 +53,23 @@ architecture rtl of vga_controller is
         v_back_porch  => 33,
         v_total       => 525
     );
+
+    -- Configuração VGA 800x600 @ 60Hz
+    constant VGA_800x600_60Hz : vga_config_t := (
+        h_visible     => 800,
+        h_front_porch => 40,
+        h_sync        => 128,
+        h_back_porch  => 88,
+        h_total       => 1056,
+        v_visible     => 600,
+        v_front_porch => 1,
+        v_sync        => 4,
+        v_back_porch  => 23,
+        v_total       => 628
+    );
+
+    --selects desired resolution, PCLK must be adjusted accordingly
+    constant VGA: vga_config_t := VGA_800x600_60Hz;
 
     -- Registradores
     signal CR : std_logic_vector(31 downto 0) := (others => '0'); -- Bit 0: SYNC_N, Bit 1: BLANK_N
