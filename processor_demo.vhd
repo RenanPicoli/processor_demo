@@ -1107,7 +1107,7 @@ signal vga_addr: std_logic_vector(31 downto 0);-- zero-based address for VGA
 signal vga_wren: std_logic;
 signal vga_rden: std_logic;
 signal vga_ready: std_logic;
-signal vga_pclk: std_logic;--25MHZ for PCLK
+signal vga_pclk: std_logic;--40MHZ for PCLK
 
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
@@ -2172,7 +2172,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
 		c3		=> sdram_ctrl_clk,--100MHz for SDRAM control and IO
-		c4		=> vga_pclk,--100MHz for SDRAM control and IO
+		c4		=> vga_pclk,--40MHz for VGA pixel clock
 		locked=> open
 	);
 
