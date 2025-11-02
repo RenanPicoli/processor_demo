@@ -2184,7 +2184,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	areset => '0',
 	c0 => CLK12MHz,
 	C1 => clk_uart_8x2400,
-	c2 => vga_pclk,--25.175MHz for VGA pixel clock (actually 25.161290MHz)
+	c2 => vga_pclk--25.175MHz for VGA pixel clock (actually 25.161290MHz)
 	);
 
 	--produces 44118Hz (fs) and 20 MHz (for BCLK_IN) from 12MHz input
