@@ -244,7 +244,8 @@ component pll_12MHz
 		areset		: in std_logic  := '0';
 		inclk0		: in std_logic  := '0';
 		c0			: out std_logic;
-		c1			: out std_logic 
+		c1			: out std_logic;
+		c2			: out std_logic
 	);
 end component;
 
@@ -273,7 +274,7 @@ component pll_dbg_uproc
 		c1 	: OUT STD_LOGIC ;
 		c2 	: OUT STD_LOGIC ;
 		c3 	: OUT STD_LOGIC ;
-		c4 	: OUT STD_LOGIC ;
+--		c4 	: OUT STD_LOGIC ;
 		locked		: OUT STD_LOGIC 
 	);
 END component;
@@ -2172,7 +2173,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
 		c3		=> sdram_ctrl_clk,--100MHz for SDRAM control and IO
-		c4		=> vga_pclk,--40MHz for VGA pixel clock
+--		c4		=> vga_pclk,--40MHz for VGA pixel clock
 		locked=> open
 	);
 
@@ -2182,7 +2183,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	inclk0 => CLK_IN,
 	areset => '0',
 	c0 => CLK12MHz,
-	C1 => clk_uart_8x2400
+	C1 => clk_uart_8x2400,
+	c2 => vga_pclk,--25.175MHz for VGA pixel clock (actually 25.161290MHz)
 	);
 
 	--produces 44118Hz (fs) and 20 MHz (for BCLK_IN) from 12MHz input
