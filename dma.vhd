@@ -34,7 +34,7 @@ architecture behavior of dma_controller is
     -- Registradores internos
     signal src_addr  : std_logic_vector(31 downto 0);
     signal dst_addr  : std_logic_vector(31 downto 0);
-    signal length    : std_logic_vector(31 downto 0);
+    signal num_xfers    : std_logic_vector(31 downto 0);
     signal count     : std_logic_vector(31 downto 0) := (others => '0');
     
     -- CR agora tem 32 bits com SINC e DINC
@@ -51,12 +51,12 @@ architecture behavior of dma_controller is
 begin
 
     -- Lógica de leitura/escrita nos registradores via CPU
-    process (clk, reset, count, length, fifo_count)
+    process (clk, reset, count, num_xfers, fifo_count, iack)
     begin
         if reset = '1' then
             src_addr  <= (others => '0');
             dst_addr  <= (others => '0');
-            length    <= (others => '0');
+            num_xfers    <= (others => '0');
             CR        <= (others => '0');
 
         elsif rising_edge(clk) then
@@ -64,29 +64,30 @@ begin
                 case addr is
                     when "00" => src_addr <= D;
                     when "01" => dst_addr <= D;
-                    when "10" => length   <= D;
+                    when "10" => num_xfers   <= D;
                     when "11" => CR       <= D;
                     when others => null;
                 end case;
             end if;		
 				
-			  -- Ao transferir o ultimo item, finaliza
-			  if count = length and length /= 0 and fifo_count = 1 then
+				if iack='0' then
+					CR(1) <= '0'; -- finished = 0
+					CR(0) <= '0'; -- started = 0				
+				-- Ao transferir o ultimo item, finaliza
+				elsif count = num_xfers and fifo_count = 1 then
 					CR(1) <= '1'; -- finished = 1
-				end if;
-			  if CR(1) = '1' then
-					CR(0) <= '0'; -- started = 1
+					CR(0) <= '0'; -- started = 0
 				end if;
 
         end if;
     end process;
 
-	 process(addr,src_addr,dst_addr,length,CR)
+	 process(addr,src_addr,dst_addr, num_xfers,CR)
 	 begin
 		case addr is
 			 when "00" => Q <= src_addr;
 			 when "01" => Q <= dst_addr;
-			 when "10" => Q <= length;
+			 when "10" => Q <= num_xfers;
 			 when "11" => Q <= CR;
 			 when others => Q <= (others => '0');
 		end case;
@@ -112,7 +113,7 @@ begin
                     end if;
 
                 when "01" =>  -- READING
-                    if fifo_count < FIFO_LEN and count < length and mem_ready='1' then
+                    if fifo_count < FIFO_LEN and count < num_xfers and mem_ready='1' then
                         -- Inicia leitura
 
                         -- Armazena na FIFO após leitura
@@ -128,7 +129,7 @@ begin
                             state <= "10";
                         end if;
 
-                    elsif count = length then
+                    elsif count = num_xfers then
                         -- Se terminou a leitura, começa a escrita
                         state <= "10";
                     end if;
@@ -147,12 +148,12 @@ begin
                     end if;
 
 							-- Se FIFO vazia, volta a ler
-							if fifo_count = 0 and count < length then
+							if fifo_count = 0 and count < num_xfers then
 								 state <= "01";
 							end if;
 
                     -- Ao transferir o ultimo item, finaliza
-                    if count = length and fifo_count = 1 then
+                    if count = num_xfers and fifo_count = 1 then
                         irq   <= '1';
                         state <= "00";
                     end if;
