@@ -57,7 +57,8 @@ begin
             src_addr  <= (others => '0');
             dst_addr  <= (others => '0');
             num_xfers <= (others => '0');
-            CR        <= (others => '0');
+            CR(31 downto 2) <= (others => '0');
+				CR(0)     <= '0';
 
         elsif rising_edge(clk) then
             if wr_en = '1' then
@@ -65,22 +66,23 @@ begin
                     when "00" => src_addr <= D;
                     when "01" => dst_addr <= D;
                     when "10" => num_xfers<= D;
-                    when "11" => CR       <= D;
+                    when "11" => CR(31 downto 2) <= D(31 downto 2); CR(0) <= D(0);
                     when others => null;
                 end case;
             end if;		
 				
 				if iack='1' then
-					CR(1) <= '0'; -- finished = 0
+--					CR(1) <= '0'; -- finished = 0
 					CR(0) <= '0'; -- started = 0				
 				-- Ao transferir o ultimo item, finaliza
 				elsif count = num_xfers and fifo_count = 1 then
-					CR(1) <= '1'; -- finished = 1
+--					CR(1) <= '1'; -- finished = 1
 					CR(0) <= '0'; -- started = 0
 				end if;
 
         end if;
     end process;
+	 CR(1) <= irq;--finsihed = '1' when irq='1'
 
 	 process(addr,src_addr,dst_addr, num_xfers,CR)
 	 begin
