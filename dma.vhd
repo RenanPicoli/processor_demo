@@ -51,7 +51,7 @@ architecture behavior of dma_controller is
 begin
 
     -- Lógica de leitura/escrita nos registradores via CPU
-    process (clk, reset, count, num_xfers, fifo_count, iack)
+    process (clk, reset, count, num_xfers, fifo_count, iack, irq)
     begin
         if reset = '1' then
             src_addr  <= (others => '0');
@@ -59,7 +59,8 @@ begin
             num_xfers <= (others => '0');
             CR(31 downto 2) <= (others => '0');
 				CR(0)     <= '0';
-
+		elsif irq='1' then
+			CR(0) <= '0';
         elsif rising_edge(clk) then
             if wr_en = '1' then
                 case addr is
@@ -75,9 +76,9 @@ begin
 --					CR(1) <= '0'; -- finished = 0
 					CR(0) <= '0'; -- started = 0				
 				-- Ao transferir o ultimo item, finaliza
-				elsif count = num_xfers and fifo_count = 1 then
+--				elsif count = num_xfers and fifo_count = 1 then
 --					CR(1) <= '1'; -- finished = 1
-					CR(0) <= '0'; -- started = 0
+--					CR(0) <= '0'; -- started = 0
 				end if;
 
         end if;
