@@ -56,7 +56,7 @@ begin
         if reset = '1' then
             src_addr  <= (others => '0');
             dst_addr  <= (others => '0');
-            num_xfers    <= (others => '0');
+            num_xfers <= (others => '0');
             CR        <= (others => '0');
 
         elsif rising_edge(clk) then
@@ -64,13 +64,13 @@ begin
                 case addr is
                     when "00" => src_addr <= D;
                     when "01" => dst_addr <= D;
-                    when "10" => num_xfers   <= D;
+                    when "10" => num_xfers<= D;
                     when "11" => CR       <= D;
                     when others => null;
                 end case;
             end if;		
 				
-				if iack='0' then
+				if iack='1' then
 					CR(1) <= '0'; -- finished = 0
 					CR(0) <= '0'; -- started = 0				
 				-- Ao transferir o ultimo item, finaliza
