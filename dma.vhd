@@ -20,7 +20,7 @@ entity dma_controller is
         mem_addr  : out std_logic_vector(31 downto 0);
         mem_data_in: in std_logic_vector(31 downto 0);
         mem_data_out: out std_logic_vector(31 downto 0);
-		mem_ready : in std_logic;
+		  mem_ready : in std_logic;
         mem_rden  : out std_logic;
         mem_wren  : out std_logic;
 
@@ -58,32 +58,43 @@ begin
             dst_addr  <= (others => '0');
             num_xfers <= (others => '0');
             CR(31 downto 2) <= (others => '0');
-				CR(0)     <= '0';
+			--CR(0)     <= '0';
 		elsif irq='1' then
-			CR(0) <= '0';
+			--CR(0) <= '0';
         elsif rising_edge(clk) then
             if wr_en = '1' then
                 case addr is
                     when "00" => src_addr <= D;
                     when "01" => dst_addr <= D;
                     when "10" => num_xfers<= D;
-                    when "11" => CR(31 downto 2) <= D(31 downto 2); CR(0) <= D(0);
+                    when "11" => CR(31 downto 2) <= D(31 downto 2);-- CR(0) <= D(0);
                     when others => null;
                 end case;
-            end if;		
+            end if;
 				
-				if iack='1' then
---					CR(1) <= '0'; -- finished = 0
-					CR(0) <= '0'; -- started = 0				
-				-- Ao transferir o ultimo item, finaliza
---				elsif count = num_xfers and fifo_count = 1 then
---					CR(1) <= '1'; -- finished = 1
---					CR(0) <= '0'; -- started = 0
-				end if;
+-- 				if iack='1' then
+-- --					CR(1) <= '0'; -- finished = 0
+-- 					CR(0) <= '0'; -- started = 0				
+-- 				-- Ao transferir o ultimo item, finaliza
+-- --				elsif count = num_xfers and fifo_count = 1 then
+-- --					CR(1) <= '1'; -- finished = 1
+-- --					CR(0) <= '0'; -- started = 0
+-- 				end if;
 
         end if;
     end process;
+	 
 	 CR(1) <= irq;--finsihed = '1' when irq='1'
+	
+    CR0_PROC : process(reset, mem_clk, D, addr, wr_en)
+    begin
+        if reset='1' or wr_en='0' then
+            CR(0) <= '0';
+        elsif rising_edge(mem_clk) and  wr_en='1' and addr="11" then
+            CR(0) <= D(0);
+        end if;
+        
+    end process;
 
 	 process(addr,src_addr,dst_addr, num_xfers,CR)
 	 begin
@@ -106,12 +117,10 @@ begin
             fifo_count <= 0;
             state     <= "00";-- IDLE
             irq       <= '0';
-			elsif(iack='1')then
-            irq       <= '0';
         elsif rising_edge(mem_clk) then
             case state is
                 when "00" =>  -- IDLE
-                    if CR(0) = '1' and CR(1) = '0' then
+                    if CR(0) = '1' then-- and CR(1) = '0' then
                         state <= "01"; -- Inicia leitura
                     end if;
 
@@ -159,11 +168,15 @@ begin
                     if count = num_xfers and fifo_count = 1 then
                         irq   <= '1';
                         state <= "00";
+								count <= (others => '0');
                     end if;
 
                 when others =>
                     state <= "00";
             end case;
+			if(iack='1')then
+                irq       <= '0';
+            end if;
         end if;
     end process;
 	 
