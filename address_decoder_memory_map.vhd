@@ -93,8 +93,9 @@ begin
 			mask_length := N - gde(to_integer(unsigned(mask(N-1 downto 0))),N);--address width minus number of zeros in mask
 			report "mask_length=" & integer'image(mask_length);
 			
-			--if ((B(i)(0) <= to_integer(unsigned(ADDR))) and (to_integer(unsigned(ADDR)) <= B(i)(1))) then
-			if (ADDR(N-1 downto N-mask_length) = lower_lim_slv(N-1 downto N-mask_length)) then
+			if ((B(i)(0) <= to_integer(unsigned(ADDR))) and (to_integer(unsigned(ADDR)) <= B(i)(1))) then
+--			--this is intended to simplify logic, but requires ALIGNED BOUNDARIES
+--			if (ADDR(N-1 downto N-mask_length) = lower_lim_slv(N-1 downto N-mask_length)) then
 				sel_periph_index <= i;
 				RDEN_OUT(i) <= RDEN;
 				WREN_OUT(i) <= WREN;
