@@ -20,7 +20,8 @@ architecture test of tb_dma is
     -- Interface de memória única
     signal mem_CLK   : std_logic;
     signal mem_addr  : std_logic_vector(31 downto 0);
-    signal mem_data  : std_logic_vector(31 downto 0) := (others => '0');
+    signal mem_data_in  : std_logic_vector(31 downto 0) := (others => '0');
+    signal mem_data_out : std_logic_vector(31 downto 0) := (others => '0');
 	signal mem_ready	: std_logic;
     signal mem_rden  : std_logic;
     signal mem_wren  : std_logic;
@@ -66,18 +67,19 @@ begin
         wr_en     => wr_en,
         mem_clk   => mem_clk,
         mem_addr  => mem_addr,
-        mem_data  => mem_data,
-		mem_ready	=> mem_ready,
+        mem_data_in  =>  mem_data_in,
+        mem_data_out  => mem_data_out,
+		mem_ready => mem_ready,
         mem_rden  => mem_rden,
         mem_wren  => mem_wren,
         irq       => irq,
-		iack		=> iack
+		iack	  => iack
     );
 
     -- Geração de clock
     process
     begin
-        while now < 2000 ns loop
+        while now < 4000 ns loop
             clk <= '0';
             wait for clk_period / 2;
             clk <= '1';
@@ -88,7 +90,7 @@ begin
 
     process
     begin
-        while now < 2000 ns loop
+        while now < 4000 ns loop
             mem_clk <= '0';
             wait for mem_clk_period / 2;
             mem_clk <= '1';
@@ -102,31 +104,31 @@ begin
     begin
         if rising_edge(mem_clk) then
             if mem_rden = '1' then
-                mem_data <= RAM(conv_integer(mem_addr));
+                mem_data_in <= RAM(conv_integer(mem_addr));
             elsif mem_wren = '1' then
-                RAM(conv_integer(mem_addr)) <= mem_data;
+                RAM(conv_integer(mem_addr)) <= mem_data_out;
             end if;
         end if;
     end process;
-	mem_ready <= '1', '0' after 145ns, '1' after 205ns, '0' after 695ns, '1' after 905ns;
+	mem_ready <= '0', '1' after 1130ns;
 
     -- Teste principal
     process
     begin
         -- Reset do sistema
         reset <= '1';		  
-		  iack <= '0';
+		iack <= '0';
         wait for 20 ns;
         reset <= '0';
 
         -- Configuração dos registradores do DMA
-        wait for 10 ns;
+        wait for clk_period/2-20ns+1ns;-- +1ns to make addr/D/wr_en after clock edges
         wr_en <= '1';
         
-        addr <= "00"; D <= x"00000000"; wait for 250 ns; -- src_addr = 0x00000000
-        addr <= "01"; D <= x"000000D0"; wait for 250 ns; -- dst_addr = 0x000000D0
-        addr <= "10"; D <= x"00000030"; wait for 250 ns; -- length = 48 (48 palavras)
-        addr <= "11"; D <= x"0000000D"; wait for 250 ns; -- CR: Start = 1, SINC = 1, DINC = 1
+        addr <= "00"; D <= x"00000000"; wait for clk_period; -- src_addr = 0x00000000
+        addr <= "01"; D <= x"000000D0"; wait for clk_period; -- dst_addr = 0x000000D0
+        addr <= "10"; D <= x"00000030"; wait for clk_period; -- length = 48 (48 palavras)
+        addr <= "11"; D <= x"0000000D"; wait for clk_period; -- CR: Start = 1, SINC = 1, DINC = 1
 
         wr_en <= '0';
 
@@ -137,8 +139,8 @@ begin
 
         -- Verifica se os dados foram transferidos corretamente
         for i in 0 to 15 loop
-            assert RAM(i + 16) = std_logic_vector(to_unsigned(i + 1, 32))
-                report "Erro na transferencia! Endereco: " & integer'image(i + 16)
+            assert RAM(i + 208) = std_logic_vector(to_unsigned(i+1, 32))
+                report "Erro na transferencia! Endereco: " & integer'image(i + 208) & ", valor:" &  to_hstring(RAM(i + 208))
                 severity error;
         end loop;
 
