@@ -125,12 +125,12 @@ begin
 
     -- Geração de contadores de linha e coluna
 	 -- por conveniência, começa a contar h_count=0, v_count=0 quando começa a porção visível
-    process(rst, clk)
+    process(rst, PCLK)
     begin
 		  if(rst = '1')then
 				h_count <= 0;
 				v_count <= 0;
-        elsif rising_edge(clk) then
+        elsif rising_edge(PCLK) then
             if h_count = VGA.h_total - 1 then
                 h_count <= 0;
                 if v_count = VGA.v_total - 1 then
@@ -145,6 +145,7 @@ begin
     end process;
 
     -- Geração de hsync e vsync
+	 --h_count is 0 during the FIRST VISIBLE PIXEL
     hsync_sig <= '0' when
         h_count >= VGA.h_visible + VGA.h_front_porch and
         h_count <  VGA.h_visible + VGA.h_front_porch + VGA.h_sync
