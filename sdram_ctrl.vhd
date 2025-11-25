@@ -317,7 +317,7 @@ begin
 			A(8 downto 7)	<= "00";--Standard Operation
 			A(6 downto 4)	<= "010";-- CAS latency: 2 cycles
 			A(3)	<= '0';--sequencial burst
-			A(2 downto 0)	<= "111";--full-page bursts (entire row of 1024 columns)
+			A(2 downto 0)	<= "000";--burst of 1 column for reading (aka single read)
 		elsif init_state = INITIALIZED then
 			if op_state = IDLE then --NOP
 				RAS_N	<= '1';
