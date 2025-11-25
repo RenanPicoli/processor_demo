@@ -44,6 +44,9 @@ architecture behavior of dma_controller is
     type fifo_type is array (0 to FIFO_LEN-1) of std_logic_vector(31 downto 0);
     signal fifo      : fifo_type := (others => (others => '0'));
     signal fifo_head : integer range 0 to FIFO_LEN-1 := 0;
+    signal fifo_head_del: integer range 0 to FIFO_LEN-1 := 0;--fifo_head delayed according source memory latency
+    type head_sr_type is array (0 to 3) of integer range 0 to FIFO_LEN-1;
+    signal fifo_head_sr: head_sr_type := (others => 0);
     signal fifo_tail : integer range 0 to FIFO_LEN-1 := 0;
     signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Capacidade da FIFO = FIFO_LEN palavras
 
@@ -51,6 +54,11 @@ architecture behavior of dma_controller is
 begin
 
     -- Lógica de leitura/escrita nos registradores via CPU
+	 -- CR(0): START
+	 -- CR(1): IRQ (finished)
+	 -- CR(2): SINC
+	 -- CR(3): DINC
+	 -- CR(5:4): SRC_LAT (source memory latency in mem_clk cycles) 
     process (clk, reset, count, num_xfers, fifo_count, iack, irq)
     begin
         if reset = '1' then
@@ -107,17 +115,22 @@ begin
 		end case;
 	end process;
 
+    --selects fifo_head value according to source memory latency (only for reading)
+	fifo_head_del <= fifo_head_sr(conv_integer(unsigned(CR(5 downto 4))));
+	fifo_head_sr(0)<=fifo_head;--no latency added
     -- Máquina de estados para leitura e escrita usando FIFO
     process (mem_clk, reset, iack, mem_ready)
     begin
         if reset = '1' then
             count     <= (others => '0');
             fifo_head <= 0;
+            fifo_head_sr(1 to 3)<= (others => 0);
             fifo_tail <= 0;
             fifo_count <= 0;
             state     <= "00";-- IDLE
             irq       <= '0';
         elsif rising_edge(mem_clk) then
+            fifo_head_sr(1 to 3) <= fifo_head_sr(0 to 2);
             case state is
                 when "00" =>  -- IDLE
                     if CR(0) = '1' then-- and CR(1) = '0' then
@@ -125,11 +138,11 @@ begin
                     end if;
 
                 when "01" =>  -- READING
-                    if fifo_count < FIFO_LEN and count < num_xfers and mem_ready='1' then
+                    if fifo_count < FIFO_LEN and count < num_xfers then -- and mem_ready='1' then
                         -- Inicia leitura
 
                         -- Armazena na FIFO após leitura
-                        fifo(fifo_head) <= mem_data_in;
+                        fifo(fifo_head_del) <= mem_data_in;--fifo_head delayed according source memory latency
                         fifo_head <= (fifo_head + 1) mod FIFO_LEN;
                         fifo_count <= fifo_count + 1;                        
 
