@@ -89,7 +89,8 @@ architecture rtl of vga_controller is
 
     -- Zona visível
     signal pixel_active, line_active : std_logic := '0';
-
+	 signal fifo_rden: std_logic;
+	 signal fifo_data_out: std_logic_vector(31 downto 0);
 begin
 
     -- Mapeamento de CR (endereço 1) e DR (endereço 0)
@@ -162,7 +163,7 @@ begin
     -- Zona visível
 	-- Sera lido no proximo ciclo de PCLK para inferir RAM para a fifo, por isso subtrai 1
     pixel_active <= '1' when h_count >= (VGA.h_sync + VGA.h_back_porch - 1) and h_count < (VGA.h_sync + VGA.h_back_porch + VGA.h_visible - 1) else '0';
-    line_active  <= '1' when v_count >= (VGA.v_sync + VGA.v_back_porch - 1) and v_count < (VGA.v_sync + VGA_v_back_porch + VGA.v_visible - 1) else '0';
+    line_active  <= '1' when v_count >= (VGA.v_sync + VGA.v_back_porch - 1) and v_count < (VGA.v_sync + VGA.v_back_porch + VGA.v_visible - 1) else '0';
 
     -- Saída para DAC durante zona visível
 	-- Leitura da fifo
@@ -178,22 +179,26 @@ begin
         end if;
     end process;
 			
+	fifo_rden <= '1' when hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
+               pixel_active = '1' and line_active = '1' else '0';
 	process(PCLK, hsync_sig, vsync_sig, fifo_empty, pixel_active, line_active)
     begin
 		if rising_edge(PCLK) then
-            if hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
-               pixel_active = '1' and line_active = '1' then
-                R <= fifo(read_ptr)(23 downto 16);
-                G <= fifo(read_ptr)(15 downto 8);
-                B <= fifo(read_ptr)(7 downto 0);
+            if fifo_rden='1' then
+					fifo_data_out <= fifo(read_ptr);
             else
-                R <= (others => '0');
-                G <= (others => '0');
-                B <= (others => '0');
+					fifo_data_out <= (others => '0');
+--                R <= (others => '0');
+--                G <= (others => '0');
+--                B <= (others => '0');
             end if;
 		end if;
-    end process;
-				
+    end process;	
+
+	 R <= fifo_data_out(23 downto 16);
+	 G <= fifo_data_out(15 downto 8);
+	 B <= fifo_data_out(7 downto 0);
+		
     -- Saídas de controle (mapeadas nos bits de CR)
     SYNC_N  <= CR(0);
     BLANK_N <= CR(1);
