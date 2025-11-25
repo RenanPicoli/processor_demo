@@ -162,7 +162,7 @@ begin
     -- Zona visível
 	-- Sera lido no proximo ciclo de PCLK para inferir RAM para a fifo, por isso subtrai 1
     pixel_active <= '1' when h_count >= (VGA.h_sync + VGA.h_back_porch - 1) and h_count < (VGA.h_sync + VGA.h_back_porch + VGA.h_visible - 1) else '0';
-    line_active  <= '1' when v_count >= (VGA.v_sync + VGA.v_back_porch - 1) and v_count < (VGA.v_sync + VGA_v_back_porch + VGA.v_visible - 1) else '0';
+    line_active  <= '1' when v_count >= (VGA.v_sync + VGA.v_back_porch - 1) and v_count < (VGA.v_sync + VGA.v_back_porch + VGA.v_visible - 1) else '0';
 
     -- Saída para DAC durante zona visível
 	-- Leitura da fifo
