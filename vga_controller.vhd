@@ -89,7 +89,8 @@ architecture rtl of vga_controller is
 
     -- Zona visivel
     signal pixel_active, line_active : std_logic := '0';
-
+	 signal fifo_rden: std_logic;
+	 signal fifo_data_out: std_logic_vector(31 downto 0);
 begin
 
     -- Mapeamento de CR (endereço 1) e DR (endereço 0)
@@ -98,6 +99,7 @@ begin
 		  if(rst = '1')then
 				DR <= (others => '0');
 				CR <= (others => '0');
+				write_ptr <= 0;
         elsif rising_edge(clk) then
             if wren = '1' then
                 case addr is
@@ -145,42 +147,58 @@ begin
     end process;
 
     -- Geração de hsync e vsync
-	 --h_count is 0 during the FIRST VISIBLE PIXEL
+	 --h_count is 0 during the begining of HSYNC pulse
     hsync_sig <= '0' when
-        h_count >= VGA.h_visible + VGA.h_front_porch and
-        h_count <  VGA.h_visible + VGA.h_front_porch + VGA.h_sync
+        h_count <  VGA.h_sync
         else '1';
-
+			
+	--v_count is 0 during the begining of VSYNC pulse
     vsync_sig <= '0' when
-        v_count >= VGA.v_visible + VGA.v_front_porch and
-        v_count <  VGA.v_visible + VGA.v_front_porch + VGA.v_sync
+        v_count < VGA.v_sync
         else '1';
 
     hsync <= hsync_sig;
     vsync <= vsync_sig;
 
     -- Zona visível
-    pixel_active <= '1' when h_count < VGA.h_visible else '0';
-    line_active  <= '1' when v_count < VGA.v_visible else '0';
+	-- Sera lido no proximo ciclo de PCLK para inferir RAM para a fifo, por isso subtrai 1
+    pixel_active <= '1' when h_count >= (VGA.h_sync + VGA.h_back_porch - 1) and h_count < (VGA.h_sync + VGA.h_back_porch + VGA.h_visible - 1) else '0';
+    line_active  <= '1' when v_count >= (VGA.v_sync + VGA.v_back_porch - 1) and v_count < (VGA.v_sync + VGA.v_back_porch + VGA.v_visible - 1) else '0';
 
     -- Saida para DAC durante zona visivel
-    process(PCLK)
+	-- Leitura da fifo
+    process(rst, PCLK)
     begin
-        if rising_edge(PCLK) then
-            if hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
+		if (rst ='1') then
+			read_ptr <= 0;
+        elsif rising_edge(PCLK) then	
+			if hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
                pixel_active = '1' and line_active = '1' then
-                R <= fifo(read_ptr)(23 downto 16);
-                G <= fifo(read_ptr)(15 downto 8);
-                B <= fifo(read_ptr)(7 downto 0);
-                read_ptr <= (read_ptr + 1) mod 16;
-            else
-                R <= (others => '0');
-                G <= (others => '0');
-                B <= (others => '0');
-            end if;
+            	read_ptr <= (read_ptr + 1) mod 16;
+			end if;
         end if;
     end process;
+			
+	fifo_rden <= '1' when hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
+               pixel_active = '1' and line_active = '1' else '0';
+	process(PCLK, hsync_sig, vsync_sig, fifo_empty, pixel_active, line_active)
+    begin
+		if rising_edge(PCLK) then
+            if fifo_rden='1' then
+					fifo_data_out <= fifo(read_ptr);
+            else
+					fifo_data_out <= (others => '0');
+--                R <= (others => '0');
+--                G <= (others => '0');
+--                B <= (others => '0');
+            end if;
+		end if;
+    end process;	
 
+	 R <= fifo_data_out(23 downto 16);
+	 G <= fifo_data_out(15 downto 8);
+	 B <= fifo_data_out(7 downto 0);
+		
     -- Saidas de controle (mapeadas nos bits de CR)
     SYNC_N  <= CR(0);
     BLANK_N <= CR(1);
