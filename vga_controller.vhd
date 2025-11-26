@@ -40,7 +40,7 @@ architecture rtl of vga_controller is
         v_total      : natural;
     end record;
 
-    -- Configuração VGA 640x480 @ 60Hz
+    -- Configuracao VGA 640x480 @ 60Hz
     constant VGA_640x480_60Hz : vga_config_t := (
         h_visible     => 640,
         h_front_porch => 16,--or 144?
@@ -54,7 +54,7 @@ architecture rtl of vga_controller is
         v_total       => 525
     );
 
-    -- Configuração VGA 800x600 @ 60Hz
+    -- Configuracao VGA 800x600 @ 60Hz
     constant VGA_800x600_60Hz : vga_config_t := (
         h_visible     => 800,
         h_front_porch => 40,
@@ -87,7 +87,7 @@ architecture rtl of vga_controller is
     signal h_count, v_count : natural := 0;
     signal hsync_sig, vsync_sig : std_logic := '1';
 
-    -- Zona visível
+    -- Zona visivel
     signal pixel_active, line_active : std_logic := '0';
 
 begin
@@ -121,10 +121,10 @@ begin
     fifo_full  <= '1' when (write_ptr + 1) mod 16 = read_ptr else '0';
 
     -- ready information to DMA
-    ready <= '0' when fifo_full else '1';        
+    ready <= '0' when fifo_full='1' else '1';        
 
-    -- Geração de contadores de linha e coluna
-	 -- por conveniência, começa a contar h_count=0, v_count=0 quando começa a porção visível
+    -- Geracao de contadores de linha e coluna
+	 -- por conveniencia, comeca a contar h_count=0, v_count=0 quando começa a porcao visivel
     process(rst, PCLK)
     begin
 		  if(rst = '1')then
@@ -163,7 +163,7 @@ begin
     pixel_active <= '1' when h_count < VGA.h_visible else '0';
     line_active  <= '1' when v_count < VGA.v_visible else '0';
 
-    -- Saída para DAC durante zona visível
+    -- Saida para DAC durante zona visivel
     process(PCLK)
     begin
         if rising_edge(PCLK) then
@@ -181,7 +181,7 @@ begin
         end if;
     end process;
 
-    -- Saídas de controle (mapeadas nos bits de CR)
+    -- Saidas de controle (mapeadas nos bits de CR)
     SYNC_N  <= CR(0);
     BLANK_N <= CR(1);
 
