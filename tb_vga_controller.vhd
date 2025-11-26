@@ -66,7 +66,7 @@ begin
     -- Clock process
     clk_process : process
     begin
-        while now < 18 ms loop
+        while now < 72 ms loop
             clk <= '0';
             wait for CLK_PERIOD / 2;
             clk <= '1';
@@ -77,7 +77,7 @@ begin
 
     PCLK_process : process
     begin
-        while now < 18 ms loop
+        while now < 72 ms loop
             PCLK <= '0';
             wait for PCLK_PERIOD / 2;
             PCLK <= '1';
@@ -89,11 +89,11 @@ begin
     -- Stimulus process
     stim_proc : process
     begin
-        -- Aguarda inicialização
+        -- Aguarda inicializacao
         wait for 100 ns;
 
         -- Ativa SYNC_N e BLANK_N
-        addr    <= "000001";  -- Endereço do CR
+        addr    <= "000001";  -- Endereco do CR
         data_in <= x"0000_0003";  -- SYNC_N=1, BLANK_N=1
         wren   <= '1';
         wait for CLK_PERIOD;
@@ -110,7 +110,7 @@ begin
         wren <= '0';
 
         -- Simula por alguns milissegundos
-        wait for 18 ms;
+        wait for 72 ms;
         wait;
     end process;
 
