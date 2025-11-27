@@ -76,10 +76,12 @@ architecture rtl of vga_controller is
     signal DR : std_logic_vector(31 downto 0);
 
     -- FIFO de pixels
-    type fifo_array is array (0 to 15) of std_logic_vector(31 downto 0);
+	 -- since sdram clk/PCLK is ~3.97, this fifo MUST be 4x times the size of DMA fifo
+	 constant FIFO_LEN: integer := 32*4;
+    type fifo_array is array (0 to FIFO_LEN-1) of std_logic_vector(31 downto 0);
     signal fifo      : fifo_array;
-    signal write_ptr : integer range 0 to 15 := 0;
-    signal read_ptr  : integer range 0 to 15 := 0;
+    signal write_ptr : integer range 0 to FIFO_LEN-1 := 0;
+    signal read_ptr  : integer range 0 to FIFO_LEN-1 := 0;
     signal fifo_empty: std_logic;
     signal fifo_full : std_logic;
 
@@ -107,7 +109,7 @@ begin
                         DR <= data_in;
                         if fifo_full = '0' then
                             fifo(write_ptr) <= data_in;
-                            write_ptr <= (write_ptr + 1) mod 16;
+                            write_ptr <= (write_ptr + 1) mod  FIFO_LEN;
                         end if;
                     when "000001" =>
                         CR <= data_in;
@@ -120,7 +122,7 @@ begin
 
     -- FIFO status
     fifo_empty <= '1' when write_ptr = read_ptr else '0';
-    fifo_full  <= '1' when (write_ptr + 1) mod 16 = read_ptr else '0';
+    fifo_full  <= '1' when (write_ptr + 1) mod  FIFO_LEN = read_ptr else '0';
 
     -- ready information to DMA
     ready <= '0' when fifo_full='1' else '1';        
@@ -174,7 +176,7 @@ begin
         elsif rising_edge(PCLK) then	
 			if hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
                pixel_active = '1' and line_active = '1' then
-            	read_ptr <= (read_ptr + 1) mod 16;
+            	read_ptr <= (read_ptr + 1) mod  FIFO_LEN;
 			end if;
         end if;
     end process;
