@@ -103,14 +103,15 @@ begin
     process (mem_clk)
     begin
         if rising_edge(mem_clk) then
-            if mem_rden = '1' then
-                mem_data_in <= RAM(conv_integer(mem_addr));
-            elsif mem_wren = '1' then
+            if mem_wren = '1' then
                 RAM(conv_integer(mem_addr)) <= mem_data_out;
             end if;
         end if;
     end process;
-	mem_ready <= '0', '1' after 1130ns;
+	 --Leitura assíncrona (latência 0)
+	 mem_data_in <= RAM(conv_integer(mem_addr)) when mem_rden = '1'  else (others=>'X') ;
+	--mem_ready <= '0', '1' after 1130ns;
+	mem_ready <= '1';
 
     -- Teste principal
     process
