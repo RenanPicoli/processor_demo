@@ -58,7 +58,8 @@ begin
 	 -- CR(1): IRQ (finished)
 	 -- CR(2): SINC
 	 -- CR(3): DINC
-	 -- CR(5:4): SRC_LAT (source memory latency in mem_clk cycles) 
+	 -- CR(5:4): SRC_LAT (source memory latency in mem_clk cycles)
+	 -- CR(6): AUTOSTART (after the manual start, repeats the transfer forever
     process (clk, reset, count, num_xfers, fifo_count, iack, irq)
     begin
         if reset = '1' then
@@ -67,7 +68,7 @@ begin
             num_xfers <= (others => '0');
             CR(31 downto 2) <= (others => '0');
 			--CR(0)     <= '0';
-		elsif irq='1' then
+--		elsif irq='1' then
 			--CR(0) <= '0';
         elsif rising_edge(clk) then
             if wr_en = '1' then
@@ -94,12 +95,16 @@ begin
 	 
 	 CR(1) <= irq;--finsihed = '1' when irq='1'
 	
-    CR0_PROC : process(reset, mem_clk, D, addr, wr_en)
+    CR0_PROC : process(reset, clk, D, addr, wr_en, CR, state)
     begin
-        if reset='1' or wr_en='0' then
+        if reset='1' then
             CR(0) <= '0';
-        elsif rising_edge(mem_clk) and  wr_en='1' and addr="11" then
-            CR(0) <= D(0);
+        elsif rising_edge(clk) then
+				if state="00" and  wr_en='1' and addr="11" then
+					CR(0) <= D(0);
+				else
+					CR(0) <= '0';
+				end if;
         end if;
         
     end process;
@@ -133,7 +138,7 @@ begin
             fifo_head_sr(1 to 3) <= fifo_head_sr(0 to 2);
             case state is
                 when "00" =>  -- IDLE
-                    if CR(0) = '1' then-- and CR(1) = '0' then
+                    if CR(0) = '1' then
                         state <= "01"; -- Inicia leitura
                     end if;
 
@@ -161,8 +166,6 @@ begin
 
                 when "10" =>  -- WRITING
                     if fifo_count > 0 then
-                        -- Escreve na memória
-                        mem_data_out <= fifo(fifo_tail);
 								
 								--update pointers/counters
 								if(mem_ready = '1')then
@@ -177,11 +180,20 @@ begin
 								 state <= "01";
 							end if;
 
-                    -- Ao transferir o ultimo item, finaliza
+                    -- Ao transferir o ultimo item, finaliza OU inicia de novo se AUTOSTART estiver ativo
                     if count = num_xfers and fifo_count = 1 then
                         irq   <= '1';
-                        state <= "00";
-								count <= (others => '0');
+								if  CR(6)='1' then
+									state <= "01";-- goes back to reading
+								else
+									state <= "00";-- idle
+								end if;
+								-- get ready for new transfers
+								count     <= (others => '0');
+								fifo_head <= 0;
+								fifo_head_sr(1 to 3)<= (others => 0);
+								fifo_tail <= 0;
+								fifo_count <= 0;
                     end if;
 
                 when others =>
@@ -192,6 +204,9 @@ begin
             end if;
         end if;
     end process;
+	 
+	-- Escreve na memória
+	mem_data_out <= fifo(fifo_tail);
 	 
 	 addr_proc: process (state, CR, count, fifo_count, src_addr, dst_addr)
 	 begin
