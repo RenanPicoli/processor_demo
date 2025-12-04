@@ -36,6 +36,9 @@ architecture behavior of dma_controller is
     signal dst_addr  : std_logic_vector(31 downto 0);
     signal num_xfers    : std_logic_vector(31 downto 0);
     signal count     : std_logic_vector(31 downto 0) := (others => '0');
+    signal count_del : std_logic_vector(31 downto 0) := (others => '0');--count delayed according source memory latency, incremented when data is latched
+    type count_sr_type is array (0 to 3) of std_logic_vector(31 downto 0);
+    signal count_sr: count_sr_type := (others => (others => '0'));
     
     -- CR agora tem 32 bits com SINC e DINC
     signal CR        : std_logic_vector(31 downto 0) := (others => '0');
@@ -67,9 +70,6 @@ begin
             dst_addr  <= (others => '0');
             num_xfers <= (others => '0');
             CR(31 downto 2) <= (others => '0');
-			--CR(0)     <= '0';
---		elsif irq='1' then
-			--CR(0) <= '0';
         elsif rising_edge(clk) then
             if wr_en = '1' then
                 case addr is
@@ -80,15 +80,6 @@ begin
                     when others => null;
                 end case;
             end if;
-				
--- 				if iack='1' then
--- --					CR(1) <= '0'; -- finished = 0
--- 					CR(0) <= '0'; -- started = 0				
--- 				-- Ao transferir o ultimo item, finaliza
--- --				elsif count = num_xfers and fifo_count = 1 then
--- --					CR(1) <= '1'; -- finished = 1
--- --					CR(0) <= '0'; -- started = 0
--- 				end if;
 
         end if;
     end process;
@@ -123,19 +114,26 @@ begin
     --selects fifo_head value according to source memory latency (only for reading)
 	fifo_head_del <= fifo_head_sr(conv_integer(unsigned(CR(5 downto 4))));
 	fifo_head_sr(0)<=fifo_head;--no latency added
+	
+    --selects count value according to source memory latency (only for reading)
+	count_del <= count_sr(conv_integer(unsigned(CR(5 downto 4))));
+	count_sr(0)<=count;--no latency added
+	
     -- Máquina de estados para leitura e escrita usando FIFO
     process (mem_clk, reset, iack, mem_ready)
     begin
         if reset = '1' then
             count     <= (others => '0');
             fifo_head <= 0;
-            fifo_head_sr(1 to 3)<= (others => 0);
+            fifo_head_sr(1 to 3)	<= (others => 0);
+				count_sr(1 to 3)		<= (others => (others => '0'));
             fifo_tail <= 0;
             fifo_count <= 0;
             state     <= "00";-- IDLE
             irq       <= '0';
         elsif rising_edge(mem_clk) then
-            fifo_head_sr(1 to 3) <= fifo_head_sr(0 to 2);
+            fifo_head_sr(1 to 3)	<= fifo_head_sr(0 to 2);
+            count_sr(1 to 3)		<= count_sr(0 to 2);
             case state is
                 when "00" =>  -- IDLE
                     if CR(0) = '1' then
@@ -155,11 +153,21 @@ begin
                         count <= count + 1;
 
                         -- Se FIFO cheia, troca para escrita
-                        if fifo_count + 1 = FIFO_LEN then
+                        if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
                             state <= "10";
                         end if;
+								
+						  elsif fifo_head_del < FIFO_LEN then--this is meant to latch the last words
 
-                    elsif count = num_xfers then
+                        -- Armazena na FIFO após leitura
+                        fifo(fifo_head_del) <= mem_data_in;--fifo_head delayed according source memory latency
+								
+                        -- Se escreve o ultimo elemento, troca para escrita
+                        if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
+                            state <= "10";
+                        end if;
+								
+                    elsif count_del = num_xfers then--uses delayed signal to start writing only after last data is latched
                         -- Se terminou a leitura, começa a escrita
                         state <= "10";
                     end if;
