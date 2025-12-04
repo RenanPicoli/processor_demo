@@ -54,6 +54,7 @@ architecture behavior of sdram_controller is
 	signal ADDR_VALID	: std_logic := '0';
 	signal offset: std_logic_vector(31 downto 10);--current offset (aka page address, selects a row and a bank)
 	signal previous_offset: std_logic_vector(31 downto 10);--offset during previous accesses
+	signal any_active_row: std_logic;--'1' if any row is open
 begin
 	DQM <= "0000";--all bytes are enabled
 	CLK_OUT <= CLK;
@@ -408,32 +409,41 @@ begin
 					ready <= '1';
 				end if;
 			when WRITING =>
---				if(WREN='0' or ADDR_VALID='0') then
---					ready <= '0';
---				else
+				if(WREN='0' or ADDR_VALID='0') then
+					ready <= '0';
+				else
 					ready <= '1';
---				end if;
+				end if;
 			when others =>
 				ready <= '0';
 		end case;
 	end process;
 	
-	-----------------ADDR_VALID driving--------------------
-	process(rden,wren,offset,previous_offset,nxt_op_state,op_state,init_state)
+	-----------------any_active_row driving----------------
+	process(rst,clk,op_state)
 	begin
---		ADDR_VALID <= '0';--default value so we don't get a latch
---		if(init_state/=INITIALIZED or op_state=PALL)then
---			ADDR_VALID <= '0';--this default value causes an additional PRECHARGE after INITIALIZED
-		if ((wren='1') or ( rden='1' and (nxt_op_state=START_READ or nxt_op_state=READING))) then--starting burst reading or write
+		if rst='1' then
+			any_active_row <= '0';
+		elsif rising_edge(clk)then
+			if op_state = ACTIVATE then--open one row
+				any_active_row <= '1';
+			elsif op_state=PRECHARGE or op_state=PALL then--MUST ensure no other bank has an active row
+				any_active_row <= '0';
+			end if;
+		end if;
+	end process;
+	
+	-----------------ADDR_VALID driving--------------------
+	process(any_active_row,offset,previous_offset)
+	begin
+		if any_active_row = '0' then
+			ADDR_VALID <= '0';
+		else
 			if (offset=previous_offset) then
 				ADDR_VALID <= '1';
 			else
 				ADDR_VALID <= '0';
 			end if;
---		elsif then
---			ADDR_VALID <= '1';
-		else
-			ADDR_VALID <= '0';
 		end if;
 	end process;
 	
