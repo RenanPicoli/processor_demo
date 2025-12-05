@@ -324,7 +324,7 @@ begin
 				RAS_N	<= '1';
 				CAS_N	<= '1';
 				WE_N	<= '1';
-			elsif op_state = START_READ and read_count=0 then					
+			elsif op_state = START_READ then -- and read_count=0 then					
 				if RDEN = '1' then
 					-- READ column without precharge
 					RAS_N	<= '1';
@@ -339,10 +339,15 @@ begin
 					CAS_N	<= '1';
 					WE_N	<= '1';
 				end if;
-			elsif op_state = READING then--NOP
+			elsif op_state = READING then--continue reading (no precharge)
+					-- READ column without precharge
 					RAS_N	<= '1';
-					CAS_N	<= '1';
+					CAS_N	<= '0';
 					WE_N	<= '1';
+					A(10) <= '0';
+					--bank and column address
+					BA		<= addr(24 downto 23);
+					A(9 downto 0)<= addr(9 downto 0);
 			elsif op_state = WRITING then--write (no precharge)
 					RAS_N	<= '1';
 					CAS_N	<= '0';
