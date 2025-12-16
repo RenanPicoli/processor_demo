@@ -1095,7 +1095,7 @@ signal sdram_ctrl_Q: std_logic_vector(31 downto 0);
 signal sdram_ctrl_wren: std_logic;
 signal sdram_ctrl_rden: std_logic;
 signal sdram_ctrl_ready: std_logic;
-signal sdram_ctrl_clk: std_logic;--100MHz for SDRAM control and IO
+signal sdram_ctrl_clk: std_logic;--50MHz for SDRAM control and IO
 signal sdram_addr: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
 --delayed signais to avoid glitches in SDRAM control signals (clock much faster than cpu/dma clock)
 --these signals are activated only on the negative portion of cpu clock to allow signal settling
@@ -1925,7 +1925,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--decides wether dma or cpu have access to the RAM
 	arb: arbiter
 		 port map(
-			  clk=> sdram_ctrl_clk,--100MHz, must be fast, it is used for selecting the address decoder "master"
+			  clk=> sdram_ctrl_clk,--50MHz, must be fast, it is used for selecting the address decoder "master"
 			  rst=> rst,
 			  -----
 			  cpu_addr=> cpu_ram_addr,
@@ -2017,7 +2017,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	generic map (CAS_LATENCY => 2 )
 	port map (
 		----CPU/DMA itfc-----
-		clk	=> sdram_ctrl_clk,--100MHz
+		clk	=> sdram_ctrl_clk,--50MHz
 		rst	=> rst,
 		addr	=> sdram_addr,--32M words
 		D		=> ram_write_data,
@@ -2044,7 +2044,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	vga: vga_controller
 			  port map (
 					----CPU/DMA itfc-----
-					clk     => sdram_ctrl_clk,--100MHz
+					clk     => sdram_ctrl_clk,--50MHz
 					rst	  => rst,
 					PCLK    => vga_pclk,
 					addr    => vga_addr(5 downto 0),
@@ -2173,7 +2173,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c0		=> CLK_dbg,--produces 48MHz for debugging
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
-		c3		=> sdram_ctrl_clk,--100MHz for SDRAM control and IO
+		c3		=> sdram_ctrl_clk,--50MHz for SDRAM control and IO
 		c4		=> vga_pclk,--25MHz for VGA pixel clock
 		locked=> open
 	);
