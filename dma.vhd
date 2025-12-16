@@ -141,7 +141,7 @@ begin
                     end if;
 
                 when "01" =>  -- READING
-                    if fifo_count < FIFO_LEN and count < num_xfers then -- and mem_ready='1' then
+                    if fifo_count < FIFO_LEN and count < num_xfers and mem_ready='1' then
                         -- Inicia leitura
 
                         -- Armazena na FIFO após leitura
