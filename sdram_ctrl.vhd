@@ -407,6 +407,12 @@ begin
 	process(op_state,RDEN,ADDR_VALID)
 	begin
 		case op_state is
+			when START_READ =>--this is for use with DMA, when it supports SDRAM latency, somethong must be adapted when CPU is reading
+				if(RDEN='0' or ADDR_VALID='0') then
+					ready <= '0';
+				else
+					ready <= '1';
+				end if;
 			when READING =>
 				if(RDEN='0' or ADDR_VALID='0') then
 					ready <= '0';
