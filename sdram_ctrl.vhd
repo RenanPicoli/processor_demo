@@ -7,6 +7,7 @@ entity sdram_controller is
 	 generic(CAS_LATENCY	: natural := 2);
     port (
         clk    : in  std_logic;
+		  sdram_clk_in: in  std_logic;--this clock must lead clk by around 3ns
         rst    : in  std_logic;
 
         -- Barramento de acesso por CPU/DMA (access request)
@@ -24,7 +25,7 @@ entity sdram_controller is
         DQM  : out std_logic_vector(3 downto 0);
         DQ  : inout std_logic_vector(31 downto 0);
         CKE  : out std_logic;
-        CLK_OUT  : out std_logic;
+        sdram_clk_out  : out std_logic;--this clock must lead clk by around 3ns
         WE_N  : out std_logic;
         CAS_N  : out std_logic;
         RAS_N  : out std_logic;
@@ -57,7 +58,7 @@ architecture behavior of sdram_controller is
 	signal any_active_row: std_logic;--'1' if any row is open
 begin
 	DQM <= "0000";--all bytes are enabled
-	CLK_OUT <= CLK;
+	sdram_clk_out <= sdram_clk_in;--this clock must lead clk by around 3ns
 	DQ <= D when wren='1' else (others=>'Z');
 	Q <= DQ when rden='1' else (others=>'0');
 	
@@ -168,7 +169,12 @@ begin
 						end if;
 						
 					when WRITING =>
-						nxt_op_state <= IDLE;
+						if WREN = '0' then--write finished (cpu/dma already latched the data)
+							nxt_op_state <= IDLE;
+						elsif ADDR_VALID = '0' then--"miss": bank or row changed during burst
+							nxt_op_state <= BURST_STOP;
+						end if;
+						
 
 					when BURST_STOP =>
 						nxt_op_state <= PRECHARGE;
@@ -179,7 +185,7 @@ begin
 						end if;
 
 					when ACTIVATE =>
-						if act_count>= 1 then
+						if act_count>= 2 then
 							if(RDEN='1')then
 							nxt_op_state <= START_READ;
 							elsif(WREN='1')then
@@ -261,7 +267,7 @@ begin
 					 read_count <= 0;
 
 				when ACTIVATE =>
-					 if act_count < 1 then
+					 if act_count < 2 then
 						  act_count <= act_count + 1;
 					 end if;
 					 precharge_count <= 0;
@@ -378,10 +384,16 @@ begin
 						WE_N	<= '0';
 						A(10) <= '1';--precharge all banks
 					end if;
-			elsif op_state = ACTIVATE and act_count=0 then --activate a row
+			elsif op_state = ACTIVATE then --activate a row
+				if act_count=0 then--ACTIVATE cmd
 					RAS_N	<= '0';
 					CAS_N	<= '1';
 					WE_N	<= '1';
+				else--NOP
+					RAS_N	<= '1';
+					CAS_N	<= '1';
+					WE_N	<= '1';
+				end if;
 					--TODO: add bank and row address
 					BA		<= addr(24 downto 23);
 					A(12 downto 0)<= addr(22 downto 10);
@@ -464,7 +476,7 @@ begin
 	begin
 		if(RST='1')then
 			previous_offset <= (others=>'0');
-		elsif(rising_edge(CLK) and ((rden='1' and nxt_op_state=START_READ) or wren='1')) then
+		elsif(rising_edge(CLK) and ((rden='1' and nxt_op_state=START_READ) or (wren='1' and nxt_op_state=WRITING))) then
 			if(ADDR_VALID='0') then
 				previous_offset <= offset;--update offset
 			end if;
