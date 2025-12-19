@@ -245,7 +245,7 @@ component pll_12MHz
 		inclk0		: in std_logic  := '0';
 		c0			: out std_logic;
 		c1			: out std_logic;
---		c2			: out std_logic;
+		c2			: out std_logic;
 		locked	: out std_logic
 	);
 end component;
@@ -619,6 +619,7 @@ component sdram_controller
 	generic(CAS_LATENCY	: natural := 2);
     port (
         clk    : in  std_logic;
+		  sdram_clk_in: in std_logic;--this clock must lead clk by around 3ns
         rst    : in  std_logic;
 
         -- Barramento de acesso por CPU/DMA (access request)
@@ -636,7 +637,7 @@ component sdram_controller
         DQM  : out std_logic_vector(3 downto 0);
         DQ  : inout std_logic_vector(31 downto 0);
         CKE  : out std_logic;
-        CLK_OUT  : out std_logic;
+        sdram_clk_out: out std_logic;--this clock must lead clk by around 3ns
         WE_N  : out std_logic;
         CAS_N  : out std_logic;
         RAS_N  : out std_logic;
@@ -1095,7 +1096,8 @@ signal sdram_ctrl_Q: std_logic_vector(31 downto 0);
 signal sdram_ctrl_wren: std_logic;
 signal sdram_ctrl_rden: std_logic;
 signal sdram_ctrl_ready: std_logic;
-signal sdram_ctrl_clk: std_logic;--50MHz for SDRAM control and IO
+signal sdram_ctrl_clk: std_logic;--50MHz for SDRAM control
+signal sdram_clK_in: std_logic;--50MHz 3ns ahead of sdram_ctrl_clk
 signal sdram_addr: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
 --delayed signais to avoid glitches in SDRAM control signals (clock much faster than cpu/dma clock)
 --these signals are activated only on the negative portion of cpu clock to allow signal settling
@@ -2018,6 +2020,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	port map (
 		----CPU/DMA itfc-----
 		clk	=> sdram_ctrl_clk,--50MHz
+		sdram_clk_in => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
 		rst	=> rst,
 		addr	=> sdram_addr,--32M words
 		D		=> ram_write_data,
@@ -2031,7 +2034,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		DQM		=> sdram_DQM,
 		DQ		=> sdram_DQ,
 		CKE		=> sdram_CKE,
-		CLK_OUT	=> sdram_CLK_OUT,
+		sdram_clk_out	=> sdram_CLK_OUT,
 		WE_N	=> sdram_WE_N,
 		CAS_N	=> sdram_CAS_N,
 		RAS_N	=> sdram_RAS_N,
@@ -2185,6 +2188,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	areset => '0',
 	c0 => CLK12MHz,
 	C1 => clk_uart_8x2400,
+	c2 => sdram_clK_in,
 --	c2 => vga_pclk--25.175MHz for VGA pixel clock (actually 25.161290MHz)
 	locked => open
 	);
