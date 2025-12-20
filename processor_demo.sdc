@@ -52,13 +52,13 @@ create_generated_clock -name {clk_uart_dbg} -source [get_pins {clk_12MHz|altpll_
 # vga_clk: 25.16MHz
 #create_generated_clock -name {clk_vga_pclk} -source [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 78 -divide_by 155 -phase 0 -master_clock {clk_in} [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|clk[2]}] 
 # sdram_clk_in: 50MHz, 3ns ahead of sdram_ctrl_clk
-create_generated_clock -name {sdram_clk_in} -source [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 1 -divide_by 1 -offset -3.125 -master_clock {clk_in} [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|clk[2]}] 
+create_generated_clock -name {sdram_clk_in} -source [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 8 -divide_by 3 -phase -150 -master_clock {clk_in} [get_pins {clk_12MHz|altpll_component|auto_generated|pll1|clk[2]}] 
 
 
 create_generated_clock -name {uproc_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 2 -divide_by 25 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[1]}] 
 create_generated_clock -name {sram_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 8 -divide_by 5 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[2]}]
-# sdram_ctrl_clk: 50MHz
-create_generated_clock -name {sdram_ctrl_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 1 -divide_by 1 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[3]}] 
+# sdram_ctrl_clk: 133.3MHz
+create_generated_clock -name {sdram_ctrl_clk} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 8 -divide_by 3 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[3]}] 
 # clk_dbg: 200MHz
 create_generated_clock -name {clk_dbg} -source [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|inclk[0]}] -multiply_by 4 -divide_by 1 -phase 0 -master_clock {clk_in} [get_pins {clk_dbg_uproc|altpll_component|auto_generated|pll1|clk[0]}] 
 ## vga_clk: 40MHz
