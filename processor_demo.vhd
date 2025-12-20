@@ -2045,60 +2045,60 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--to an word address (starting at 0)
 	sdram_addr <= ram_addr - ranges(20)(0);
 	
---	sdram_ctrl: sdram_controller
---	generic map (CAS_LATENCY => 2 )
---	port map (
---		----CPU/DMA itfc-----
---		clk	=> sdram_ctrl_clk,--50MHz
---		sdram_clk_in => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
---		rst	=> rst,
---		addr	=> sdram_addr,--32M words
---		D		=> ram_write_data,
---		Q		=> sdram_ctrl_Q,
---		wren	=> sdram_ctrl_wren,
---		rden	=> sdram_ctrl_rden,
---		ready	=> sdram_ctrl_ready,
---		------SDRAM itfc-----
---		A		=> sdram_A,
---		BA		=> sdram_BA,
---		DQM		=> sdram_DQM,
---		DQ		=> sdram_DQ,
---		CKE		=> sdram_CKE,
---		sdram_clk_out	=> sdram_CLK_OUT,
---		WE_N	=> sdram_WE_N,
---		CAS_N	=> sdram_CAS_N,
---		RAS_N	=> sdram_RAS_N,
---		CS_N	=> sdram_CS_N
---    );
-
-	sdram_ctrl_strobe <= sdram_ctrl_rden or sdram_ctrl_wren;
-	sdram_ctrl: sdram_controller_by_luccas641
+	sdram_ctrl: sdram_controller
+	generic map (CAS_LATENCY => 2 )
 	port map (
+		----CPU/DMA itfc-----
 		clk	=> sdram_ctrl_clk,--50MHz
-		clk_dram => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
+		sdram_clk_in => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
 		rst	=> rst,
-		dll_locked => pll_12MHz_locked,--used for sdram_CS_N
+		addr	=> sdram_addr,--32M words
+		D		=> ram_write_data,
+		Q		=> sdram_ctrl_Q,
+		wren	=> sdram_ctrl_wren,
+		rden	=> sdram_ctrl_rden,
+		ready	=> sdram_ctrl_ready,
 		------SDRAM itfc-----
-		dram_addr=> sdram_A,
-		dram_bank=> sdram_BA,
-		dram_dqm	=> sdram_DQM,
-		dram_dq	=> sdram_DQ,
-		dram_cke => sdram_CKE,
-		dram_clk	=> sdram_CLK_OUT,
-		dram_we_n=> sdram_WE_N,
-		dram_cas_n=> sdram_CAS_N,
-		dram_ras_n=> sdram_RAS_N,
-		dram_cs_n=> sdram_CS_N,
-		----CPU/DMA itfc-------
-		----wishbone protocol--
-		addr_i=> sdram_addr(22 downto 0),--32M words
-		dat_i	=> ram_write_data,
-		dat_o	=> sdram_ctrl_Q,
-		we_i	=> sdram_ctrl_wren,
-		ack_o => sdram_ctrl_ready,
-		stb_i	=> sdram_ctrl_strobe,
-		cyc_i => '1'
+		A		=> sdram_A,
+		BA		=> sdram_BA,
+		DQM		=> sdram_DQM,
+		DQ		=> sdram_DQ,
+		CKE		=> sdram_CKE,
+		sdram_clk_out	=> sdram_CLK_OUT,
+		WE_N	=> sdram_WE_N,
+		CAS_N	=> sdram_CAS_N,
+		RAS_N	=> sdram_RAS_N,
+		CS_N	=> sdram_CS_N
     );
+
+--	sdram_ctrl_strobe <= sdram_ctrl_rden or sdram_ctrl_wren;
+--	sdram_ctrl: sdram_controller_by_luccas641
+--	port map (
+--		clk	=> sdram_ctrl_clk,--50MHz
+--		clk_dram => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
+--		rst	=> rst,
+--		dll_locked => pll_12MHz_locked,--used for sdram_CS_N
+--		------SDRAM itfc-----
+--		dram_addr=> sdram_A,
+--		dram_bank=> sdram_BA,
+--		dram_dqm	=> sdram_DQM,
+--		dram_dq	=> sdram_DQ,
+--		dram_cke => sdram_CKE,
+--		dram_clk	=> sdram_CLK_OUT,
+--		dram_we_n=> sdram_WE_N,
+--		dram_cas_n=> sdram_CAS_N,
+--		dram_ras_n=> sdram_RAS_N,
+--		dram_cs_n=> sdram_CS_N,
+--		----CPU/DMA itfc-------
+--		----wishbone protocol--
+--		addr_i=> sdram_addr(22 downto 0),--32M words
+--		dat_i	=> ram_write_data,
+--		dat_o	=> sdram_ctrl_Q,
+--		we_i	=> sdram_ctrl_wren,
+--		ack_o => sdram_ctrl_ready,
+--		stb_i	=> sdram_ctrl_strobe,
+--		cyc_i => '1'
+--    );
 	 
 	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
 	--to an word address (starting at 0)
