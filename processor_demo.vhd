@@ -645,6 +645,33 @@ component sdram_controller
     );
 end component;
 
+component sdram_controller_by_luccas641
+  port ( 
+	clk 			: in std_logic;
+	clk_dram 	: in std_logic;
+	rst 			: in std_logic;
+	dll_locked 	: in std_logic;
+	-- DRAM signals
+	dram_addr 	: out std_logic_vector(12 downto 0);
+	dram_bank 	: out std_logic_vector(1 downto 0);
+	dram_cas_n 	: out std_logic;
+	dram_ras_n 	: out std_logic;
+	dram_cke 	: out std_logic;
+	dram_clk 	: out std_logic;
+	dram_cs_n 	: out std_logic;
+	dram_dq 		: inout std_logic_vector(31 downto 0);
+	dram_dqm 	: out std_logic_vector(3 downto 0);
+	dram_we_n 	: out std_logic;
+	--wishbone
+	addr_i 		: in std_logic_vector(22 downto 0);
+	dat_i 		: in std_logic_vector(31 downto 0);
+   dat_o 		: out std_logic_vector(31 downto 0);
+	we_i 			: in std_logic;
+	ack_o 		: out std_logic;
+	stb_i			: in std_logic;
+	cyc_i			: in std_logic);
+end component;
+
 -------cpu/dma arbiter------------------
 component arbiter
     port (
@@ -1098,12 +1125,15 @@ signal sdram_ctrl_rden: std_logic;
 signal sdram_ctrl_ready: std_logic;
 signal sdram_ctrl_clk: std_logic;--50MHz for SDRAM control
 signal sdram_clK_in: std_logic;--50MHz 3ns ahead of sdram_ctrl_clk
+signal sdram_ctrl_strobe: std_logic;--for SDRAM controller that uses whishbone protocol
 signal sdram_addr: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
 --delayed signais to avoid glitches in SDRAM control signals (clock much faster than cpu/dma clock)
 --these signals are activated only on the negative portion of cpu clock to allow signal settling
 signal sdram_ctrl_wren_del: std_logic;
 signal sdram_ctrl_rden_del: std_logic;
 signal sdram_addr_del: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
+
+signal pll_12MHz_locked: std_logic;
 
 --------- VGA controller interface--------
 signal vga_Q: std_logic_vector(31 downto 0);
@@ -2015,30 +2045,59 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--to an word address (starting at 0)
 	sdram_addr <= ram_addr - ranges(20)(0);
 	
-	sdram_ctrl: sdram_controller
-	generic map (CAS_LATENCY => 2 )
+--	sdram_ctrl: sdram_controller
+--	generic map (CAS_LATENCY => 2 )
+--	port map (
+--		----CPU/DMA itfc-----
+--		clk	=> sdram_ctrl_clk,--50MHz
+--		sdram_clk_in => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
+--		rst	=> rst,
+--		addr	=> sdram_addr,--32M words
+--		D		=> ram_write_data,
+--		Q		=> sdram_ctrl_Q,
+--		wren	=> sdram_ctrl_wren,
+--		rden	=> sdram_ctrl_rden,
+--		ready	=> sdram_ctrl_ready,
+--		------SDRAM itfc-----
+--		A		=> sdram_A,
+--		BA		=> sdram_BA,
+--		DQM		=> sdram_DQM,
+--		DQ		=> sdram_DQ,
+--		CKE		=> sdram_CKE,
+--		sdram_clk_out	=> sdram_CLK_OUT,
+--		WE_N	=> sdram_WE_N,
+--		CAS_N	=> sdram_CAS_N,
+--		RAS_N	=> sdram_RAS_N,
+--		CS_N	=> sdram_CS_N
+--    );
+
+	sdram_ctrl_strobe <= sdram_ctrl_rden or sdram_ctrl_wren;
+	sdram_ctrl: sdram_controller_by_luccas641
 	port map (
-		----CPU/DMA itfc-----
 		clk	=> sdram_ctrl_clk,--50MHz
-		sdram_clk_in => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
+		clk_dram => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
 		rst	=> rst,
-		addr	=> sdram_addr,--32M words
-		D		=> ram_write_data,
-		Q		=> sdram_ctrl_Q,
-		wren	=> sdram_ctrl_wren,
-		rden	=> sdram_ctrl_rden,
-		ready	=> sdram_ctrl_ready,
+		dll_locked => pll_12MHz_locked,--used for sdram_CS_N
 		------SDRAM itfc-----
-		A		=> sdram_A,
-		BA		=> sdram_BA,
-		DQM		=> sdram_DQM,
-		DQ		=> sdram_DQ,
-		CKE		=> sdram_CKE,
-		sdram_clk_out	=> sdram_CLK_OUT,
-		WE_N	=> sdram_WE_N,
-		CAS_N	=> sdram_CAS_N,
-		RAS_N	=> sdram_RAS_N,
-		CS_N	=> sdram_CS_N
+		dram_addr=> sdram_A,
+		dram_bank=> sdram_BA,
+		dram_dqm	=> sdram_DQM,
+		dram_dq	=> sdram_DQ,
+		dram_cke => sdram_CKE,
+		dram_clk	=> sdram_CLK_OUT,
+		dram_we_n=> sdram_WE_N,
+		dram_cas_n=> sdram_CAS_N,
+		dram_ras_n=> sdram_RAS_N,
+		dram_cs_n=> sdram_CS_N,
+		----CPU/DMA itfc-------
+		----wishbone protocol--
+		addr_i=> sdram_addr(22 downto 0),--32M words
+		dat_i	=> ram_write_data,
+		dat_o	=> sdram_ctrl_Q,
+		we_i	=> sdram_ctrl_wren,
+		ack_o => sdram_ctrl_ready,
+		stb_i	=> sdram_ctrl_strobe,
+		cyc_i => '1'
     );
 	 
 	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
@@ -2190,7 +2249,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	C1 => clk_uart_8x2400,
 	c2 => sdram_clK_in,
 --	c2 => vga_pclk--25.175MHz for VGA pixel clock (actually 25.161290MHz)
-	locked => open
+	locked => pll_12MHz_locked
 	);
 
 	--produces 44118Hz (fs) and 20 MHz (for BCLK_IN) from 12MHz input
