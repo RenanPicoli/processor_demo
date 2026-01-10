@@ -11,6 +11,8 @@ entity vga_controller is
         data_in    : in  std_logic_vector(31 downto 0);
         wren       : in  std_logic;
         ready      : out  std_logic;
+		  rden		 : in std_logic;
+		  Q			 : out std_logic_vector(31 downto 0);--for reading the CR (status)
 
         SYNC_N     : out std_logic;
         BLANK_N    : out std_logic;
@@ -72,27 +74,38 @@ architecture rtl of vga_controller is
     constant VGA: vga_config_t := VGA_640x480_60Hz;
 
     -- Registradores
-    signal CR : std_logic_vector(31 downto 0) := (others => '0'); -- Bit 0: SYNC_N, Bit 1: BLANK_N
+    signal CR : std_logic_vector(31 downto 0) := (others => '0'); -- Bit 0: SYNC_N, Bit 1: BLANK_N, bit 2: fifo_empty, bit 3: fifo_full
     signal DR : std_logic_vector(31 downto 0);
 
     -- FIFO de pixels
-	 -- since sdram clk/PCLK is ~3.97, this fifo MUST be 4x times the size of DMA fifo
-	 constant FIFO_LEN: integer := 32*4;
+	 -- since sdram clk/PCLK is ~3.97, this fifo MUST be at least 4x times the size of DMA fifo
+	 constant FIFO_LEN: integer := VGA.h_visible;--stores one line
     type fifo_array is array (0 to FIFO_LEN-1) of std_logic_vector(31 downto 0);
     signal fifo      : fifo_array;
     signal write_ptr : integer range 0 to FIFO_LEN-1 := 0;
+    signal prev_write_ptr : integer range 0 to FIFO_LEN-1 := 0;
     signal read_ptr  : integer range 0 to FIFO_LEN-1 := 0;
+    signal prev_read_ptr : integer range 0 to FIFO_LEN-1 := 0;
     signal fifo_empty: std_logic;
     signal fifo_full : std_logic;
 
     -- Contadores de sincronismo
     signal h_count, v_count : natural := 0;
     signal hsync_sig, vsync_sig : std_logic := '1';
+	 
+	 -- Contador de frames
+    signal f_count : natural := 0;--31 bits, enough for 9942 hours before flipping to zero again
 
     -- Zona visivel
     signal pixel_active, line_active : std_logic := '0';
 	 signal fifo_rden: std_logic;
 	 signal fifo_data_out: std_logic_vector(31 downto 0);
+	 
+	 --these signals are kept during synthesis for debug
+	 attribute preserve_for_debug : boolean;
+	 attribute preserve_for_debug of fifo_empty : signal is true;
+	 attribute preserve_for_debug of fifo_full : signal is true;
+	 attribute preserve_for_debug of f_count : signal is true;
 begin
 
     -- Mapeamento de CR (endereço 1) e DR (endereço 0)
@@ -100,19 +113,21 @@ begin
     begin
 		  if(rst = '1')then
 				DR <= (others => '0');
-				CR <= (others => '0');
+				CR(1 downto 0) <= (others => '0');
 				write_ptr <= 0;
+				prev_write_ptr <= 0;
         elsif rising_edge(clk) then
+				prev_write_ptr <= write_ptr;
             if wren = '1' then
                 case addr is
                     when "000000" =>
                         DR <= data_in;
                         if fifo_full = '0' then
                             fifo(write_ptr) <= data_in;
-                            write_ptr <= (write_ptr + 1) mod  FIFO_LEN;
+                            write_ptr <= (write_ptr + 1) mod  FIFO_LEN;--head pointer
                         end if;
                     when "000001" =>
-                        CR <= data_in;
+                        CR(1 downto 0) <= data_in(1 downto 0);
                     when others =>
                         null;
                 end case;
@@ -121,8 +136,44 @@ begin
     end process;
 
     -- FIFO status
-    fifo_empty <= '1' when write_ptr = read_ptr else '0';
-    fifo_full  <= '1' when (write_ptr + 1) mod  FIFO_LEN = read_ptr else '0';
+	 -- write_ptr: head
+	 -- read_ptr: tail
+    -- fifo_empty <= '1' when write_ptr = read_ptr else '0';
+    -- fifo_full  <= '1' when (write_ptr + 1) mod  FIFO_LEN = read_ptr else '0';
+	 FIFO_FULL_PROC : process(clk, write_ptr, read_ptr, prev_write_ptr, fifo_rden)
+     begin
+		  if rst ='1' or (read_ptr = 0 and prev_read_ptr=VGA.h_visible-1) then--resets when last pixel is transmitted by VGA
+				fifo_full <= '0';
+        elsif falling_edge(clk) then -- falling edge because fifo_full (ready) is sampled on the rising_edge of mem_clk (by DMA)
+            --if (write_ptr + 1) mod  FIFO_LEN = read_ptr then
+			if write_ptr = 0 and prev_write_ptr = VGA.h_visible-1 then
+                fifo_full  <= '1';
+--            elsif read_ptr = VGA.h_visible-1 and fifo_rden='1' then
+--                fifo_full  <= '0';
+            end if;
+        end if;
+     end process;
+	  
+	 FIFO_EMPTY_PROC : process(PCLK, write_ptr, read_ptr, prev_read_ptr)
+     begin
+        if falling_edge(PCLK) then -- falling edge because fifo_full (ready) is sampled on the rising_edge of mem_clk (by DMA)
+            --fifo_empty is used only internally, but it is ampled by slower clk PCLK
+            if write_ptr = read_ptr and prev_read_ptr /= 0 then
+                fifo_empty <= '1';
+            else
+                fifo_empty <= '0';
+            end if;
+        end if;
+     end process;
+	 CR(2) <= fifo_empty;
+	 CR(3) <= fifo_full;
+	 
+	 -- CR/DR reading
+	 --this is meant to prevent fifo_empty/fifo_full from being removed
+	 Q <= CR when rden='1' and addr="000001" else
+			DR when rden='1' and addr="000000" else
+			std_logic_vector(to_unsigned(f_count,32)) when rden='1' and addr="000010" else
+			(others => '0');
 
     -- ready information to DMA
     ready <= '0' when fifo_full='1' else '1';        
@@ -134,11 +185,14 @@ begin
 		  if(rst = '1')then
 				h_count <= 0;
 				v_count <= 0;
+				f_count <= 0;--frame counter
         elsif rising_edge(PCLK) then
             if h_count = VGA.h_total - 1 then
                 h_count <= 0;
                 if v_count = VGA.v_total - 1 then
+					     -- Starts new frame
                     v_count <= 0;
+						  f_count <= f_count + 1;
                 else
                     v_count <= v_count + 1;
                 end if;
@@ -150,14 +204,12 @@ begin
 
     -- Geração de hsync e vsync
 	 --h_count is 0 during the begining of HSYNC pulse
-    hsync_sig <= '0' when
-        h_count <  VGA.h_sync
-        else '1';
+    hsync_sig <= '0' when h_count <  VGA.h_sync
+						else '1';
 			
 	--v_count is 0 during the begining of VSYNC pulse
-    vsync_sig <= '0' when
-        v_count < VGA.v_sync
-        else '1';
+    vsync_sig <= '0' when v_count < VGA.v_sync
+						else '1';
 
     hsync <= hsync_sig;
     vsync <= vsync_sig;
@@ -165,34 +217,33 @@ begin
     -- Zona visível
 	-- Sera lido no proximo ciclo de PCLK para inferir RAM para a fifo, por isso subtrai 1
     pixel_active <= '1' when h_count >= (VGA.h_sync + VGA.h_back_porch - 1) and h_count < (VGA.h_sync + VGA.h_back_porch + VGA.h_visible - 1) else '0';
-    line_active  <= '1' when v_count >= (VGA.v_sync + VGA.v_back_porch - 1) and v_count < (VGA.v_sync + VGA.v_back_porch + VGA.v_visible - 1) else '0';
+    -- line_active does not need subtract 1 because v_count does not change with every PCLK rising_edge
+	 line_active  <= '1' when v_count >= (VGA.v_sync + VGA.v_back_porch) and v_count < (VGA.v_sync + VGA.v_back_porch + VGA.v_visible) else '0';
 
     -- Saida para DAC durante zona visivel
 	-- Leitura da fifo
-    process(rst, PCLK)
+	fifo_rden <= '1' when hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
+               pixel_active = '1' and line_active = '1' else '0';
+					
+    process(rst, PCLK, fifo_rden)
     begin
 		if (rst ='1') then
 			read_ptr <= 0;
-        elsif rising_edge(PCLK) then	
-			if hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
-               pixel_active = '1' and line_active = '1' then
-            	read_ptr <= (read_ptr + 1) mod  FIFO_LEN;
+        elsif rising_edge(PCLK) then
+            prev_read_ptr <= read_ptr;
+			if fifo_rden = '1' then
+            	read_ptr <= (read_ptr + 1) mod  FIFO_LEN;--tail pointer
 			end if;
         end if;
     end process;
 			
-	fifo_rden <= '1' when hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
-               pixel_active = '1' and line_active = '1' else '0';
-	process(PCLK, hsync_sig, vsync_sig, fifo_empty, pixel_active, line_active)
+	process(PCLK, fifo_rden, read_ptr)
     begin
 		if rising_edge(PCLK) then
             if fifo_rden='1' then
 					fifo_data_out <= fifo(read_ptr);
             else
 					fifo_data_out <= (others => '0');
---                R <= (others => '0');
---                G <= (others => '0');
---                B <= (others => '0');
             end if;
 		end if;
     end process;	
