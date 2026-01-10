@@ -4,7 +4,7 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
 entity dma_controller is
-	 generic (FIFO_LEN: natural := 32);
+	 generic (FIFO_LEN: natural := 256);
     port (
         reset     : in  std_logic;
 
@@ -54,6 +54,11 @@ architecture behavior of dma_controller is
     signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Capacidade da FIFO = FIFO_LEN palavras
 
     signal state     : std_logic_vector(1 downto 0) := "00"; -- 00 = Idle, 01 = Reading, 10 = Writing
+	 
+--	 signal	prev_mem_ready: std_logic;
+	 type mem_ready_sr_type is array (0 to 3) of std_logic;
+	 signal mem_ready_sr: mem_ready_sr_type := (others => '0');
+	 signal mem_valid : std_logic;--indicates mem_data_in is valid (still valid after CAS latency clocks after mem_ready is deasserted)
 begin
 
     -- Lógica de leitura/escrita nos registradores via CPU
@@ -119,6 +124,9 @@ begin
 	count_del <= count_sr(conv_integer(unsigned(CR(5 downto 4))));
 	count_sr(0)<=count;--no latency added
 	
+	 --keeps track of which data is valid when reading
+	 mem_valid  <= mem_ready_sr(conv_integer(unsigned(CR(5 downto 4))));
+	 mem_ready_sr(0) <= mem_ready;--no latency added
     -- Máquina de estados para leitura e escrita usando FIFO
     process (mem_clk, reset, iack, mem_ready)
     begin
@@ -131,9 +139,19 @@ begin
             fifo_count <= 0;
             state     <= "00";-- IDLE
             irq       <= '0';
+				mem_ready_sr(1 to 3)	<= (others => '0');
         elsif rising_edge(mem_clk) then
-            fifo_head_sr(1 to 3)	<= fifo_head_sr(0 to 2);
-            count_sr(1 to 3)		<= count_sr(0 to 2);
+			  if mem_rden = '0' then
+					mem_ready_sr(1 to 3)	<= (others => '0');
+				else
+					mem_ready_sr(1 to 3)	<= mem_ready_sr(0 to 2);
+				end if;
+				
+				if mem_valid  = '1' or mem_ready='1' then
+					fifo_head_sr(1 to 3)	<= fifo_head_sr(0 to 2);
+					count_sr(1 to 3)		<= count_sr(0 to 2);
+				end if;
+				
             case state is
                 when "00" =>  -- IDLE
                     if CR(0) = '1' then
@@ -141,31 +159,35 @@ begin
                     end if;
 
                 when "01" =>  -- READING
-                    if fifo_count < FIFO_LEN and count < num_xfers and mem_ready='1' then
+                    if fifo_count < FIFO_LEN and count < num_xfers then
                         -- Inicia leitura
+								if mem_valid ='1' then
+									-- Armazena na FIFO após leitura
+									fifo(fifo_head_del) <= mem_data_in;--fifo_head delayed according source memory latency
+								end if;                    
 
-                        -- Armazena na FIFO após leitura
-                        fifo(fifo_head_del) <= mem_data_in;--fifo_head delayed according source memory latency
-                        fifo_head <= (fifo_head + 1) mod FIFO_LEN;
-                        fifo_count <= fifo_count + 1;                        
-
-                        -- Incrementa `count`
-                        count <= count + 1;
+								if mem_ready='1' then--we need to check if ready is still asserted (ready for receiving new commands)
+									-- Incrementa count (contador de endereços lidos)
+									count <= count + 1;
+									fifo_head <= (fifo_head + 1) mod FIFO_LEN;
+									fifo_count <= fifo_count + 1;
+								end if;
 
                         -- Se FIFO cheia, troca para escrita
                         if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
                             state <= "10";
                         end if;
-								
+						  
 						  elsif fifo_head_del < FIFO_LEN then--this is meant to latch the last words
-
-                        -- Armazena na FIFO após leitura
-                        fifo(fifo_head_del) <= mem_data_in;--fifo_head delayed according source memory latency
+								if mem_valid  = '1' then
+									-- Armazena na FIFO após leitura
+									fifo(fifo_head_del) <= mem_data_in;--fifo_head delayed according source memory latency
 								
-                        -- Se escreve o ultimo elemento, troca para escrita
-                        if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
-                            state <= "10";
-                        end if;
+									-- Se escreve o ultimo elemento, troca para escrita
+									if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
+										 state <= "10";
+									end if;
+								end if;
 								
                     elsif count_del = num_xfers then--uses delayed signal to start writing only after last data is latched
                         -- Se terminou a leitura, começa a escrita
@@ -184,12 +206,12 @@ begin
                     end if;
 
 							-- Se FIFO vazia, volta a ler
-							if fifo_count = 0 and count < num_xfers then
+							if fifo_count = 1 and count < num_xfers and mem_ready='1' then--escrita do último item da fifo
 								 state <= "01";
 							end if;
 
                     -- Ao transferir o ultimo item, finaliza OU inicia de novo se AUTOSTART estiver ativo
-                    if count = num_xfers and fifo_count = 1 then
+                    if count = num_xfers and fifo_count = 1 and mem_ready='1' then
                         irq   <= '1';
 								if  CR(6)='1' then
 									state <= "01";-- goes back to reading
