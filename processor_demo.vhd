@@ -703,7 +703,7 @@ end component;
 
 -----------dma controller------------
 component dma_controller
-	 generic (FIFO_LEN: natural := 32);
+	 generic (FIFO_LEN: natural := 256);
     port (
         reset     : in  std_logic;
 
@@ -739,6 +739,8 @@ component vga_controller
         data_in    : in  std_logic_vector(31 downto 0);
         wren       : in  std_logic;
         ready      : out  std_logic;
+		  rden		 : in std_logic;
+		  Q			 : out std_logic_vector(31 downto 0);--for reading the CR (status)
 
         SYNC_N     : out std_logic;
         BLANK_N    : out std_logic;
@@ -1123,8 +1125,8 @@ signal sdram_ctrl_Q: std_logic_vector(31 downto 0);
 signal sdram_ctrl_wren: std_logic;
 signal sdram_ctrl_rden: std_logic;
 signal sdram_ctrl_ready: std_logic;
-signal sdram_ctrl_clk: std_logic;--50MHz for SDRAM control
-signal sdram_clK_in: std_logic;--50MHz 3ns ahead of sdram_ctrl_clk
+signal sdram_ctrl_clk: std_logic;--75MHz for SDRAM control
+signal sdram_clK_in: std_logic;--75MHz 3ns ahead of sdram_ctrl_clk
 signal sdram_ctrl_strobe: std_logic;--for SDRAM controller that uses whishbone protocol
 signal sdram_addr: std_logic_vector(31 downto 0);-- zero-based address for SDRAM
 --delayed signais to avoid glitches in SDRAM control signals (clock much faster than cpu/dma clock)
@@ -1828,7 +1830,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	program_data_rden			<= all_periphs_rden(19);-- not used, just to keep form
 	tmp_vector_rden			<= all_periphs_rden(18);-- not used, just to keep form
 	irq_ctrl_rden				<= all_periphs_rden(17);-- not used, just to keep form
-	vga_rden						<= all_periphs_rden(16);-- not used, just to keep form
+	vga_rden						<= all_periphs_rden(16);
 	dma_rden						<= all_periphs_rden(15);-- not used, just to keep form
 	uart_rden					<= all_periphs_rden(14);
 	gp_fp32_to_int32_rden	<= all_periphs_rden(13);-- not used, just to keep form
@@ -1957,7 +1959,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--decides wether dma or cpu have access to the RAM
 	arb: arbiter
 		 port map(
-			  clk=> sdram_ctrl_clk,--50MHz, must be fast, it is used for selecting the address decoder "master"
+			  clk=> sdram_ctrl_clk,--75MHz, must be fast, it is used for selecting the address decoder "master"
 			  rst=> rst,
 			  -----
 			  cpu_addr=> cpu_ram_addr,
@@ -2049,8 +2051,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	generic map (CAS_LATENCY => 2 )
 	port map (
 		----CPU/DMA itfc-----
-		clk	=> sdram_ctrl_clk,--50MHz
-		sdram_clk_in => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
+		clk	=> sdram_ctrl_clk,--75MHz
+		sdram_clk_in => sdram_CLK_in,--75MHz, phase shifted from clk (3ns ahead)
 		rst	=> rst,
 		addr	=> sdram_addr,--32M words
 		D		=> ram_write_data,
@@ -2074,8 +2076,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	sdram_ctrl_strobe <= sdram_ctrl_rden or sdram_ctrl_wren;
 --	sdram_ctrl: sdram_controller_by_luccas641
 --	port map (
---		clk	=> sdram_ctrl_clk,--50MHz
---		clk_dram => sdram_CLK_in,--50MHz, phase shifted from clk (3ns ahead)
+--		clk	=> sdram_ctrl_clk,--75MHz
+--		clk_dram => sdram_CLK_in,--75MHz, phase shifted from clk (3ns ahead)
 --		rst	=> rst,
 --		dll_locked => pll_12MHz_locked,--used for sdram_CS_N
 --		------SDRAM itfc-----
@@ -2106,13 +2108,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	vga: vga_controller
 			  port map (
 					----CPU/DMA itfc-----
-					clk     => sdram_ctrl_clk,--50MHz
+					clk     => sdram_ctrl_clk,--75MHz
 					rst	  => rst,
 					PCLK    => vga_pclk,
 					addr    => vga_addr(5 downto 0),
 					data_in => ram_write_data,
 					wren    => vga_wren,
 					ready   => vga_ready,
+					rden	  => vga_rden,
+					Q		  => vga_Q,
 					SYNC_N  => vga_sync_n,
 					BLANK_N => vga_blank_n,
 					hsync   => vga_hs,
@@ -2235,7 +2239,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		c0		=> CLK_dbg,--produces 48MHz for debugging
 		c1		=> CLK,--produces CLK=4MHz for processor
 		c2		=> sram_CLK,--produces 4x the processor frequency, delayed (for 4MHz uproc, produces 16MHz delayed 31.25 ns)
-		c3		=> sdram_ctrl_clk,--50MHz for SDRAM control and IO
+		c3		=> sdram_ctrl_clk,--75MHz for SDRAM control and IO
 		c4		=> vga_pclk,--25MHz for VGA pixel clock
 		locked=> open
 	);
