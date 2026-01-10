@@ -416,7 +416,7 @@ begin
 	end process;
 	
 	-----------------ready driving--------------------
-	process(op_state,RDEN,ADDR_VALID)
+	process(op_state,RDEN,ADDR_VALID,any_active_row,nxt_op_state)
 	begin
 		case op_state is
 			when START_READ =>--this is for use with DMA, when it supports SDRAM latency, somethong must be adapted when CPU is reading
@@ -425,19 +425,15 @@ begin
 				else
 					ready <= '1';
 				end if;
-			when READING =>
-				if(RDEN='0' or ADDR_VALID='0') then
-					ready <= '0';
-				else
-					ready <= '1';
-				end if;
-			when WRITING =>
-				if(WREN='0' or ADDR_VALID='0') then
-					ready <= '0';
-				else
-					ready <= '1';
-				end if;
-			when others =>
+			when READING | WRITING =>
+				ready <= '1';
+			when BURST_STOP =>
+				ready <= '0';
+			when PRECHARGE | PALL => --during these states, SDRAM is ready for reading BUT NOT for writes
+				ready <= '0';
+			when ACTIVATE | AR =>----during these states, SDRAM is not ready for reading or writes
+				ready <= '0';
+			when others =>--what about when IDLE????
 				ready <= '0';
 		end case;
 	end process;
