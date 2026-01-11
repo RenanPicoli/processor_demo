@@ -173,10 +173,10 @@ begin
 									fifo_count <= fifo_count + 1;
 								end if;
 
-                        -- Se FIFO cheia, troca para escrita
-                        if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
-                            state <= "10";
-                        end if;
+                        -- -- Se FIFO cheia, troca para escrita
+                        -- if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
+                        --     state <= "10";
+                        -- end if;
 						  
 						  elsif fifo_head_del < FIFO_LEN then--this is meant to latch the last words
 								if mem_valid  = '1' then
