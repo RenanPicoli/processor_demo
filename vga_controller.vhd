@@ -74,8 +74,13 @@ architecture rtl of vga_controller is
     constant VGA: vga_config_t := VGA_640x480_60Hz;
 
     -- Registradores
-    signal CR : std_logic_vector(31 downto 0) := (others => '0'); -- Bit 0: SYNC_N, Bit 1: BLANK_N, bit 2: fifo_empty, bit 3: fifo_full
+    -- bits de CR: Bit 0: SYNC_N, Bit 1: BLANK_N, bit 2: fifo_empty, bit 3: fifo_full, bit 4: write '1' to start
+    -- bit 5: vga_started, bit 6: vga_start_cmd (comando start recebido, aguardando momento de iniciar a transmissão)
+    signal CR : std_logic_vector(31 downto 0) := (others => '0');
     signal DR : std_logic_vector(31 downto 0);
+
+    signal vga_start_cmd: std_logic := '0';
+    signal vga_started: std_logic := '0';
 
     -- FIFO de pixels
 	 -- since sdram clk/PCLK is ~3.97, this fifo MUST be at least 4x times the size of DMA fifo
@@ -168,6 +173,46 @@ begin
 	 CR(2) <= fifo_empty;
 	 CR(3) <= fifo_full;
 	 
+    VGA_STARTED_PROC : process(clk, rst)
+    begin
+        if rst = '1' then
+            vga_started <= '0';    
+        elsif rising_edge(clk) then
+            -- (VGA.h_sync + VGA.h_back_porch - 2) because must be sampled before fifo_rden/pixel_active goes to '1'
+            if vga_start_cmd ='1' and v_count = (VGA.v_sync + VGA.v_back_porch) and h_count = (VGA.h_sync + VGA.h_back_porch - 2) then
+                vga_started <= '1';
+            end if;  
+        end if;
+    end process;
+
+    VGA_START_CMD_PROC : process(clk, rst)
+    begin
+        if rst = '1' then
+            vga_start_cmd <= '0';    
+        elsif rising_edge(clk) then
+            if CR(4) = '1' then
+                vga_start_cmd <= '1';
+            elsif vga_started ='1' then
+                vga_start_cmd <= '0';
+            end if;    
+        end if;
+    end process;
+
+    CR4_PROC : process(clk, rst)
+    begin
+        if rst = '1' then
+            CR(4) <= '0';    
+        elsif rising_edge(clk) then
+            if wren = '1' and addr = "000001" then
+                CR(4) <= '1';
+            else
+                CR(4) <= '0';
+            end if;    
+        end if;
+    end process;
+    CR(5) <= vga_started;
+    CR(6) <= vga_start_cmd;
+
 	 -- CR/DR reading
 	 --this is meant to prevent fifo_empty/fifo_full from being removed
 	 Q <= CR when rden='1' and addr="000001" else
@@ -223,7 +268,7 @@ begin
     -- Saida para DAC durante zona visivel
 	-- Leitura da fifo
 	fifo_rden <= '1' when hsync_sig = '1' and vsync_sig = '1' and fifo_empty = '0' and
-               pixel_active = '1' and line_active = '1' else '0';
+               pixel_active = '1' and line_active = '1' and vga_started = '1' else '0';
 					
     process(rst, PCLK, fifo_rden)
     begin
