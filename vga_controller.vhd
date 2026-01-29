@@ -173,7 +173,7 @@ begin
 	 CR(2) <= fifo_empty;
 	 CR(3) <= fifo_full;
 	 
-    VGA_STARTED_PROC : process(clk, rst)
+    VGA_STARTED_PROC : process(clk, rst, vga_start_cmd, v_count, h_count)
     begin
         if rst = '1' then
             vga_started <= '0';    
@@ -185,7 +185,7 @@ begin
         end if;
     end process;
 
-    VGA_START_CMD_PROC : process(clk, rst)
+    VGA_START_CMD_PROC : process(clk, rst, CR, vga_started)
     begin
         if rst = '1' then
             vga_start_cmd <= '0';    
@@ -198,7 +198,7 @@ begin
         end if;
     end process;
 
-    CR4_PROC : process(clk, rst)
+    CR4_PROC : process(clk, rst, wren, addr)
     begin
         if rst = '1' then
             CR(4) <= '0';    
