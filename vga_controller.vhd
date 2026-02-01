@@ -198,13 +198,13 @@ begin
         end if;
     end process;
 
-    CR4_PROC : process(clk, rst, wren, addr)
+    CR4_PROC : process(clk, rst, wren, addr, data_in)
     begin
         if rst = '1' then
             CR(4) <= '0';    
         elsif rising_edge(clk) then
             if wren = '1' and addr = "000001" then
-                CR(4) <= '1';
+                CR(4) <= data_in(4);
             else
                 CR(4) <= '0';
             end if;    
