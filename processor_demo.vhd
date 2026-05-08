@@ -1039,7 +1039,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#7E#,16#7F#),-- 16: VGA
 											(16#80#,16#FF#),-- 17: interrupt controller
 											(16#100#,16#10F#),-- 18: tmp_vector
-											(16#800#,16#FFF#),-- 19: instruction memory (aka program_data)
+											(16#8000#,16#FFFF#),-- 19: instruction memory (aka program_data)
 											(16#2000000#,16#3FFFFFF#) --20: SDRAM
 											);
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
