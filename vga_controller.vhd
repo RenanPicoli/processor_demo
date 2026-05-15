@@ -107,10 +107,10 @@ architecture rtl of vga_controller is
 	 signal fifo_data_out: std_logic_vector(31 downto 0);
 	 
 	 --these signals are kept during synthesis for debug
-	 attribute preserve_for_debug : boolean;
-	 attribute preserve_for_debug of fifo_empty : signal is true;
-	 attribute preserve_for_debug of fifo_full : signal is true;
-	 attribute preserve_for_debug of f_count : signal is true;
+	 attribute preserve : boolean;
+	 attribute preserve of fifo_empty : signal is true;
+	 attribute preserve of fifo_full : signal is true;
+	 attribute preserve of f_count : signal is true;
 begin
 
     -- Mapeamento de CR (endereço 1) e DR (endereço 0)
