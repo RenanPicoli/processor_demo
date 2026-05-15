@@ -59,6 +59,24 @@ architecture behavior of dma_controller is
 	 type mem_ready_sr_type is array (0 to 3) of std_logic;
 	 signal mem_ready_sr: mem_ready_sr_type := (others => '0');
 	 signal mem_valid : std_logic;--indicates mem_data_in is valid (still valid after CAS latency clocks after mem_ready is deasserted)
+	 
+	 attribute preserve : boolean;
+	 attribute preserve of src_addr : signal is true;
+	 attribute preserve of dst_addr : signal is true;
+	 attribute preserve of num_xfers : signal is true;
+	 attribute preserve of count : signal is true;
+	 attribute preserve of count_del : signal is true;
+	 attribute preserve of count_sr : signal is true;
+	 attribute preserve of CR : signal is true;
+	 attribute preserve of fifO : signal is true;
+	 attribute preserve of fifo_head : signal is true;
+	 attribute preserve of fifo_head_del : signal is true;
+	 attribute preserve of fifo_head_sr : signal is true;
+	 attribute preserve of fifo_tail : signal is true;
+	 attribute preserve of fifo_count : signal is true;
+	 attribute preserve of state : signal is true;
+	 attribute preserve of mem_ready_sr : signal is true;
+	 attribute preserve of mem_valid : signal is true;
 begin
 
     -- Lógica de leitura/escrita nos registradores via CPU
@@ -177,6 +195,10 @@ begin
                         -- if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
                         --     state <= "10";
                         -- end if;
+								
+                    elsif count_del = num_xfers then--uses delayed signal to start writing only after last data is latched
+                        -- Se terminou a leitura, começa a escrita
+                        state <= "10";
 						  
 						  elsif fifo_head_del < FIFO_LEN then--this is meant to latch the last words
 								if mem_valid  = '1' then
@@ -188,10 +210,6 @@ begin
 										 state <= "10";
 									end if;
 								end if;
-								
-                    elsif count_del = num_xfers then--uses delayed signal to start writing only after last data is latched
-                        -- Se terminou a leitura, começa a escrita
-                        state <= "10";
                     end if;
 
                 when "10" =>  -- WRITING
