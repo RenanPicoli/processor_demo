@@ -23,3 +23,5 @@ def image_to_binary(input_image_path, output_bin_path):
 
 # Exemplo de uso:
 image_to_binary("EX1A9227.jpg", "img_raster.bin")
+# image_to_binary("640x480-avocado-solid-color-background.jpg", "img_raster.bin")
+# image_to_binary("gdblue.jpg", "img_raster.bin")
