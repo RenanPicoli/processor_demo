@@ -34,32 +34,79 @@ end arbiter;
 architecture rtl of arbiter is
 
 signal dma_access_granted: std_logic;
+signal mem_addr_reg: std_logic_vector(31 downto 0);
+signal mem_write_data_reg: std_logic_vector(31 downto 0);
+signal mem_rden_reg: std_logic;
+signal mem_wren_reg: std_logic;
+signal cpu_ready_reg: std_logic;
+signal dma_ready_reg: std_logic;
+signal cpu_Q_reg: std_logic_vector(31 downto 0);
+signal dma_Q_reg: std_logic_vector(31 downto 0);
 
 begin
 
-arb_PROC : process(all)
+mem_addr <= mem_addr_reg;
+mem_write_data <= mem_write_data_reg;
+mem_rden <= mem_rden_reg;
+mem_wren <= mem_wren_reg;
+-- cpu_ready <= cpu_ready_reg;
+-- dma_ready <= dma_ready_reg;
+-- cpu_Q <= cpu_Q_reg;
+-- dma_Q <= dma_Q_reg;
+
+arb_PROC : process(clk, rst)
 begin
+    if rst = '1' then
+        mem_addr_reg <= (others => '0');
+        mem_write_data_reg <= (others => '0');
+        mem_rden_reg <= '0';
+        mem_wren_reg <= '0';
+        cpu_ready_reg <= '0';
+        dma_ready_reg <= '0';
+        cpu_Q_reg <= (others => '0');
+        dma_Q_reg <= (others => '0');
+    elsif rising_edge(clk) then
+        case dma_access_granted is
+        
+            when '1' =>
+                mem_addr_reg <= dma_addr;
+                mem_write_data_reg <= dma_write_data;
+                mem_wren_reg <= dma_wren;
+                mem_rden_reg <= dma_rden;
+                -- dma_ready_reg <= mem_ready;
+                -- cpu_ready_reg <= '0';
+                -- dma_Q_reg <= mem_Q;
+                -- cpu_Q_reg <= (others => '0');
+            when others =>
+                mem_addr_reg <= cpu_addr;
+                mem_write_data_reg <= cpu_write_data;
+                mem_wren_reg <= cpu_wren;
+                mem_rden_reg <= cpu_rden;
+                -- cpu_ready_reg <= mem_ready;
+                -- dma_ready_reg <= '0';
+                -- dma_Q_reg <= (others => '0');
+                -- cpu_Q_reg <= mem_Q;
+        
+        end case;
+    end if;
+end process;
+
+-- these processes are separated to avoid introducing additional latency in the data path from memory to cpu/dma
+Q_READY_PROC : process(dma_access_granted, mem_ready, mem_Q)
+ begin
     case dma_access_granted is
-    
+
         when '1' =>
-            mem_addr <= dma_addr;
-            mem_write_data <= dma_write_data;
-            mem_wren <= dma_wren;
-            mem_rden <= dma_rden;
             dma_ready <= mem_ready;
             cpu_ready <= '0';
             dma_Q <= mem_Q;
             cpu_Q <= (others => '0');
         when others =>
-            mem_addr <= cpu_addr;
-            mem_write_data <= cpu_write_data;
-            mem_wren <= cpu_wren;
-            mem_rden <= cpu_rden;
             cpu_ready <= mem_ready;
             dma_ready <= '0';
             dma_Q <= (others => '0');
             cpu_Q <= mem_Q;
-    
+
     end case;
 end process;
 
