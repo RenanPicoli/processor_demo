@@ -1936,6 +1936,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	dma_addr <= ram_addr - ranges(15)(0);
     dma: dma_controller
+	 generic map (FIFO_LEN => 640)
     port map (
 			--ports for configuration (done by cpu)
         clk       => ram_clk,
@@ -2039,7 +2040,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	disp_7seg: disp_7seg_driver port map(
 		CLK=> ram_clk,
 		D	=> disp_7seg_DR_out,
-		segments => segments		
+		segments => segments
 	);
 
 	
