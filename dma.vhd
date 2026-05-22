@@ -4,7 +4,7 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
 entity dma_controller is
-	 generic (FIFO_LEN: natural := 256);
+	 generic (FIFO_LEN: natural := 640);
     port (
         reset     : in  std_logic;
 
@@ -52,6 +52,7 @@ architecture behavior of dma_controller is
     signal fifo_head_sr: head_sr_type := (others => 0);
     signal fifo_tail : integer range 0 to FIFO_LEN-1 := 0;
     signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Capacidade da FIFO = FIFO_LEN palavras
+    signal fifo_count_reg: integer range 0 to FIFO_LEN := 0;
 
     signal state     : std_logic_vector(1 downto 0) := "00"; -- 00 = Idle, 01 = Reading, 10 = Writing
 	 
@@ -74,6 +75,7 @@ architecture behavior of dma_controller is
 	 attribute preserve of fifo_head_sr : signal is true;
 	 attribute preserve of fifo_tail : signal is true;
 	 attribute preserve of fifo_count : signal is true;
+	 attribute preserve of fifo_count_reg : signal is true;
 	 attribute preserve of state : signal is true;
 	 attribute preserve of mem_ready_sr : signal is true;
 	 attribute preserve of mem_valid : signal is true;
@@ -155,6 +157,7 @@ begin
 				count_sr(1 to 3)		<= (others => (others => '0'));
             fifo_tail <= 0;
             fifo_count <= 0;
+            fifo_count_reg <= 0;
             state     <= "00";-- IDLE
             irq       <= '0';
 				mem_ready_sr(1 to 3)	<= (others => '0');
@@ -189,16 +192,17 @@ begin
 									count <= count + 1;
 									fifo_head <= (fifo_head + 1) mod FIFO_LEN;
 									fifo_count <= fifo_count + 1;
+									fifo_count_reg <= fifo_count;
 								end if;
 
                         -- -- Se FIFO cheia, troca para escrita
                         -- if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
-                        --     state <= "10";
+                        --     state <= "11";
                         -- end if;
 								
                     elsif count_del = num_xfers then--uses delayed signal to start writing only after last data is latched
                         -- Se terminou a leitura, começa a escrita
-                        state <= "10";
+                        state <= "11";
 						  
 						  elsif fifo_head_del < FIFO_LEN then--this is meant to latch the last words
 								if mem_valid  = '1' then
@@ -207,11 +211,13 @@ begin
 								
 									-- Se escreve o ultimo elemento, troca para escrita
 									if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
-										 state <= "10";
+										 state <= "11";
 									end if;
 								end if;
                     end if;
-
+					when "11" => -- WAITING (not used in this implementation, but could be used to wait for some condition before writing)
+						--since now we are using synchronous writing, data read from fifo is valid only in the next cycle
+						state <= "10";-- start writing immediately in the next cycle
                 when "10" =>  -- WRITING
                     if fifo_count > 0 then
 								
@@ -220,6 +226,7 @@ begin
                         -- Atualiza FIFO
 									fifo_tail <= (fifo_tail + 1) mod FIFO_LEN;
 									fifo_count <= fifo_count - 1;
+									fifo_count_reg <= fifo_count;
 								end if;
                     end if;
 
@@ -254,7 +261,18 @@ begin
     end process;
 	 
 	-- Escreve na memória
-	mem_data_out <= fifo(fifo_tail);
+	-- devido a leitura assincrona, fifo sera feita com registradores
+	-- mem_data_out <= fifo(fifo_tail);
+
+	-- Escreve na memória de forma síncrona
+	-- data read from fifo is valid only in the next cycle
+	SYNC_READ: process(mem_clk,fifo_tail)
+	begin
+		if rising_edge(mem_clk) then
+			mem_data_out <= fifo(fifo_tail);
+		end if;
+	end process SYNC_READ;
+
 	 
 	 addr_proc: process (state, CR, count, fifo_count, src_addr, dst_addr)
 	 begin
@@ -268,10 +286,14 @@ begin
 				end if;
 				mem_rden <= '1';
 				mem_wren  <= '0';
+			when "11" => -- preparing to write
+				mem_addr <= dst_addr;
+				mem_rden <= '0';
+				mem_wren  <= '0';
 			when "10" =>  -- WRITING
 				-- Incrementa `dst_addr` se DINC estiver ativado
 				if CR(3) = '1' then
-					 mem_addr <= dst_addr + count - fifo_count;
+					 mem_addr <= dst_addr + count - fifo_count_reg;-- uses fifo_count_reg to get the correct address since fifo is read synchronously
 				else
 					mem_addr <= dst_addr;
 				end if;
