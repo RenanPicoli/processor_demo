@@ -7,6 +7,7 @@ entity arbiter is
     port (
         clk : in std_logic;--memory clock (e.g. SDRAM)
         rst : in std_logic;
+		MASTER_CLK_ID: out std_logic_vector(1 downto 0);--identifies the clock controlling the bus (for synchronization purposes)
         -----
         cpu_addr: in std_logic_vector(31 downto 0);
         cpu_write_data: in std_logic_vector(31 downto 0);
@@ -114,12 +115,15 @@ DMA_ACCESS_PROC : process(clk, rst)
 begin
     if rst = '1' then            
         dma_access_granted <= '0';--cpu controls memory
+        MASTER_CLK_ID <= "00";-- assuming the CPU is in clock domain 0, if there are multiple clock domains
 
     elsif rising_edge(clk) then
         if (dma_rden='1' or dma_wren='1') and (cpu_rden='0' and cpu_wren='0') and dma_access_granted='0' then
             dma_access_granted <= '1';--dma takes control of memory
+            MASTER_CLK_ID <= "01";-- assuming the DMA is in clock domain 1, if there are multiple clock domains
         elsif (cpu_rden='1' or cpu_wren='1') and (dma_rden='0' and dma_wren='0') and dma_access_granted='1' then
             dma_access_granted <= '0';
+            MASTER_CLK_ID <= "00";-- assuming the CPU is in clock domain 0, if there are multiple clock domains
         end if;
 
     end if;
