@@ -59,8 +59,9 @@ end function;
 
 signal output: std_logic_vector(31 downto 0);-- data read
 signal sel_periph_index: natural;
-signal ready_out_reg: std_logic;
+signal ready_out_reg: std_logic_vector(CLK'length-1 downto 0);--one ready_out_reg for each clk possibility
 begin
+	assert CLK'length = 2 report "Numero de clocks errado: "& integer'image(CLK'length) severity error;
 	-- mux of data read
 	process(ADDR,RDEN,WREN,data_in)
 		variable p: natural;
@@ -122,7 +123,7 @@ begin
 				if (std_logic_vector(to_unsigned(DOMAINS(sel_periph_index), 2)) = MASTER_CLK_ID) then--if the peripheral is in the same clock domain as the bus, use combinational ready signal
 					ready_out <= ready_in(sel_periph_index);
 				else
-					ready_out <= ready_out_reg;-- uses registered value
+					ready_out <= ready_out_reg(DOMAINS(sel_periph_index));-- uses registered value
 				end if;
 			else
 				ready_out <= ready_in(sel_periph_index);
@@ -132,15 +133,18 @@ begin
 		end if;
 	end process;
 	-- ready_out <= ready_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
-
-	process(CLK,RDEN,WREN,sel_periph_index,ready_in)
-	begin
-		if (WREN='1' and MULTI_CLK and std_logic_vector(to_unsigned(DOMAINS(sel_periph_index), 2)) /= MASTER_CLK_ID) then--for a write to a peripheral in a different clock domain, register the ready signal at the destination clock domain
-			ready_out_reg <= '0';-- start with not ready when a write starts
-		elsif (rising_edge(CLK(DOMAINS(sel_periph_index)))) then--updated at rising edge of destination clock
-			ready_out_reg <= ready_in(sel_periph_index);
-		end if;
-	end process;
+	
+	reg_multi_clk: for i in 0 to CLK'length generate
+		reg: process(CLK,RDEN,WREN,sel_periph_index,ready_in)
+		begin
+			report "clock number :" & integer'image(CLK'length);
+			if (WREN='1' and MULTI_CLK and std_logic_vector(to_unsigned(DOMAINS(sel_periph_index), 2)) /= MASTER_CLK_ID) then--for a write to a peripheral in a different clock domain, register the ready signal at the destination clock domain
+				ready_out_reg(i) <= '0';-- start with not ready when a write starts
+			elsif (rising_edge(CLK(i))) then--updated at rising edge of destination clock
+				ready_out_reg(i) <= ready_in(sel_periph_index);
+			end if;
+		end process;
+	end generate reg_multi_clk;
 
 	data_out <= output;
 end behv;
