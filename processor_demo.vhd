@@ -1073,6 +1073,29 @@ constant clk_domains: tuple(0 to ranges'length-1) := 	(-- 0: CPU clock; 1: SDRAM
 											0,-- 19: instruction memory (aka program_data)
 											1 --20: SDRAM
 											);
+--constant clk_domains: std_logic_vector(ranges'length-1 downto 0) := 	(-- 0: CPU clock; 1: SDRAM clk
+--											'0',-- 0: filter coeffs
+--											'0',-- 1: filter xN
+--											'0',-- 2: cache
+--											'0',-- 3: inner_product
+--											'0',-- 4: VMAC
+--											'0',-- 5: I2C
+--											'0',-- 6: I2S
+--											'0',-- 7: current filter output
+--											'0',-- 8: desired response
+--											'0',-- 9: filter status
+--											'0',-- 10: converted_out
+--											'0',-- 11: 7-segments display DR
+--											'0',-- 12: LCD controller
+--											'0',-- 13: general purpose fp32_to_int32
+--											'0',-- 14: UART peripheral (IF AVAILABLE)
+--											'1',-- 15: DMA
+--											'1',-- 16: VGA
+--											'0',-- 17: interrupt controller
+--											'0',-- 18: tmp_vector
+--											'0',-- 19: instruction memory (aka program_data)
+--											'1' --20: SDRAM
+--											);
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_wren: std_logic_vector(ranges'length-1 downto 0);
