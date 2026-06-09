@@ -60,6 +60,34 @@ end function;
 signal output: std_logic_vector(31 downto 0);-- data read
 signal sel_periph_index: natural;
 --signal ready_out_reg: std_logic_vector(CLK'length-1 downto 0);--one ready_out_reg for each clk possibility
+
+type integer_array is array (natural range <>) of integer;
+-- per-peripheral clock domain identifiers for writes: same size as ranges
+constant clk_domains: integer_array (0 to 20) := 	(-- 0: CPU clock; 1: SDRAM clk
+											0,-- 0: filter coeffs
+											0,-- 1: filter xN
+											0,-- 2: cache
+											0,-- 3: inner_product
+											0,-- 4: VMAC
+											0,-- 5: I2C
+											0,-- 6: I2S
+											0,-- 7: current filter output
+											0,-- 8: desired response
+											0,-- 9: filter status
+											0,-- 10: converted_out
+											0,-- 11: 7-segments display DR
+											0,-- 12: LCD controller
+											0,-- 13: general purpose fp32_to_int32
+											0,-- 14: UART peripheral (IF AVAILABLE)
+											1,-- 15: DMA
+											1,-- 16: VGA
+											0,-- 17: interrupt controller
+											0,-- 18: tmp_vector
+											0,-- 19: instruction memory (aka program_data)
+											1 --20: SDRAM
+											);
+
+
 begin
 --	assert CLK'length = 2 report "Numero de clocks errado: "& integer'image(CLK'length) severity error;
 	-- mux of data read
@@ -112,6 +140,9 @@ begin
 				WREN_OUT(i) <='0';
 			end if;
 		end loop;
+		
+		
+		report "B'length= # of peripherals = " & integer'image(B'length);
 	end process;
 	
 	-- process(RDEN,WREN,sel_periph_index,ready_in)
