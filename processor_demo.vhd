@@ -311,17 +311,17 @@ component address_decoder_memory_map
 --values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
 --MULTI_CLK: when true, support multiple peripheral clock domains, otherwise all peripherals are assumed to be in the same clock domain and CLK can be ignored (set to others=>'0')
 --DOMAINS: per-peripheral clock domain identifiers, same size as B (array(natural range <>) of tuple(0 to 1))
-  generic	(N: natural; B: boundaries);--; DOMAINS: tuple (0 to B'length-1) := (others => 0); MULTI_CLK: boolean := false);
+  generic	(N: natural; B: boundaries; MULTI_CLK: boolean := false);
   port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
 		RDEN: in std_logic;-- input
 		WREN: in std_logic;-- input
-		-- CLK: in array_of_std_logic := (others => '0');-- input clocks for peripherals
+		CLK: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals
 		data_in: in array32;-- input: outputs of all peripheral
 		ready_in: in std_logic_vector(B'length-1 downto 0);-- input: ready signals of all peripheral
 		RDEN_OUT: out std_logic_vector;-- output
 		WREN_OUT: out std_logic_vector;-- output
 		ready_out: out std_logic;-- output
-		-- MASTER_CLK_ID: in std_logic_vector(1 downto 0);-- identifies the one clock controlling the bus
+		MASTER_CLK_ID: in std_logic_vector(1 downto 0);-- identifies the one clock controlling the bus
 		data_out: out std_logic_vector(31 downto 0)-- data read
 );
 end component;
@@ -681,7 +681,7 @@ component arbiter
     port (
         clk : in std_logic;--memory clock (e.g. SDRAM)
         rst : in std_logic;
-		-- MASTER_CLK_ID: out std_logic_vector(1 downto 0);--identifies the clock controlling the bus (for synchronization purposes)
+		  MASTER_CLK_ID: out std_logic_vector(1 downto 0);--identifies the clock controlling the bus (for synchronization purposes)
         -----
         cpu_addr: in std_logic_vector(31 downto 0);
         cpu_write_data: in std_logic_vector(31 downto 0);
@@ -1049,53 +1049,7 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#8000#,16#FFFF#),-- 19: instruction memory (aka program_data)
 											(16#2000000#,16#3FFFFFF#) --20: SDRAM
 											);
--- per-peripheral clock domain identifiers for writes: same size as ranges
-constant clk_domains: tuple(0 to ranges'length-1) := 	(-- 0: CPU clock; 1: SDRAM clk
-											0,-- 0: filter coeffs
-											0,-- 1: filter xN
-											0,-- 2: cache
-											0,-- 3: inner_product
-											0,-- 4: VMAC
-											0,-- 5: I2C
-											0,-- 6: I2S
-											0,-- 7: current filter output
-											0,-- 8: desired response
-											0,-- 9: filter status
-											0,-- 10: converted_out
-											0,-- 11: 7-segments display DR
-											0,-- 12: LCD controller
-											0,-- 13: general purpose fp32_to_int32
-											0,-- 14: UART peripheral (IF AVAILABLE)
-											1,-- 15: DMA
-											1,-- 16: VGA
-											0,-- 17: interrupt controller
-											0,-- 18: tmp_vector
-											0,-- 19: instruction memory (aka program_data)
-											1 --20: SDRAM
-											);
---constant clk_domains: std_logic_vector(ranges'length-1 downto 0) := 	(-- 0: CPU clock; 1: SDRAM clk
---											'0',-- 0: filter coeffs
---											'0',-- 1: filter xN
---											'0',-- 2: cache
---											'0',-- 3: inner_product
---											'0',-- 4: VMAC
---											'0',-- 5: I2C
---											'0',-- 6: I2S
---											'0',-- 7: current filter output
---											'0',-- 8: desired response
---											'0',-- 9: filter status
---											'0',-- 10: converted_out
---											'0',-- 11: 7-segments display DR
---											'0',-- 12: LCD controller
---											'0',-- 13: general purpose fp32_to_int32
---											'0',-- 14: UART peripheral (IF AVAILABLE)
---											'1',-- 15: DMA
---											'1',-- 16: VGA
---											'0',-- 17: interrupt controller
---											'0',-- 18: tmp_vector
---											'0',-- 19: instruction memory (aka program_data)
---											'1' --20: SDRAM
---											);
+
 signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_wren: std_logic_vector(ranges'length-1 downto 0);
@@ -1930,18 +1884,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
 	--MULTI_CLK: when true, support multiple peripheral clock domains, otherwise all peripherals are assumed to be in the same clock domain and CLK can be ignored (set to others=>'0')
-	--DOMAINS: per-peripheral clock domain identifiers, same size as B (array(natural range <>) of tuple(0 to 1))
-	generic map (N => 26, B => ranges)--, MULTI_CLK=> true, DOMAINS => clk_domains)
+	generic map (N => 26, B => ranges, MULTI_CLK=> true)
 	port map (	ADDR => ram_addr(25 downto 0),-- input, it is a word address
 			RDEN => ram_rden,-- input
 			WREN => ram_wren,-- input
-			-- CLK => (0=> ram_clk, 1=> sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
+			CLK => (0=> ram_clk, 1=> sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
 			data_in => all_periphs_output,-- input: outputs of all peripheral
 			ready_in => all_periphs_ready,
 			RDEN_OUT => all_periphs_rden,-- output
 			WREN_OUT => all_periphs_wren,-- output
 			ready_out => ram_ready,
-			-- MASTER_CLK_ID => arbiter_clk_id, -- clock of the master that initiates the transaction, used for synchronizing data_out
+			MASTER_CLK_ID => arbiter_clk_id, -- clock of the master that initiates the transaction, used for synchronizing data_out
 			data_out => ram_Q-- data read
 	);
 		
@@ -2020,7 +1973,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		 port map(
 			  clk=> sdram_ctrl_clk,--75MHz, must be fast, it is used for selecting the address decoder "master"
 			  rst=> rst,
-			--   MASTER_CLK_ID => arbiter_clk_id,
+			  MASTER_CLK_ID => arbiter_clk_id,
 			  -----
 			  cpu_addr=> cpu_ram_addr,
 			  cpu_write_data=> cpu_ram_write_data,
