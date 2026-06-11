@@ -60,6 +60,7 @@ end function;
 signal output: std_logic_vector(31 downto 0);-- data read
 signal sel_periph_index: natural;
 signal ready_out_reg: std_logic_vector(CLK'length-1 downto 0);--one ready_out_reg for each clk possibility
+signal ADDR_reg: array(0 to CLK'length-1) of std_logic_vector(N-1 downto 0);--register the address at the destination clock domain to detect when a new write starts
 
 type integer_array is array (natural range <>) of integer;
 -- per-peripheral clock domain identifiers for writes: same size as ranges
@@ -145,7 +146,7 @@ begin
 		report "B'length= # of peripherals = " & integer'image(B'length);
 	end process;
 	
-	process(RDEN,WREN,sel_periph_index,ready_in)
+	process(RDEN,WREN,sel_periph_index,ready_in,ready_out_reg,MASTER_CLK_ID)
 	begin
 		if (RDEN='1') then
 			ready_out <= ready_in(sel_periph_index);
@@ -166,13 +167,21 @@ begin
 	-- ready_out <= ready_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
 	
 	reg_multi_clk: for i in 0 to CLK'length-1 generate
-		reg: process(CLK,RDEN,WREN,sel_periph_index,ready_in)
+		reg: process(CLK,RDEN,WREN,sel_periph_index,ready_in,MASTER_CLK_ID)
 		begin
 			report "clock number :" & integer'image(CLK'length);
-			if (WREN='1' and MULTI_CLK and std_logic_vector(to_unsigned(DOMAINS(sel_periph_index), 2)) /= MASTER_CLK_ID) then--for a write to a peripheral in a different clock domain, register the ready signal at the destination clock domain
+			-- when a NEW write starts to a peripheral in a different clock domain, the ready_out_reg at the destination clock domain is reset
+			if (WREN='1' and (ADDR /= ADDR_reg(i)) and MULTI_CLK and std_logic_vector(to_unsigned(DOMAINS(sel_periph_index), 2)) /= MASTER_CLK_ID) then--for a write to a peripheral in a different clock domain, register the ready signal at the destination clock domain
 				ready_out_reg(i) <= '0';-- start with not ready when a write starts
 			elsif (rising_edge(CLK(i))) then--updated at rising edge of destination clock
 				ready_out_reg(i) <= ready_in(sel_periph_index);
+			end if;
+		end process;
+
+		addr_reg: process(CLK)
+		begin
+			if rising_edge(CLK(i)) then
+				ADDR_reg(i) <= ADDR;--register the address at the destination clock domain to detect when a new write starts
 			end if;
 		end process;
 	end generate reg_multi_clk;
