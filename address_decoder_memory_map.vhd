@@ -60,7 +60,9 @@ end function;
 signal output: std_logic_vector(31 downto 0);-- data read
 signal sel_periph_index: natural;
 signal ready_out_reg: std_logic_vector(CLK'length-1 downto 0);--one ready_out_reg for each clk possibility
-signal ADDR_reg: array(0 to CLK'length-1) of std_logic_vector(N-1 downto 0);--register the address at the destination clock domain to detect when a new write starts
+
+type ADDR_array is array(natural range <>) of std_logic_vector(N-1 downto 0);
+signal ADDR_reg: ADDR_array(0 to CLK'length-1);--register the address at the destination clock domain to detect when a new write starts
 
 type integer_array is array (natural range <>) of integer;
 -- per-peripheral clock domain identifiers for writes: same size as ranges
@@ -167,7 +169,7 @@ begin
 	-- ready_out <= ready_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
 	
 	reg_multi_clk: for i in 0 to CLK'length-1 generate
-		reg: process(CLK,RDEN,WREN,sel_periph_index,ready_in,MASTER_CLK_ID)
+		reg: process(CLK,RDEN,WREN,sel_periph_index,ready_in,MASTER_CLK_ID,ADDR,ADDR_reg)
 		begin
 			report "clock number :" & integer'image(CLK'length);
 			-- when a NEW write starts to a peripheral in a different clock domain, the ready_out_reg at the destination clock domain is reset
@@ -178,7 +180,7 @@ begin
 			end if;
 		end process;
 
-		addr_reg: process(CLK)
+		addr_reg_proc: process(CLK)
 		begin
 			if rising_edge(CLK(i)) then
 				ADDR_reg(i) <= ADDR;--register the address at the destination clock domain to detect when a new write starts
