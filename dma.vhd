@@ -274,7 +274,7 @@ begin
 	end process SYNC_READ;
 
 	 
-	 addr_proc: process (state, CR, count, fifo_count, src_addr, dst_addr)
+	 addr_proc: process (state, CR, count, fifo_count_reg, src_addr, dst_addr)
 	 begin
 		case state is
 			when "01" =>  -- READING

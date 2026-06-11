@@ -145,7 +145,7 @@ begin
 	 -- read_ptr: tail
     -- fifo_empty <= '1' when write_ptr = read_ptr else '0';
     -- fifo_full  <= '1' when (write_ptr + 1) mod  FIFO_LEN = read_ptr else '0';
-	 FIFO_FULL_PROC : process(clk, write_ptr, read_ptr, prev_write_ptr, fifo_rden)
+	 FIFO_FULL_PROC : process(clk, write_ptr, read_ptr, prev_write_ptr, fifo_rden, rst, prev_read_ptr)
      begin
 		  if rst ='1' or (read_ptr = 0 and prev_read_ptr=VGA.h_visible-1) then--resets when last pixel is transmitted by VGA
 				fifo_full <= '0';
