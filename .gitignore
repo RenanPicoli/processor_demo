@@ -15,7 +15,6 @@ atom_netlists/
 *.PNG
 *.pdf
 rise_original
-simulation/
 *.xlsx
 *.docx
 *.doc
