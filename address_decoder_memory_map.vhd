@@ -21,19 +21,18 @@ entity address_decoder_memory_map is
 --B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
 --list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 --values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
---MULTI_CLK: when true, support multiple peripheral clock domains, otherwise all peripherals are assumed to be in the same clock domain and CLK can be ignored (set to others=>'0')
---DOMAINS: per-peripheral clock domain identifiers, same size as B (array(natural range <>) of tuple(0 to 1))
-  generic	(N: natural; B: boundaries; MULTI_CLK: boolean := false);
+  generic	(N: natural; B: boundaries);
   port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
 		RDEN: in std_logic;-- input
 		WREN: in std_logic;-- input
-		CLK: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals
+		-- CLK: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals
 		data_in: in array32;-- input: outputs of all peripheral
 		ready_in: in std_logic_vector(B'length-1 downto 0);-- input: ready signals of all peripheral
 		RDEN_OUT: out std_logic_vector;-- output
 		WREN_OUT: out std_logic_vector;-- output
 		ready_out: out std_logic;-- output
 		MASTER_CLK_ID: in std_logic_vector(1 downto 0);-- identifies the one clock controlling the bus
+		-- next_ADDR: in std_logic_vector(N-1 downto 0);-- next address to be sent by arbiter, the decoder will be able to detect when a new write starts (for multi-clock support)
 		data_out: out std_logic_vector(31 downto 0)-- data read
 );
 
@@ -59,39 +58,9 @@ end function;
 
 signal output: std_logic_vector(31 downto 0);-- data read
 signal sel_periph_index: natural;
-signal ready_out_reg: std_logic_vector(CLK'length-1 downto 0);--one ready_out_reg for each clk possibility
-
-type ADDR_array is array(natural range <>) of std_logic_vector(N-1 downto 0);
-signal ADDR_reg: ADDR_array(0 to CLK'length-1);--register the address at the destination clock domain to detect when a new write starts
-
-type integer_array is array (natural range <>) of integer;
--- per-peripheral clock domain identifiers for writes: same size as ranges
-constant DOMAINS: integer_array (0 to 20) := 	(-- 0: CPU clock; 1: SDRAM clk
-											0,-- 0: filter coeffs
-											0,-- 1: filter xN
-											0,-- 2: cache
-											0,-- 3: inner_product
-											0,-- 4: VMAC
-											0,-- 5: I2C
-											0,-- 6: I2S
-											0,-- 7: current filter output
-											0,-- 8: desired response
-											0,-- 9: filter status
-											0,-- 10: converted_out
-											0,-- 11: 7-segments display DR
-											0,-- 12: LCD controller
-											0,-- 13: general purpose fp32_to_int32
-											0,-- 14: UART peripheral (IF AVAILABLE)
-											1,-- 15: DMA
-											1,-- 16: VGA
-											0,-- 17: interrupt controller
-											0,-- 18: tmp_vector
-											0,-- 19: instruction memory (aka program_data)
-											1 --20: SDRAM
-											);
-
 
 begin
+
 --	assert CLK'length = 2 report "Numero de clocks errado: "& integer'image(CLK'length) severity error;
 	-- mux of data read
 	process(ADDR,RDEN,WREN,data_in)
@@ -148,46 +117,8 @@ begin
 		report "B'length= # of peripherals = " & integer'image(B'length);
 	end process;
 	
-	process(RDEN,WREN,sel_periph_index,ready_in,ready_out_reg,MASTER_CLK_ID)
-	begin
-		if (RDEN='1') then
-			ready_out <= ready_in(sel_periph_index);
-		elsif (WREN='1') then
-			if (MULTI_CLK) then
-				if (std_logic_vector(to_unsigned(DOMAINS(sel_periph_index), 2)) = MASTER_CLK_ID) then--if the peripheral is in the same clock domain as the bus, use combinational ready signal
-					ready_out <= ready_in(sel_periph_index);
-				else
-					ready_out <= ready_out_reg(DOMAINS(sel_periph_index));-- uses registered value
-				end if;
-			else
-				ready_out <= ready_in(sel_periph_index);
-			end if;
-		else
-			ready_out <= '1';
-		end if;
-	end process;
-	-- ready_out <= ready_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
+	ready_out <= ready_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
 	
-	reg_multi_clk: for i in 0 to CLK'length-1 generate
-		reg: process(CLK,RDEN,WREN,sel_periph_index,ready_in,MASTER_CLK_ID,ADDR,ADDR_reg)
-		begin
-			report "clock number :" & integer'image(CLK'length);
-			-- when a NEW write starts to a peripheral in a different clock domain, the ready_out_reg at the destination clock domain is reset
-			if (WREN='1' and (ADDR /= ADDR_reg(i)) and MULTI_CLK and std_logic_vector(to_unsigned(DOMAINS(sel_periph_index), 2)) /= MASTER_CLK_ID) then--for a write to a peripheral in a different clock domain, register the ready signal at the destination clock domain
-				ready_out_reg(i) <= '0';-- start with not ready when a write starts
-			elsif (rising_edge(CLK(i))) then--updated at rising edge of destination clock
-				ready_out_reg(i) <= ready_in(sel_periph_index);
-			end if;
-		end process;
-
-		addr_reg_proc: process(CLK)
-		begin
-			if rising_edge(CLK(i)) then
-				ADDR_reg(i) <= ADDR;--register the address at the destination clock domain to detect when a new write starts
-			end if;
-		end process;
-	end generate reg_multi_clk;
-
 	data_out <= output;
 end behv;
 
