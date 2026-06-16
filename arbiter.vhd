@@ -146,7 +146,7 @@ begin
 end process;
 
 -- these processes are separated to avoid introducing additional latency in the data path from memory to cpu/dma
-Q_READY_PROC : process(dma_access_granted, mem_ready, mem_Q)
+Q_READY_PROC : process(dma_access_granted, mem_ready, mem_Q, ready_out, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren)
  begin
     case dma_access_granted is
 
@@ -172,7 +172,7 @@ Q_READY_PROC : process(dma_access_granted, mem_ready, mem_Q)
     end case;
 end process;
 
-DMA_ACCESS_PROC : process(clk, rst)
+DMA_ACCESS_PROC : process(clk, rst, dma_rden, dma_wren, cpu_rden, cpu_wren, dma_access_granted)
 begin
     if rst = '1' then            
         dma_access_granted <= '0';--cpu controls memory
