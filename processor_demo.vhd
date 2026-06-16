@@ -309,19 +309,18 @@ component address_decoder_memory_map
 --B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
 --list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 --values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
---MULTI_CLK: when true, support multiple peripheral clock domains, otherwise all peripherals are assumed to be in the same clock domain and CLK can be ignored (set to others=>'0')
---DOMAINS: per-peripheral clock domain identifiers, same size as B (array(natural range <>) of tuple(0 to 1))
-  generic	(N: natural; B: boundaries; MULTI_CLK: boolean := false);
+  generic	(N: natural; B: boundaries);
   port(	ADDR: in std_logic_vector(N-1 downto 0);-- input, it is a word address
 		RDEN: in std_logic;-- input
 		WREN: in std_logic;-- input
-		CLK: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals
+		-- CLK: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals
 		data_in: in array32;-- input: outputs of all peripheral
 		ready_in: in std_logic_vector(B'length-1 downto 0);-- input: ready signals of all peripheral
 		RDEN_OUT: out std_logic_vector;-- output
 		WREN_OUT: out std_logic_vector;-- output
 		ready_out: out std_logic;-- output
 		MASTER_CLK_ID: in std_logic_vector(1 downto 0);-- identifies the one clock controlling the bus
+		-- next_ADDR: in std_logic_vector(N-1 downto 0);-- next address to be sent by arbiter, the decoder will be able to detect when a new write starts (for multi-clock support)
 		data_out: out std_logic_vector(31 downto 0)-- data read
 );
 end component;
@@ -678,10 +677,16 @@ end component;
 
 -------cpu/dma arbiter------------------
 component arbiter
+    --MULTI_CLK: when true, support multiple peripheral clock domains, otherwise all peripherals are assumed to be in the same clock domain and CLK can be ignored (set to others=>'0')
+    --DOMAINS: per-peripheral clock domain identifiers, same size as B (array(natural range <>) of tuple(0 to 1))
+    generic (
+            B: boundaries; MULTI_CLK: boolean := false
+    );
     port (
         clk : in std_logic;--memory clock (e.g. SDRAM)
         rst : in std_logic;
-		  MASTER_CLK_ID: out std_logic_vector(1 downto 0);--identifies the clock controlling the bus (for synchronization purposes)
+		MASTER_CLK_ID: out std_logic_vector(1 downto 0);--identifies the clock controlling the bus (for synchronization purposes)
+        CLK_ARR: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals, same size as ranges
         -----
         cpu_addr: in std_logic_vector(31 downto 0);
         cpu_write_data: in std_logic_vector(31 downto 0);
@@ -698,6 +703,7 @@ component arbiter
         dma_Q: out std_logic_vector(31 downto 0);
         -----
         mem_addr: out std_logic_vector(31 downto 0);
+        -- mem_next_addr: out std_logic_vector(31 downto 0);-- for the address decoder to detect when a new write starts (for multi-clock support)
         mem_write_data: out std_logic_vector(31 downto 0);
         mem_rden: out std_logic;
         mem_wren: out std_logic;
@@ -1883,12 +1889,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
 	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
-	--MULTI_CLK: when true, support multiple peripheral clock domains, otherwise all peripherals are assumed to be in the same clock domain and CLK can be ignored (set to others=>'0')
-	generic map (N => 26, B => ranges, MULTI_CLK=> true)
+	generic map (N => 26, B => ranges)
 	port map (	ADDR => ram_addr(25 downto 0),-- input, it is a word address
 			RDEN => ram_rden,-- input
 			WREN => ram_wren,-- input
-			CLK => (0=> ram_clk, 1=> sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
+			-- CLK => (0=> ram_clk, 1=> sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
 			data_in => all_periphs_output,-- input: outputs of all peripheral
 			ready_in => all_periphs_ready,
 			RDEN_OUT => all_periphs_rden,-- output
@@ -1970,11 +1975,13 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	 
 	--decides wether dma or cpu have access to the RAM
 	arb: arbiter
+		generic map (B => ranges, MULTI_CLK=> true)
 		 port map(
 			  clk=> sdram_ctrl_clk,--75MHz, must be fast, it is used for selecting the address decoder "master"
 			  rst=> rst,
 			  MASTER_CLK_ID => arbiter_clk_id,
-			  -----
+			  CLK_ARR => (0 => ram_clk, 1 => sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
+			 -----
 			  cpu_addr=> cpu_ram_addr,
 			  cpu_write_data=> cpu_ram_write_data,
 			  cpu_rden=> cpu_ram_rden,
