@@ -386,11 +386,15 @@ begin
 		--transferência de dados da SDRAM para o cache mini_ram
         -- Configuração dos registradores do DMA		
 		cpu_ram_wren <= '1';
-        
-        cpu_ram_addr <= x"0000007A"; cpu_ram_write_data <= x"02000000"; wait for CPU_CLK_PERIOD; -- src_addr = 0x02000000
-        cpu_ram_addr <= x"0000007B"; cpu_ram_write_data <= x"00000010"; wait for CPU_CLK_PERIOD; -- dst_addr = 0x00000010
-        cpu_ram_addr <= x"0000007C"; cpu_ram_write_data <= x"00000008"; wait for CPU_CLK_PERIOD; -- length =  8 palavras (8 pixels)
-        cpu_ram_addr <= x"0000007D"; cpu_ram_write_data <= x"0000002D"; wait for CPU_CLK_PERIOD; -- CR: Start = 1, SINC = 1, DINC = 1, AUTOSTART=0, SRC_LAT=2
+		
+        -- src_addr = 0x02000000 
+        cpu_ram_addr <= x"0000007A"; cpu_ram_write_data <= x"02000000"; wait for CPU_CLK_PERIOD;
+		-- dst_addr = 0x00000010
+        cpu_ram_addr <= x"0000007B"; cpu_ram_write_data <= x"00000010"; wait for CPU_CLK_PERIOD;
+		-- length =  8 palavras (8 pixels)
+        cpu_ram_addr <= x"0000007C"; cpu_ram_write_data <= x"00000008"; wait for CPU_CLK_PERIOD;
+		-- CR: Start = 1, SINC = 1, DINC = 1, AUTOSTART=0, SRC_LAT=3
+        cpu_ram_addr <= x"0000007D"; cpu_ram_write_data <= x"0000003D"; wait for CPU_CLK_PERIOD;
 
         cpu_ram_wren <= '0';
 
