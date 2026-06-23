@@ -1,4 +1,4 @@
-<session jtag_chain="USB-Blaster [USB-0]" jtag_device="@1: 10CL120(Y|Z)/EP3C120/.. (0x020F70DD)" sof_file="processor_demo.sof">
+<session jtag_chain="Disabled" jtag_device="" sof_file="processor_demo.sof">
   <display_tree gui_logging_enabled="0">
     <display_branch instance="auto_signaltap_0" log="USE_GLOBAL_TEMP" signal_set="USE_GLOBAL_TEMP" trigger="USE_GLOBAL_TEMP"/>
   </display_tree>
@@ -9667,7 +9667,7 @@
               <node data_index="108" duplicate_name_allowed="false" is_data_input="false" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="false" level-0="dont_care" name="arbiter:arb|mem_Q[0]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="176" tap_mode="classic" trigger_index="108" type="unknown"/>
             </node>
           </node>
-          <node is_selected="false" level-0="alt_or" name="DMA" order="lsb_to_msb" state="collapse" storage-0="alt_or" storage-1="alt_or" storage-2="alt_or" type="register">
+          <node is_selected="false" level-0="alt_or" name="DMA" order="lsb_to_msb" state="expand" storage-0="alt_or" storage-1="alt_or" storage-2="alt_or" type="register">
             <node data_index="205" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="dma_controller:dma|wr_en" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="895" tap_mode="classic" trigger_index="205" type="unknown"/>
             <node is_selected="false" level-0="alt_or" name="dma_controller:dma|addr[1..0]" order="msb_to_lsb" state="collapse" storage-0="alt_or" storage-1="alt_or" storage-2="alt_or" tap_mode="probeonly" type="combinatorial">
               <node data_index="100" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="dma_controller:dma|addr[1]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="790" tap_mode="classic" trigger_index="100" type="unknown"/>
@@ -11284,7 +11284,7 @@
             <net data_index="46" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="arbiter:arb|mem_write_data[1]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="219" tap_mode="classic" trigger_index="46" type="unknown"/>
             <net data_index="35" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="arbiter:arb|mem_write_data[0]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="208" tap_mode="classic" trigger_index="35" type="unknown"/>
           </bus>
-          <bus is_selected="false" level-0="alt_or" name="DMA" order="lsb_to_msb" state="collapse" storage-0="alt_or" storage-1="alt_or" storage-2="alt_or" type="register">
+          <bus is_selected="false" level-0="alt_or" name="DMA" order="lsb_to_msb" state="expand" storage-0="alt_or" storage-1="alt_or" storage-2="alt_or" type="register">
             <net data_index="205" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="dma_controller:dma|wr_en" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="895" tap_mode="classic" trigger_index="205" type="unknown"/>
             <net data_index="100" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="dma_controller:dma|addr[1]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="790" tap_mode="classic" trigger_index="100" type="unknown"/>
             <net data_index="99" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="dma_controller:dma|addr[0]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="789" tap_mode="classic" trigger_index="99" type="unknown"/>
@@ -14824,7 +14824,7 @@
             <net data_index="119" duplicate_name_allowed="false" is_data_input="false" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="false" level-0="dont_care" name="arbiter:arb|mem_Q[1]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="187" tap_mode="classic" trigger_index="119" type="unknown"/>
             <net data_index="108" duplicate_name_allowed="false" is_data_input="false" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="false" level-0="dont_care" name="arbiter:arb|mem_Q[0]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="176" tap_mode="classic" trigger_index="108" type="unknown"/>
           </bus>
-          <bus is_selected="false" level-0="alt_or" name="DMA" order="lsb_to_msb" state="collapse" storage-0="alt_or" storage-1="alt_or" storage-2="alt_or" type="register">
+          <bus is_selected="false" level-0="alt_or" name="DMA" order="lsb_to_msb" state="expand" storage-0="alt_or" storage-1="alt_or" storage-2="alt_or" type="register">
             <net data_index="205" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="dma_controller:dma|wr_en" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="895" tap_mode="classic" trigger_index="205" type="unknown"/>
             <net data_index="100" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="dma_controller:dma|addr[1]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="790" tap_mode="classic" trigger_index="100" type="unknown"/>
             <net data_index="99" duplicate_name_allowed="false" is_data_input="true" is_node_valid="true" is_selected="false" is_storage_input="true" is_trigger_input="true" level-0="dont_care" name="dma_controller:dma|addr[0]" pwr_level-0="dont_care" pwr_storage-0="dont_care" pwr_storage-1="dont_care" pwr_storage-2="dont_care" storage-0="dont_care" storage-1="dont_care" storage-2="dont_care" storage_index="789" tap_mode="classic" trigger_index="99" type="unknown"/>
@@ -15461,7 +15461,7 @@
         <trigger_in_editor/>
         <trigger_out_editor/>
       </presentation>
-      <trigger CRC="C0DEA36C" attribute_mem_mode="false" gap_record="true" global_temp="1" is_expanded="true" name="trigger: 2026/06/18 20:33:54  #0" position="post" power_up_trigger_mode="false" record_data_gap="true" segment_size="128" storage_mode="off" storage_qualifier_disabled="no" storage_qualifier_port_is_pin="true" storage_qualifier_port_name="auto_stp_external_storage_qualifier" storage_qualifier_port_tap_mode="classic" trigger_type="circular">
+      <trigger CRC="C0DEA36C" attribute_mem_mode="false" gap_record="true" global_temp="1" is_expanded="true" name="trigger: 2026/06/18 20:33:54  #0" position="post" power_up_trigger_mode="false" record_data_gap="true" segment_size="128" storage_mode="off" storage_qualifier_disabled="no" storage_qualifier_port_is_pin="false" storage_qualifier_port_name="auto_stp_external_storage_qualifier" storage_qualifier_port_tap_mode="classic" trigger_type="circular">
         <power_up_trigger position="pre" storage_qualifier_disabled="no"/>
         <events use_custom_flow_control="no">
           <level enabled="yes" name="condition1" type="basic">'vga_controller:vga|vga_start_cmd' == rising edge
@@ -15507,11 +15507,11 @@ trigger;]]>
       </trigger>
     </signal_set>
     <position_info>
-      <single attribute="active tab" value="0"/>
+      <single attribute="active tab" value="1"/>
       <single attribute="data horizontal scroll position" value="0"/>
-      <single attribute="data vertical scroll position" value="42"/>
+      <single attribute="data vertical scroll position" value="0"/>
       <single attribute="setup horizontal scroll position" value="0"/>
-      <single attribute="setup vertical scroll position" value="114"/>
+      <single attribute="setup vertical scroll position" value="169"/>
       <single attribute="zoom level denominator" value="1"/>
       <single attribute="zoom level numerator" value="1"/>
       <single attribute="zoom offset denominator" value="1"/>
@@ -25598,6 +25598,7 @@ xdPZ7Piz09NHT795cprPQn/47X/xb7Jj
     
     
     
+    
     </embedded_sof_file>
     <embedded_sof_file id_crc_pairs="|30006E00,2FF3EBCF" name="processor_demo.sof" size="3592252">eJzsu2dcVMnW/wuCokQVEMkoSFRylCQiSbJIFpoMTc4ZmqAgOUlOIjnn2ETJ
 OUnOGSTn0EDf3Tgzz5zjPP/z/9z75r44OFO11m+tVbt27T10fbscBVlRJMQP
@@ -35295,6 +35296,7 @@ lZQJy0rH0qIsdQJNDZV0rULdXotkvyq1aFJ6D7+03zqAusa//1VYdC7n0tni
 ZDU4qqtlQEapVRED5LomF+q86BPT3qZV9fIekr1fdrx5d/dj8kH22/mj2Wz2
 xdPZ7Piz09NHT795cprPQn/47X/xb7Jj
 
+    
     
     
     
@@ -68611,6 +68613,7 @@ ejEiGehL+30BEmLyPY80C+pGQ7tU7dmVPWninHLpxsFcTU2Y0qqUNEm4XHg+
 0l4pSQoaU0O8a0MGUNRn9jaPNk68h+LU+y8eP7HyLHUG7L4LKpXKG66oVDZc
 cf4FV7yxsukivez9r2/9f8XAsVA=
 
+    
     
     
     
