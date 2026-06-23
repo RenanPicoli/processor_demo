@@ -69,6 +69,7 @@ signal dma_Q_reg: std_logic_vector(31 downto 0);
 signal sel_periph_index: natural;
 signal ready_out_reg: std_logic_vector(CLK_ARR'length-1 downto 0);--one ready_out_reg for each clk possibility
 signal ready_out: std_logic;
+signal ready: std_logic;
 
 signal ADDR: std_logic_vector(31 downto 0);
 type ADDR_array is array(natural range <>) of std_logic_vector(31 downto 0);
@@ -127,26 +128,19 @@ begin
                 mem_write_data_reg <= dma_write_data;
                 mem_wren_reg <= dma_wren;
                 mem_rden_reg <= dma_rden;
-                -- dma_ready_reg <= mem_ready;
-                -- cpu_ready_reg <= '0';
-                -- dma_Q_reg <= mem_Q;
-                -- cpu_Q_reg <= (others => '0');
             when others =>
                 mem_addr_reg <= cpu_addr;
                 mem_write_data_reg <= cpu_write_data;
                 mem_wren_reg <= cpu_wren;
                 mem_rden_reg <= cpu_rden;
-                -- cpu_ready_reg <= mem_ready;
-                -- dma_ready_reg <= '0';
-                -- dma_Q_reg <= (others => '0');
-                -- cpu_Q_reg <= mem_Q;
         
         end case;
     end if;
 end process;
 
+ready <= ready_out when mem_rden='1' or mem_wren='1' else '0';
 -- these processes are separated to avoid introducing additional latency in the data path from memory to cpu/dma
-Q_READY_PROC : process(dma_access_granted, mem_ready, mem_Q, ready_out, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren)
+Q_READY_PROC : process(dma_access_granted, mem_rden, mem_wren, mem_ready, mem_Q, ready, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren)
  begin
     case dma_access_granted is
 
@@ -154,7 +148,7 @@ Q_READY_PROC : process(dma_access_granted, mem_ready, mem_Q, ready_out, dma_addr
             ADDR <= dma_addr;
             RDEN <= dma_rden;
             WREN <= dma_wren;
-            dma_ready <= ready_out;
+            dma_ready <= ready;
             cpu_ready <= '0';
             dma_Q <= mem_Q;
             cpu_Q <= (others => '0');
@@ -163,7 +157,7 @@ Q_READY_PROC : process(dma_access_granted, mem_ready, mem_Q, ready_out, dma_addr
             ADDR <= cpu_addr;
             RDEN <= cpu_rden;
             WREN <= cpu_wren;
-            cpu_ready <= ready_out;
+            cpu_ready <= ready;
             dma_ready <= '0';
             dma_Q <= (others => '0');
             cpu_Q <= mem_Q;
