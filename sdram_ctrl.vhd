@@ -431,8 +431,20 @@ begin
 				ready <= '0';
 			when PRECHARGE | PALL => --during these states, SDRAM is ready for reading BUT NOT for writes
 				ready <= '0';
-			when ACTIVATE | AR =>----during these states, SDRAM is not ready for reading or writes
+			when ACTIVATE =>----during these states, SDRAM is not ready for reading or writes
+				if nxt_op_state = WRITING or nxt_op_state = START_READ then
+					ready <= '1';
+				else
+					ready <= '0';
+				end if;
+			when AR =>----during these states, SDRAM is not ready for reading or writes
 				ready <= '0';
+			when IDLE =>
+				if nxt_op_state = WRITING or nxt_op_state = START_READ then
+					ready <= '1';
+				else
+					ready <= '0';
+				end if;
 			when others =>--what about when IDLE????
 				ready <= '0';
 		end case;
