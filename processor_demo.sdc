@@ -136,14 +136,15 @@ set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pin
 #**************************************************************
 # Set Multicycle Path
 #**************************************************************
-
+set_multicycle_path -from [get_registers *processor\|register_file*regx\|Q*] -to [get_registers *arb*cpu_filter_sample*] -setup -end 4
+set_multicycle_path -from [get_registers *processor\|register_file*regx\|Q*] -to [get_registers *arb*cpu_filter_sample*] -hold -end 3
 
 
 #**************************************************************
 # Set Maximum Delay
 #**************************************************************
 set_max_delay -from [get_clocks sdram_ctrl_clk] -to [get_clocks uproc_clk] 500
-set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sdram_ctrl_clk] 70
+#set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sdram_ctrl_clk] 3
 set_max_delay -from [get_clocks clk_fs] -to [get_clocks uproc_clk] 500
 set_max_delay -from [get_clocks uproc_clk] -to [get_clocks sram_clk] 25
 set_max_delay -from [get_clocks clk_vga_pclk] -to [get_clocks uproc_clk] 500
