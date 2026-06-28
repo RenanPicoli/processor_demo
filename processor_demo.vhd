@@ -680,7 +680,8 @@ component arbiter
     --MULTI_CLK: when true, support multiple peripheral clock domains, otherwise all peripherals are assumed to be in the same clock domain and CLK can be ignored (set to others=>'0')
     --DOMAINS: per-peripheral clock domain identifiers, same size as B (array(natural range <>) of tuple(0 to 1))
     generic (
-            B: boundaries; MULTI_CLK: boolean := false
+            B: boundaries; MULTI_CLK: boolean := false;
+            CPU_ADDR_STABLE_CYCLES: natural := 2
     );
     port (
         clk : in std_logic;--memory clock (e.g. SDRAM)
@@ -1975,7 +1976,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	 
 	--decides wether dma or cpu have access to the RAM
 	arb: arbiter
-		generic map (B => ranges, MULTI_CLK=> true)
+		generic map (B => ranges, MULTI_CLK=> true, CPU_ADDR_STABLE_CYCLES => 4)
 		 port map(
 			  clk=> sdram_ctrl_clk,--75MHz, must be fast, it is used for selecting the address decoder "master"
 			  rst=> rst,

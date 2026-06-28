@@ -32,6 +32,7 @@ signal    mem_ready: std_logic;
 signal    mem_Q: std_logic_vector(31 downto 0);
 signal    mem_clk: std_logic;--memory clock (e.g. SDRAM) @100MHz
 signal mem_data  : std_logic_vector(31 downto 0) := (others => '0');
+constant CPU_ADDR_STABLE_CYCLES : natural := 4;
 
 signal irq: std_logic;
 signal iack: std_logic;
@@ -63,6 +64,9 @@ constant clk_period : time := 250 ns;
 
 begin
     uut: entity work.arbiter
+    generic map(
+        CPU_ADDR_STABLE_CYCLES => CPU_ADDR_STABLE_CYCLES
+    )
     port map(
         clk=> mem_CLK,--memory clock (e.g. SDRAM)
         rst=> rst,
@@ -131,6 +135,21 @@ begin
         cpu_rden <= '1';
         cpu_wren <= '0';
         wait for clk_period;
+        cpu_addr <= (others => '0');
+        cpu_rden <= '0';
+        cpu_wren <= '0';
+        wait for 2*clk_period;
+
+        -- teste do filtro de estabilidade do endereço da CPU
+        cpu_addr <= x"0000_000C";
+        cpu_rden <= '1';
+        cpu_wren <= '0';
+        wait for mem_clk_period;
+        cpu_addr <= x"0000_000D";
+        wait for mem_clk_period;
+        assert mem_addr = x"0000_000C" report "filtro de estabilidade deveria manter o endereço inicial enquanto ele oscila" severity error;
+        wait for CPU_ADDR_STABLE_CYCLES * mem_clk_period;
+        assert mem_addr = x"0000_000D" report "filtro de estabilidade deveria liberar o acesso após o endereço estabilizar" severity error;
         cpu_addr <= (others => '0');
         cpu_rden <= '0';
         cpu_wren <= '0';
