@@ -136,8 +136,10 @@ set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pin
 #**************************************************************
 # Set Multicycle Path
 #**************************************************************
-set_multicycle_path -from [get_registers *processor\|register_file*regx\|Q*] -to [get_registers *arb*cpu_filter_sample*] -setup -end 4
-set_multicycle_path -from [get_registers *processor\|register_file*regx\|Q*] -to [get_registers *arb*cpu_filter_sample*] -hold -end 3
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb*cpu_filter_sample*] -setup -end 4
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb*cpu_filter_sample*] -hold -end 3
+set_multicycle_path -from [get_registers *i_cache\|tdp_ram*] -to [get_registers *arb\|cpu_filter*] -setup -end 4
+set_multicycle_path -from [get_registers *i_cache\|tdp_ram*] -to [get_registers *arb\|cpu_filter*] -hold -end 3
 
 
 #**************************************************************
