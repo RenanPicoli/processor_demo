@@ -58,6 +58,7 @@ begin
 end function;
 
 signal dma_access_granted: std_logic;
+signal dma_access_granted_reg: std_logic;
 signal mem_addr_reg: std_logic_vector(31 downto 0);
 signal mem_write_data_reg: std_logic_vector(31 downto 0);
 signal mem_rden_reg: std_logic;
@@ -207,7 +208,9 @@ begin
         dma_ready_reg <= '0';
         cpu_Q_reg <= (others => '0');
         dma_Q_reg <= (others => '0');
+        dma_access_granted_reg  <= '0';
     elsif rising_edge(clk) then
+        dma_access_granted_reg <= dma_access_granted;
         case dma_access_granted is
         
             when '1' =>
@@ -235,9 +238,9 @@ end process;
 
 ready <= ready_out when mem_rden='1' or mem_wren='1' else '0';
 -- these processes are separated to avoid introducing additional latency in the data path from memory to cpu/dma
-Q_READY_PROC : process(dma_access_granted, mem_rden, mem_wren, mem_ready, mem_Q, ready, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren, cpu_filter_valid, cpu_filter_addr, cpu_filter_rden, cpu_filter_wren)
+Q_READY_PROC : process(dma_access_granted_reg, mem_rden, mem_wren, mem_ready, mem_Q, ready, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren, cpu_filter_valid, cpu_filter_addr, cpu_filter_rden, cpu_filter_wren)
  begin
-    case dma_access_granted is
+    case dma_access_granted_reg is
 
         when '1' =>
             ADDR <= dma_addr;
