@@ -381,7 +381,8 @@ begin
 		dma_iack <= '0';	
 		cpu_ram_wren <= '0';
 		cpu_ram_rden <= '0';
-        wait for CPU_CLK_PERIOD+20ns;
+        -- wait for CPU_CLK_PERIOD+20ns;
+		wait for 241us;-- wait for the SDRAM initialization to complete
 
 		--transferência de dados da SDRAM para o cache mini_ram
         -- Configuração dos registradores do DMA		
@@ -412,7 +413,7 @@ begin
         cpu_ram_addr <= x"0000007A"; cpu_ram_write_data <= x"02000000"; wait for CPU_CLK_PERIOD; -- src_addr = 0x02000000
         cpu_ram_addr <= x"0000007B"; cpu_ram_write_data <= x"0000007E"; wait for CPU_CLK_PERIOD; -- dst_addr = 0x0000007E
         cpu_ram_addr <= x"0000007C"; cpu_ram_write_data <= x"0004B000"; wait for CPU_CLK_PERIOD; -- length =  307200 palavras (640*480 pixels)
-        cpu_ram_addr <= x"0000007D"; cpu_ram_write_data <= x"00000065"; wait for CPU_CLK_PERIOD; -- CR: Start = 1, SINC = 1, DINC = 0, AUTOSTART=1, SRC_LAT=2
+        cpu_ram_addr <= x"0000007D"; cpu_ram_write_data <= x"000000B5"; wait for CPU_CLK_PERIOD; -- CR: Start = 1, SINC = 1, DINC = 0, AUTOSTART=1, SRC_LAT=3
 
         cpu_ram_wren <= '0';
 
