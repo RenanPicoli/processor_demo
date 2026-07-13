@@ -197,6 +197,9 @@ begin
     end if;
 end process;
 
+dma_Q <= dma_Q_reg;
+cpu_Q <= cpu_Q_reg;
+
 arb_PROC : process(clk, rst)
 begin
     if rst = '1' then
@@ -218,6 +221,8 @@ begin
                 mem_write_data_reg <= dma_write_data;
                 mem_wren_reg <= dma_wren;
                 mem_rden_reg <= dma_rden;
+                dma_Q_reg <= mem_Q;
+                cpu_Q_reg <= (others => '0');
             when others =>
                 -- Forward the filtered CPU request only after the address/data/control signals have remained stable for the configured number of cycles.
                 if (cpu_filter_valid = '1') then
@@ -231,6 +236,8 @@ begin
                     mem_wren_reg <= '0';
                     mem_rden_reg <= '0';
                 end if;
+                dma_Q_reg <= (others => '0');
+                cpu_Q_reg <= mem_Q;
         
         end case;
     end if;
@@ -238,38 +245,45 @@ end process;
 
 ready <= ready_out when mem_rden='1' or mem_wren='1' else '0';
 -- these processes are separated to avoid introducing additional latency in the data path from memory to cpu/dma
-Q_READY_PROC : process(dma_access_granted_reg, mem_rden, mem_wren, mem_ready, mem_Q, ready, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren, cpu_filter_valid, cpu_filter_addr, cpu_filter_rden, cpu_filter_wren)
+Q_READY_PROC : process(rst,clk,dma_access_granted, mem_rden, mem_wren, mem_ready, mem_Q, ready, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren, cpu_filter_valid, cpu_filter_addr, cpu_filter_rden, cpu_filter_wren)
  begin
-    case dma_access_granted_reg is
+    if rst = '1' then
+        ADDR <= (others => '0');
+        RDEN <= '0';
+        WREN <= '0';
+		  dma_ready <= '0';
+        cpu_ready <= '0';
+    elsif rising_edge(clk) then
+        case dma_access_granted is
 
-        when '1' =>
-            ADDR <= dma_addr;
-            RDEN <= dma_rden;
-            WREN <= dma_wren;
-            dma_ready <= ready;
-            cpu_ready <= '0';
-            dma_Q <= mem_Q;
-            cpu_Q <= (others => '0');
-            -- mem_next_addr <= dma_addr;-- for the address decoder to detect when a new write starts (for multi-clock support)
-        when others =>
-            -- Keep the CPU-side control signals quiescent until the filtered request is valid.
-            if cpu_filter_valid = '1' then
-                ADDR <= cpu_filter_addr;
-                RDEN <= cpu_filter_rden;
-                WREN <= cpu_filter_wren;
-                cpu_ready <= ready;
-            else
-                ADDR <= ADDR;
-                RDEN <= '0';
-                WREN <= '0';
+            when '1' =>
+                ADDR <= dma_addr;
+                RDEN <= dma_rden;
+                WREN <= dma_wren;
+                dma_ready <= ready;
                 cpu_ready <= '0';
-            end if;
-            dma_ready <= '0';
-            dma_Q <= (others => '0');
-            cpu_Q <= mem_Q;
-            -- mem_next_addr <= cpu_addr;-- for the address decoder to detect when a new write starts (for multi-clock support)
-
-    end case;
+                -- dma_Q <= mem_Q;
+                -- cpu_Q <= (others => '0');
+                -- mem_next_addr <= dma_addr;-- for the address decoder to detect when a new write starts (for multi-clock support)
+            when others =>
+                -- Keep the CPU-side control signals quiescent until the filtered request is valid.
+                if cpu_filter_valid = '1' then
+                    ADDR <= cpu_filter_addr;
+                    RDEN <= cpu_filter_rden;
+                    WREN <= cpu_filter_wren;
+                    cpu_ready <= ready;
+                else
+                    ADDR <= ADDR;
+                    RDEN <= '0';
+                    WREN <= '0';
+                    cpu_ready <= '0';
+                end if;
+                dma_ready <= '0';
+                -- dma_Q <= (others => '0');
+                -- cpu_Q <= mem_Q;
+                -- mem_next_addr <= cpu_addr;-- for the address decoder to detect when a new write starts (for multi-clock support)
+        end case;
+    end if;
 end process;
 
 DMA_ACCESS_PROC : process(clk, rst, dma_rden, dma_wren, cpu_rden, cpu_wren, dma_access_granted)

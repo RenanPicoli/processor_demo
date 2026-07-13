@@ -138,8 +138,38 @@ set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pin
 #**************************************************************
 set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb*cpu_filter_sample*] -setup -end 4
 set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb*cpu_filter_sample*] -hold -end 3
-set_multicycle_path -from [get_registers *i_cache\|tdp_ram*] -to [get_registers *arb\|cpu_filter*] -setup -end 4
-set_multicycle_path -from [get_registers *i_cache\|tdp_ram*] -to [get_registers *arb\|cpu_filter*] -hold -end 3
+# instructions that generate memory accesses are subject to the stability filter
+set_multicycle_path -from [get_registers *i_cache|tdp_ram*] -to [get_registers *arb|cpu_filter*] -setup -end 4
+set_multicycle_path -from [get_registers *i_cache|tdp_ram*] -to [get_registers *arb|cpu_filter*] -hold -end 3
+set_multicycle_path -from [get_registers *de_mw_pipeline_registers|Q*] -to [get_registers *arb|cpu_filter*] -setup -end 4
+set_multicycle_path -from [get_registers *de_mw_pipeline_registers|Q*] -to [get_registers *arb|cpu_filter*] -hold -end 3
+# debug commands that generate memory accesses are (like the instructions) subject to the stability filter
+set_multicycle_path -from [get_registers *uart_dbg|*] -to [get_registers *arb|cpu_filter*] -setup -end 4
+set_multicycle_path -from [get_registers *uart_dbg|*] -to [get_registers *arb|cpu_filter*] -hold -end 3
+set_multicycle_path -from [get_registers *processor|dbg_*] -to [get_registers *arb|cpu_filter*] -setup -end 4
+set_multicycle_path -from [get_registers *processor|dbg_*] -to [get_registers *arb|cpu_filter*] -hold -end 3
+# adding multicycle exception because registers updated at rising edge of uproc_clk and only one uproc_clk later dma or cpu will access it (worst case)
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb|cpu_Q_reg*] -setup -end 4
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb|cpu_Q_reg*] -hold -end 3
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb|dma_Q_reg*] -setup -end 4
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb|dma_Q_reg*] -hold -end 3
+# dma|dst_addr is used only after a dma start cmd, so it will be already stable
+set_multicycle_path -from [get_registers *dma|dst_addr*] -to [get_clocks sdram_ctrl_clk] -setup -end 4
+set_multicycle_path -from [get_registers *dma|dst_addr*] -to [get_clocks sdram_ctrl_clk] -hold -end 3
+# dma|src_addr is used only after a dma start cmd, so it will be already stable
+set_multicycle_path -from [get_registers *dma|src_addr*] -to [get_clocks sdram_ctrl_clk] -setup -end 4
+set_multicycle_path -from [get_registers *dma|src_addr*] -to [get_clocks sdram_ctrl_clk] -hold -end 3
+# dma|num_xfers is used only after a dma start cmd, so it will be already stable
+set_multicycle_path -from [get_registers *dma|num_xfers*] -to [get_clocks sdram_ctrl_clk] -setup -end 4
+set_multicycle_path -from [get_registers *dma|num_xfers*] -to [get_clocks sdram_ctrl_clk] -hold -end 3
+# dma|CR is used only after a dma start cmd, so it will be already stable
+# the most critical transfer is the start of DMA (dma|state), but the start can be delayed a few sdram_ctrl_clk cycles
+set_multicycle_path -from [get_registers *dma|CR*] -to [get_clocks sdram_ctrl_clk] -setup -end 4
+set_multicycle_path -from [get_registers *dma|CR*] -to [get_clocks sdram_ctrl_clk] -hold -end 3
+# instruction iack (or debug command) to DMA, dma|irq only need to be deasserted before next CPU clock edge, so we can relax setup
+# transfers from uproc_clk to dma|irq come from dma|num_xfers and from dma|iack, both need some time to stabilize
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *dma|irq*] -setup -end 4
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *dma|irq*] -hold -end 3
 
 
 #**************************************************************
