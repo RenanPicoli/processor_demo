@@ -93,6 +93,7 @@ create_generated_clock -name {i2c_scl} -source [get_pins {i2c|i2c|scl_clk|CLK|q}
 #**************************************************************
 set_input_delay -clock sram_clk -max 11 [get_ports sram_IO[*]]
 set_input_delay -clock sram_clk -min 1 [get_ports sram_IO[*]]
+# max delay depends on Flash's tAVQV — Address to Output Delay
 set_input_delay -clock uproc_clk -max 112 [get_ports flash_IO[*]]
 set_input_delay -clock uproc_clk -min -1 [get_ports flash_IO[*]]
 
