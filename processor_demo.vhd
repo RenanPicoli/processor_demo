@@ -1214,6 +1214,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	flash_WP_n <= '1';--write protection always disabled
 	flash_RST_n <= rst_n;--system reset resets flash to read mode
 
+	-- flash_reading_state counts from 0("0000") to 7 ("0111") periodically while filter_clk is '0'
+	-- when it reaches "1000" it stops incrementing until reset by filter_CLK positive portion or system rst
+	-- filter_clk='1' or rst='1' cause it to go to state "1001", when filter_clk='0' and clk rises start counting again
+	-- flash_reading_state(0) selects the destination of data read: 32b-bit registers data_in ('0') or desired ('1')
+	-- flash_reading_state(2 downto 1) selects the nibble being read
 	flash_reading: process(CLK,filter_rst,flash_reading_state,flash_count,filter_CLK_syncd_uproc,rst)
 	begin
 		if(rst='1')then
