@@ -245,14 +245,14 @@ end process;
 
 ready <= ready_out when mem_rden='1' or mem_wren='1' else '0';
 -- these processes are separated to avoid introducing additional latency in the data path from memory to cpu/dma
-Q_READY_PROC : process(rst,clk,dma_access_granted, mem_rden, mem_wren, mem_ready, mem_Q, ready, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren, cpu_filter_valid, cpu_filter_addr, cpu_filter_rden, cpu_filter_wren)
+CTRL_PROC : process(rst,clk,dma_access_granted, mem_rden, mem_wren, mem_ready, mem_Q, ready, dma_addr, dma_rden, dma_wren, cpu_addr, cpu_rden, cpu_wren, cpu_filter_valid, cpu_filter_addr, cpu_filter_rden, cpu_filter_wren)
  begin
     if rst = '1' then
         ADDR <= (others => '0');
         RDEN <= '0';
         WREN <= '0';
-		  dma_ready <= '0';
-        cpu_ready <= '0';
+		--   dma_ready <= '0';
+        -- cpu_ready <= '0';
     elsif rising_edge(clk) then
         case dma_access_granted is
 
@@ -260,8 +260,8 @@ Q_READY_PROC : process(rst,clk,dma_access_granted, mem_rden, mem_wren, mem_ready
                 ADDR <= dma_addr;
                 RDEN <= dma_rden;
                 WREN <= dma_wren;
-                dma_ready <= ready;
-                cpu_ready <= '0';
+                -- dma_ready <= ready;
+                -- cpu_ready <= '0';
                 -- dma_Q <= mem_Q;
                 -- cpu_Q <= (others => '0');
                 -- mem_next_addr <= dma_addr;-- for the address decoder to detect when a new write starts (for multi-clock support)
@@ -271,20 +271,23 @@ Q_READY_PROC : process(rst,clk,dma_access_granted, mem_rden, mem_wren, mem_ready
                     ADDR <= cpu_filter_addr;
                     RDEN <= cpu_filter_rden;
                     WREN <= cpu_filter_wren;
-                    cpu_ready <= ready;
+                    -- cpu_ready <= ready;
                 else
                     ADDR <= ADDR;
                     RDEN <= '0';
                     WREN <= '0';
-                    cpu_ready <= '0';
+                    -- cpu_ready <= '0';
                 end if;
-                dma_ready <= '0';
+                -- dma_ready <= '0';
                 -- dma_Q <= (others => '0');
                 -- cpu_Q <= mem_Q;
                 -- mem_next_addr <= cpu_addr;-- for the address decoder to detect when a new write starts (for multi-clock support)
         end case;
     end if;
 end process;
+
+dma_ready <= ready when dma_access_granted='1' else '0';
+cpu_ready <= ready when dma_access_granted='0' and cpu_filter_valid='1' else '0';
 
 DMA_ACCESS_PROC : process(clk, rst, dma_rden, dma_wren, cpu_rden, cpu_wren, dma_access_granted)
 begin
