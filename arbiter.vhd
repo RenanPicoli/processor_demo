@@ -12,7 +12,7 @@ entity arbiter is
                 CPU_ADDR_STABLE_CYCLES: natural := 4 -- number of fast-clock cycles that the CPU request must remain unchanged before it is released to the bus
     );
     port (
-        clk : in std_logic;--memory clock (e.g. SDRAM)
+        clk : in std_logic;--FASTEST memory clock (e.g. SDRAM)
         rst : in std_logic;
 		MASTER_CLK_ID: out std_logic_vector(1 downto 0);--identifies the clock controlling the bus (for synchronization purposes)
         CLK_ARR: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals, same size as ranges
@@ -331,6 +331,7 @@ reg_multi_clk: for i in 0 to CLK_ARR'length-1 generate
     begin
         report "clock number :" & integer'image(CLK_ARR'length) & " clocks";
         -- when a NEW write starts to a peripheral in a different clock domain, the ready_out_reg at the destination clock domain is reset
+		  -- when ADDR = ADDR_reg(i) the peripheral had the first active edge and MIGHT have processed the write
         if (WREN='1' and (ADDR /= ADDR_reg(i)) and MULTI_CLK and std_logic_vector(to_unsigned(DOMAINS(sel_periph_index), 2)) /= MASTER_CLK_ID) then--for a write to a peripheral in a different clock domain, register the ready signal at the destination clock domain
             ready_out_reg(i) <= '0';-- start with not ready when a write starts
         -- elsif (rising_edge(CLK_ARR(i))) then--updated at rising edge of destination clock
