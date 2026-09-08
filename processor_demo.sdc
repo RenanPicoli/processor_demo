@@ -139,6 +139,8 @@ set_false_path -from [get_registers {instruction_memory_output[*]}] -to [get_pin
 #**************************************************************
 set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb*cpu_filter_sample*] -setup -end 4
 set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *arb*cpu_filter_sample*] -hold -end 3
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *ram_Q*] -setup -end 4
+set_multicycle_path -from [get_clocks uproc_clk] -to [get_registers *ram_Q*] -hold -end 3
 # instructions that generate memory accesses are subject to the stability filter
 set_multicycle_path -from [get_registers *i_cache|tdp_ram*] -to [get_registers *arb|cpu_filter*] -setup -end 4
 set_multicycle_path -from [get_registers *i_cache|tdp_ram*] -to [get_registers *arb|cpu_filter*] -hold -end 3
