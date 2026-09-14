@@ -17,7 +17,7 @@ use work.my_types.all;--array32, array_of_std_logic_vector
 use ieee.math_real.all;--ceil and log2
 
 entity dc_fifo is
-	generic (N: natural; REQUESTED_FIFO_DEPTH: natural; USE_RAM_BLOCKS: boolean := false);--REQUESTED_FIFO_DEPTH does NOT need to be power of TWO
+	generic (N: natural; REQUESTED_FIFO_DEPTH: natural; USE_RAM_BLOCKS: boolean := false; LEGACY_READ_POINTER: boolean := true; SAME_CLOCK: boolean := false);--REQUESTED_FIFO_DEPTH does NOT need to be power of TWO
 	port (
 			DATA_IN: in std_logic_vector(N-1 downto 0);--for register write
 			WCLK: in std_logic;--processor clock for writes
@@ -86,7 +86,8 @@ begin
 		end if;
 	end process;
 	
-	--read pointer
+	-- Mantém o comportamento histórico para os consumidores existentes.
+	legacy_read_pointer_proc: if LEGACY_READ_POINTER generate
 	process(RST,RCLK)
 	begin
 		if(RST='1') then
@@ -100,6 +101,22 @@ begin
 			end if;
 		end if;
 	end process;
+	end generate legacy_read_pointer_proc;
+
+	-- O modo convencional aponta para a posição zero após o reset, permitindo
+	-- que DATA_OUT represente o primeiro item antes do primeiro POP.
+	standard_read_pointer_proc: if not LEGACY_READ_POINTER generate
+	process(RST,RCLK)
+	begin
+		if(RST='1') then
+			read_addr <= (others=>'0');
+		elsif rising_edge(RCLK) then
+			if POP='1' and EMPTY='0' then
+				read_addr <= read_addr + '1';
+			end if;
+		end if;
+	end process;
+	end generate standard_read_pointer_proc;
 	
 --	difference <= c_writes - c_readings - 1;
 	write_addr_gray <= write_addr xor std_logic_vector(unsigned(write_addr) srl 1);
@@ -119,6 +136,8 @@ begin
 	
 	-- synchronizes write_addr to rising_edge of RCLK, because:
 	-- write_addr is generated at WCLK domain
+	-- Em clocks diferentes, o ponteiro de escrita atravessa um sincronizador Gray.
+	different_clock_write_sync: if not SAME_CLOCK generate
 	sync_chain_wr_addr: sync_chain
 		generic map (N => log2_FIFO_DEPTH,--bus width in bits
 					L => 2)--number of registers in the chain
@@ -128,9 +147,17 @@ begin
 				RST => RST,--asynchronous reset
 				data_out => rd_write_addr_gray--data synchronized in CLK domain
 		);
+	end generate different_clock_write_sync;
+
+	-- Em clock único, a cópia direta elimina a latência artificial do CDC.
+	same_clock_write_sync: if SAME_CLOCK generate
+		rd_write_addr_gray <= write_addr_gray;
+	end generate same_clock_write_sync;
 		
 	-- Synchronize the read pointer into the write domain. FULL is evaluated
 	-- with this synchronized value before accepting a new write.
+	-- Em clocks diferentes, o ponteiro de leitura também precisa ser sincronizado.
+	different_clock_read_sync: if not SAME_CLOCK generate
 	sync_chain_rd_addr: sync_chain
 		generic map (N => log2_FIFO_DEPTH,--bus width in bits
 					L => 2)--number of registers in the chain
@@ -139,7 +166,13 @@ begin
 				CLK => WCLK,--clock of new clock domain
 				RST => RST,--asynchronous reset
 				data_out => wr_read_addr_gray--data synchronized in CLK domain
-		);	
+		);
+	end generate different_clock_read_sync;
+
+	-- Em clock único, o ponteiro de leitura já está no mesmo domínio.
+	same_clock_read_sync: if SAME_CLOCK generate
+		wr_read_addr_gray <= read_addr_gray;
+	end generate same_clock_read_sync;
 	
 	process(RST,DATA_IN,WCLK)
 	begin
@@ -181,7 +214,14 @@ begin
 	FULL <= async_full;
 	
 --	EMPTY		<= '1' when (head="0000" and c_writes=x"00000000") else '0';
-	EMPTY		<= '1' when (read_addr + 1 = rd_write_addr) else '0';--next position to read is the next to write (contains invalid data)
+	legacy_empty: if LEGACY_READ_POINTER generate
+		EMPTY <= '1' when (read_addr + 1 = rd_write_addr) else '0';--next position to read is the next to write (contains invalid data)
+	end generate legacy_empty;
+
+	-- A condição EMPTY convencional compara diretamente os ponteiros válidos.
+	standard_empty: if not LEGACY_READ_POINTER generate
+		EMPTY <= '1' when (read_addr = rd_write_addr) else '0';
+	end generate standard_empty;
 --	OVF		<= '1' when (head(3)='1') and (head(2 downto 0)/="000") else '0';
 
 	process(RST, WCLK)
