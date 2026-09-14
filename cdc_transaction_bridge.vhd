@@ -30,7 +30,10 @@ architecture rtl of cdc_transaction_bridge is
     component dc_fifo
         generic (
             N : natural;
-            REQUESTED_FIFO_DEPTH : natural
+            REQUESTED_FIFO_DEPTH : natural;
+            USE_RAM_BLOCKS : boolean := false;
+            LEGACY_READ_POINTER : boolean := true;
+            SAME_CLOCK : boolean := false
         );
         port (
             DATA_IN : in std_logic_vector(N-1 downto 0);
@@ -63,21 +66,22 @@ architecture rtl of cdc_transaction_bridge is
     signal response_fifo_full : std_logic;
     signal response_fifo_empty : std_logic;
     signal response_fifo_ovf : std_logic;
-    signal response_pop_pending : std_logic;
-    signal response_capture_pending : std_logic;
 
     signal master_transaction_busy : std_logic;
     signal master_request_held : std_logic;
     signal master_waiting_read : std_logic;
 
     signal dest_transaction_busy : std_logic;
-    signal dest_pop_pending : std_logic;
-    signal dest_capture_pending : std_logic;
     signal dest_request_is_read : std_logic;
     signal dest_request_addr : std_logic_vector(31 downto 0);
     signal dest_request_data : std_logic_vector(31 downto 0);
 
 begin
+    -- This bridge converts a synchronous master request into a destination-side
+    -- transaction and then sends the read response back to the originating clock
+    -- domain. The request FIFO carries both the address and the read/write flag,
+    -- while the response FIFO carries only the returned data word.
+
     -- Accept one request at a time from the master. master_request_held
     -- prevents re-enqueueing while the master keeps its enable asserted.
     request_fifo_data_in <= master_rden & master_addr & master_write_data;
@@ -86,9 +90,10 @@ begin
                                   (master_rden = '1' or master_wren = '1') and
                                   request_fifo_full = '0' else '0';
 
-    -- The FIFO uses the legacy read convention: POP is asserted first and
-    -- DATA_OUT is captured on the following destination-clock cycle.
-    request_fifo_pop <= dest_pop_pending;
+    -- This bridge selects the standard FIFO convention: DATA_OUT is already
+    -- valid for the current entry, and POP advances to the next entry.
+    request_fifo_pop <= '1' when dest_transaction_busy = '0' and
+                                 request_fifo_empty = '0' else '0';
 
     -- A read response is written only after the destination reports valid
     -- data. Writes complete when their request is accepted by the FIFO.
@@ -97,15 +102,17 @@ begin
                                    dest_ready = '1' and
                                    response_fifo_full = '0' else '0';
 
-    -- The response FIFO follows the same legacy POP -> DATA_OUT timing as
-    -- the request FIFO, so capture is split into two master-clock cycles.
-    response_fifo_pop <= response_pop_pending;
+    -- The response data is captured on the same master-clock edge that pops
+    -- the standard FIFO entry.
+    response_fifo_pop <= '1' when master_waiting_read = '1' and
+                                  response_fifo_empty = '0' else '0';
 
     -- Request path: master clock to destination clock.
     request_fifo : dc_fifo
         generic map (
             N => REQUEST_WIDTH,
-            REQUESTED_FIFO_DEPTH => FIFO_DEPTH
+            REQUESTED_FIFO_DEPTH => FIFO_DEPTH,
+            LEGACY_READ_POINTER => false
         )
         port map (
             DATA_IN => request_fifo_data_in,
@@ -124,7 +131,8 @@ begin
     response_fifo : dc_fifo
         generic map (
             N => 32,
-            REQUESTED_FIFO_DEPTH => FIFO_DEPTH
+            REQUESTED_FIFO_DEPTH => FIFO_DEPTH,
+            LEGACY_READ_POINTER => false
         )
         port map (
             DATA_IN => dest_Q,
@@ -139,14 +147,16 @@ begin
             DATA_OUT => response_fifo_data_out
         );
 
+    -- Master-side state machine:
+    -- 1) enqueue a request when the master asserts a valid read or write,
+    -- 2) hold the transaction while the request is in flight,
+    -- 3) block further read requests until the corresponding answer arrives.
     master_proc : process(master_clk, rst)
     begin
         if rst = '1' then
             master_transaction_busy <= '0';
             master_request_held <= '0';
             master_waiting_read <= '0';
-            response_pop_pending <= '0';
-            response_capture_pending <= '0';
             master_ready <= '0';
             master_Q <= (others => '0');
         elsif rising_edge(master_clk) then
@@ -168,45 +178,34 @@ begin
                 end if;
             end if;
 
-            if response_capture_pending = '1' then
+            if response_fifo_pop = '1' then
                 -- For reads, ready means that the returned data is valid.
                 master_Q <= response_fifo_data_out;
                 master_ready <= '1';
                 master_waiting_read <= '0';
                 master_transaction_busy <= '0';
-                response_capture_pending <= '0';
-            elsif response_pop_pending = '1' then
-                response_pop_pending <= '0';
-                response_capture_pending <= '1';
-            elsif master_waiting_read = '1' and response_fifo_empty = '0' then
-                response_pop_pending <= '1';
             end if;
         end if;
     end process;
 
+    -- Destination-side state machine:
+    -- it pops requests from the request FIFO, captures the associated fields,
+    -- and keeps the read or write request stable until the destination completes it.
     dest_proc : process(dest_clk, rst)
     begin
         if rst = '1' then
             dest_transaction_busy <= '0';
-            dest_pop_pending <= '0';
-            dest_capture_pending <= '0';
             dest_request_is_read <= '0';
             dest_request_addr <= (others => '0');
             dest_request_data <= (others => '0');
         elsif rising_edge(dest_clk) then
-            -- Separate POP from capture because DATA_OUT follows the legacy
-            -- FIFO pointer convention and becomes valid one cycle later.
-            if dest_capture_pending = '1' then
+            -- With the standard FIFO convention, the current DATA_OUT can be
+            -- captured on the same destination-clock edge as request POP.
+            if request_fifo_pop = '1' then
                 dest_transaction_busy <= '1';
                 dest_request_is_read <= request_fifo_data_out(64);
                 dest_request_addr <= request_fifo_data_out(63 downto 32);
                 dest_request_data <= request_fifo_data_out(31 downto 0);
-                dest_capture_pending <= '0';
-            elsif dest_pop_pending = '1' then
-                dest_pop_pending <= '0';
-                dest_capture_pending <= '1';
-            elsif dest_transaction_busy = '0' and request_fifo_empty = '0' then
-                dest_pop_pending <= '1';
             elsif dest_transaction_busy = '1' then
                 -- Writes finish after presentation to the destination.
                 -- Reads stay active until their response is enqueued.
