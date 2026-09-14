@@ -325,6 +325,27 @@ component address_decoder_memory_map
 );
 end component;
 
+component cdc_transaction_bridge
+	generic (FIFO_DEPTH: natural := 4);
+	port (
+		master_clk: in std_logic;
+		dest_clk: in std_logic;
+		rst: in std_logic;
+		master_addr: in std_logic_vector(31 downto 0);
+		master_write_data: in std_logic_vector(31 downto 0);
+		master_rden: in std_logic;
+		master_wren: in std_logic;
+		master_ready: out std_logic;
+		master_Q: out std_logic_vector(31 downto 0);
+		dest_addr: out std_logic_vector(31 downto 0);
+		dest_write_data: out std_logic_vector(31 downto 0);
+		dest_rden: out std_logic;
+		dest_wren: out std_logic;
+		dest_ready: in std_logic;
+		dest_Q: in std_logic_vector(31 downto 0)
+	);
+end component;
+
 ---------------------------------------------------
 
 component filter_xN
@@ -681,7 +702,8 @@ component arbiter
     --DOMAINS: per-peripheral clock domain identifiers, same size as B (array(natural range <>) of tuple(0 to 1))
     generic (
             B: boundaries; MULTI_CLK: boolean := false;
-            CPU_ADDR_STABLE_CYCLES: natural := 2
+		    CPU_ADDR_STABLE_CYCLES: natural := 2;
+		    LOCAL_DOMAIN: natural := 0
     );
     port (
         clk : in std_logic;--memory clock (e.g. SDRAM)
@@ -1061,6 +1083,64 @@ signal all_periphs_output: array32 (ranges'length-1 downto 0);
 signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_wren: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_ready: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_rden_comb: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_wren_comb: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_rden_ram: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_wren_ram: std_logic_vector(ranges'length-1 downto 0);
+signal ram_domain0_access: std_logic;
+signal ram_domain0_addr: std_logic_vector(31 downto 0);
+signal ram_domain0_write_data: std_logic_vector(31 downto 0);
+signal ram_domain0_rden: std_logic;
+signal ram_domain0_wren: std_logic;
+signal ram_domain0_dest_rden: std_logic;
+signal ram_domain0_dest_wren: std_logic;
+signal ram_domain0_ready: std_logic;
+signal ram_domain0_Q: std_logic_vector(31 downto 0);
+signal ram_domain0_dest_ready: std_logic;
+signal ram_domain0_dest_Q: std_logic_vector(31 downto 0);
+signal ram_domain1_ready_comb: std_logic;
+signal ram_domain1_Q_comb: std_logic_vector(31 downto 0);
+signal ram_domain1_ready: std_logic;
+signal ram_domain1_Q: std_logic_vector(31 downto 0);
+signal ram_ready_comb: std_logic;
+signal ram_Q_comb: std_logic_vector(31 downto 0);
+
+-- Local interconnects. Each arbiter output is consumed only by a decoder
+-- clocked in the same domain; cross-domain masters enter through bridges.
+signal domain0_addr: std_logic_vector(31 downto 0);
+signal domain0_write_data: std_logic_vector(31 downto 0);
+signal domain0_rden: std_logic;
+signal domain0_wren: std_logic;
+signal domain0_ready: std_logic;
+signal domain0_Q: std_logic_vector(31 downto 0);
+signal cpu_domain0_ready: std_logic;
+signal cpu_domain0_Q: std_logic_vector(31 downto 0);
+signal domain1_addr: std_logic_vector(31 downto 0);
+signal domain1_write_data: std_logic_vector(31 downto 0);
+signal domain1_rden: std_logic;
+signal domain1_wren: std_logic;
+signal domain1_ready: std_logic;
+signal domain1_Q: std_logic_vector(31 downto 0);
+
+-- CPU request crossing 4 MHz -> 75 MHz.
+signal cpu_domain1_addr: std_logic_vector(31 downto 0);
+signal cpu_domain1_write_data: std_logic_vector(31 downto 0);
+signal cpu_domain1_rden: std_logic;
+signal cpu_domain1_wren: std_logic;
+signal cpu_domain1_ready: std_logic;
+signal cpu_domain1_Q: std_logic_vector(31 downto 0);
+signal cpu_domain1_access: std_logic;
+
+-- DMA memory-master request crossing 75 MHz -> 4 MHz.
+signal dma_domain0_addr: std_logic_vector(31 downto 0);
+signal dma_domain0_write_data: std_logic_vector(31 downto 0);
+signal dma_domain0_rden: std_logic;
+signal dma_domain0_wren: std_logic;
+signal dma_domain0_ready: std_logic;
+signal dma_domain0_Q: std_logic_vector(31 downto 0);
+signal dma_domain0_access: std_logic;
+signal dma_domain1_ready: std_logic;
+signal dma_domain1_Q: std_logic_vector(31 downto 0);
 
 signal filter_CLK: std_logic;
 signal filter_CLK_n: std_logic;--filter_CLK inverted
@@ -1838,6 +1918,68 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				SCK => i2s_SCK --continuous clock (bit clock)
 		);		
 	MCLK <= CLK12MHz;--master clock for audio codec in USB mode
+
+	-- Decode the master address before selecting a bridge. The bridge direction
+	-- is determined by the master clock, not by the peripheral table in arbiter.
+	process(cpu_ram_addr, dma_ram_addr)
+		variable cpu_address: natural;
+		variable dma_address: natural;
+	begin
+		cpu_address := to_integer(unsigned(cpu_ram_addr(25 downto 0)));
+		dma_address := to_integer(unsigned(dma_ram_addr(25 downto 0)));
+		cpu_domain1_access <= '0';
+		if (cpu_address >= ranges(16)(0) and cpu_address <= ranges(16)(1)) or
+		   (cpu_address >= ranges(20)(0) and cpu_address <= ranges(20)(1)) then
+			cpu_domain1_access <= '1';
+		end if;
+		dma_domain0_access <= '0';
+		if not ((dma_address >= ranges(16)(0) and dma_address <= ranges(16)(1)) or
+		        (dma_address >= ranges(20)(0) and dma_address <= ranges(20)(1))) then
+			dma_domain0_access <= '1';
+		end if;
+	end process;
+
+	-- CPU (domain 0) to domain-1 arbiter: 4 MHz -> 75 MHz.
+	cpu_domain1_bridge: cdc_transaction_bridge
+		generic map (FIFO_DEPTH => 4)
+		port map (
+			master_clk => ram_clk,
+			dest_clk => sdram_ctrl_clk,
+			rst => rst,
+			master_addr => cpu_ram_addr,
+			master_write_data => cpu_ram_write_data,
+			master_rden => cpu_ram_rden and cpu_domain1_access,
+			master_wren => cpu_ram_wren and cpu_domain1_access,
+			master_ready => cpu_domain1_ready,
+			master_Q => cpu_domain1_Q,
+			dest_addr => cpu_domain1_addr,
+			dest_write_data => cpu_domain1_write_data,
+			dest_rden => cpu_domain1_rden,
+			dest_wren => cpu_domain1_wren,
+			dest_ready => domain1_ready,
+			dest_Q => domain1_Q
+		);
+
+	-- DMA memory master (domain 1) to domain-0 arbiter: 75 MHz -> 4 MHz.
+	dma_domain0_bridge: cdc_transaction_bridge
+		generic map (FIFO_DEPTH => 4)
+		port map (
+			master_clk => sdram_ctrl_clk,
+			dest_clk => ram_clk,
+			rst => rst,
+			master_addr => dma_ram_addr,
+			master_write_data => dma_ram_write_data,
+			master_rden => dma_ram_rden and dma_domain0_access,
+			master_wren => dma_ram_wren and dma_domain0_access,
+			master_ready => dma_domain0_ready,
+			master_Q => dma_domain0_Q,
+			dest_addr => dma_domain0_addr,
+			dest_write_data => dma_domain0_write_data,
+			dest_rden => dma_domain0_rden,
+			dest_wren => dma_domain0_wren,
+			dest_ready => domain0_ready,
+			dest_Q => domain0_Q
+		);
 	
 	all_periphs_ready		<= (20=> sdram_ctrl_ready, 19=> program_data_ready, 17=> irq_ctrl_ready, 16=> vga_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
 	all_periphs_output	<= (20=> sdram_ctrl_Q, 19=> program_data_Q, 18=> tmp_vector_Q, 17 => irq_ctrl_Q, 16=> vga_Q, 15 => dma_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
@@ -1847,48 +1989,48 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
 	sdram_ctrl_rden			<= all_periphs_rden(20);
-	program_data_rden			<= all_periphs_rden(19);-- not used, just to keep form
-	tmp_vector_rden			<= all_periphs_rden(18);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden(17);-- not used, just to keep form
+	program_data_rden			<= all_periphs_rden_ram(19);-- not used, just to keep form
+	tmp_vector_rden			<= all_periphs_rden_ram(18);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden_ram(17);-- not used, just to keep form
 	vga_rden						<= all_periphs_rden(16);
 	dma_rden						<= all_periphs_rden(15);-- not used, just to keep form
-	uart_rden					<= all_periphs_rden(14);
-	gp_fp32_to_int32_rden	<= all_periphs_rden(13);-- not used, just to keep form
-	lcd_rden						<= all_periphs_rden(12);-- not used, just to keep form
-	disp_7seg_DR_rden			<= all_periphs_rden(11);-- not used, just to keep form
-	converted_out_rden		<= all_periphs_rden(10);-- not used, just to keep form
-	filter_ctrl_status_rden	<= all_periphs_rden(9);-- not used, just to keep form
-	d_ff_desired_rden			<= all_periphs_rden(8);-- not used, just to keep form
-	filter_out_rden			<= all_periphs_rden(7);-- not used, just to keep form
-	i2s_rden						<= all_periphs_rden(6);
-	i2c_rden						<= all_periphs_rden(5);
-	vmac_rden					<=	all_periphs_rden(4);
-	inner_product_rden		<= all_periphs_rden(3);
-	cache_rden					<= all_periphs_rden(2);
-	filter_xN_rden				<= all_periphs_rden(1);
-	coeffs_mem_rden			<= all_periphs_rden(0);
+	uart_rden					<= all_periphs_rden_ram(14);
+	gp_fp32_to_int32_rden	<= all_periphs_rden_ram(13);-- not used, just to keep form
+	lcd_rden						<= all_periphs_rden_ram(12);-- not used, just to keep form
+	disp_7seg_DR_rden			<= all_periphs_rden_ram(11);-- not used, just to keep form
+	converted_out_rden		<= all_periphs_rden_ram(10);-- not used, just to keep form
+	filter_ctrl_status_rden	<= all_periphs_rden_ram(9);-- not used, just to keep form
+	d_ff_desired_rden			<= all_periphs_rden_ram(8);-- not used, just to keep form
+	filter_out_rden				<= all_periphs_rden_ram(7);-- not used, just to keep form
+	i2s_rden						<= all_periphs_rden_ram(6);
+	i2c_rden						<= all_periphs_rden_ram(5);
+	vmac_rden						<=	all_periphs_rden_ram(4);
+	inner_product_rden		<= all_periphs_rden_ram(3);
+	cache_rden					<= all_periphs_rden_ram(2);
+	filter_xN_rden				<= all_periphs_rden_ram(1);
+	coeffs_mem_rden			<= all_periphs_rden_ram(0);
 
 	sdram_ctrl_wren			<= all_periphs_wren(20);
-	program_data_wren			<= all_periphs_wren(19);
-	tmp_vector_wren			<= all_periphs_wren(18);
-	irq_ctrl_wren				<= all_periphs_wren(17);
+	program_data_wren			<= all_periphs_wren_ram(19);
+	tmp_vector_wren			<= all_periphs_wren_ram(18);
+	irq_ctrl_wren				<= all_periphs_wren_ram(17);
 	vga_wren						<= all_periphs_wren(16);
 	dma_wren						<= all_periphs_wren(15);
-   uart_wren					<= all_periphs_wren(14);
-	gp_fp32_to_int32_wren	<= all_periphs_wren(13);
-	lcd_wren						<= all_periphs_wren(12);
-	disp_7seg_DR_wren			<= all_periphs_wren(11);
-	converted_out_wren		<= all_periphs_wren(10);-- not used, just to keep form
-	filter_ctrl_status_wren	<= all_periphs_wren(9);
-	d_ff_desired_wren			<= all_periphs_wren(8);-- not used, just to keep form
-	filter_out_wren			<= all_periphs_wren(7);-- not used, just to keep form
-	i2s_wren						<= all_periphs_wren(6);
-	i2c_wren						<= all_periphs_wren(5);
-	vmac_wren					<= all_periphs_wren(4);
-	inner_product_wren		<= all_periphs_wren(3);
-	cache_wren					<= all_periphs_wren(2);
-	filter_xN_wren				<= all_periphs_wren(1);
-	coeffs_mem_wren			<= all_periphs_wren(0);
+	uart_wren					<= all_periphs_wren_ram(14);
+	gp_fp32_to_int32_wren	<= all_periphs_wren_ram(13);
+	lcd_wren						<= all_periphs_wren_ram(12);
+	disp_7seg_DR_wren				<= all_periphs_wren_ram(11);
+	converted_out_wren		<= all_periphs_wren_ram(10);-- not used, just to keep form
+	filter_ctrl_status_wren	<= all_periphs_wren_ram(9);
+	d_ff_desired_wren			<= all_periphs_wren_ram(8);-- not used, just to keep form
+	filter_out_wren			<= all_periphs_wren_ram(7);-- not used, just to keep form
+	i2s_wren						<= all_periphs_wren_ram(6);
+	i2c_wren						<= all_periphs_wren_ram(5);
+	vmac_wren						<= all_periphs_wren_ram(4);
+	inner_product_wren		<= all_periphs_wren_ram(3);
+	cache_wren					<= all_periphs_wren_ram(2);
+	filter_xN_wren			<= all_periphs_wren_ram(1);
+	coeffs_mem_wren			<= all_periphs_wren_ram(0);
 
 	memory_map: address_decoder_memory_map
 	--N: word address width in bits
@@ -1896,18 +2038,53 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
 	--values OF THE FORM: "(b1 b2..bN 0..0),(b1 b2..bN 1..1)"
 	generic map (N => 26, B => ranges)
-	port map (	ADDR => ram_addr(25 downto 0),-- input, it is a word address
-			RDEN => ram_rden,-- input
-			WREN => ram_wren,-- input
+	port map (	ADDR => domain1_addr(25 downto 0),-- input, it is a word address
+			RDEN => domain1_rden,-- input
+			WREN => domain1_wren,-- input
 			-- CLK => (0=> ram_clk, 1=> sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
 			data_in => all_periphs_output,-- input: outputs of all peripheral
 			ready_in => all_periphs_ready,
-			RDEN_OUT => all_periphs_rden,-- output
-			WREN_OUT => all_periphs_wren,-- output
-			ready_out => ram_ready,
-			MASTER_CLK_ID => arbiter_clk_id, -- clock of the master that initiates the transaction, used for synchronizing data_out
-			data_out => ram_Q-- data read
+			RDEN_OUT => all_periphs_rden_comb,-- combinatorial decoder output
+			WREN_OUT => all_periphs_wren_comb,-- combinatorial decoder output
+			ready_out => domain1_ready,
+			MASTER_CLK_ID => (others => '0'), -- CDC is handled before this local decoder
+			data_out => domain1_Q-- combinatorial decoder output
 	);
+
+	-- Decode the request after it has crossed into ram_clk. This endpoint
+	-- provides the peripheral-side ready/data response for the bridge.
+	memory_map_ram: address_decoder_memory_map
+		generic map (N => 26, B => ranges)
+		port map (
+			ADDR => domain0_addr(25 downto 0),
+			RDEN => domain0_rden,
+			WREN => domain0_wren,
+			data_in => all_periphs_output,
+			ready_in => all_periphs_ready,
+			RDEN_OUT => all_periphs_rden_ram,
+			WREN_OUT => all_periphs_wren_ram,
+			ready_out => domain0_ready,
+			MASTER_CLK_ID => (others => '0'),
+			data_out => domain0_Q
+		);
+
+	memory_map_output_registers: process(sdram_ctrl_clk, rst)
+	begin
+		if rst = '1' then
+			all_periphs_rden <= (others => '0');
+			all_periphs_wren <= (others => '0');
+			ram_domain1_ready <= '0';
+			ram_domain1_Q <= (others => '0');
+		elsif rising_edge(sdram_ctrl_clk) then
+			all_periphs_rden <= all_periphs_rden_comb;
+			all_periphs_wren <= all_periphs_wren_comb;
+		end if;
+	end process memory_map_output_registers;
+
+	-- The two local decoders are already driven by registered arbiter outputs;
+	-- expose their local completion/data to the corresponding bridge endpoint.
+	ram_ready <= domain1_ready;
+	ram_Q <= domain1_Q;
 		
 	processor: microprocessor
 	port map (
@@ -1979,36 +2156,67 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		iack		=> dma_iack
     );
 	 
-	--decides wether dma or cpu have access to the RAM
-	arb: arbiter
-		generic map (B => ranges, MULTI_CLK=> true, CPU_ADDR_STABLE_CYCLES => 4)
-		 port map(
-			  clk=> sdram_ctrl_clk,--75MHz, must be fast, it is used for selecting the address decoder "master"
-			  rst=> rst,
-			  MASTER_CLK_ID => arbiter_clk_id,
-			  CLK_ARR => (0 => ram_clk, 1 => sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
-			 -----
-			  cpu_addr=> cpu_ram_addr,
-			  cpu_write_data=> cpu_ram_write_data,
-			  cpu_rden=> cpu_ram_rden,
-			  cpu_wren=> cpu_ram_wren,
-			  cpu_ready=> cpu_ram_ready,
-			  cpu_Q=> cpu_ram_Q,
-			  -----
-			  dma_addr=> dma_ram_addr,
-			  dma_write_data=> dma_ram_write_data,
-			  dma_rden=> dma_ram_rden,
-			  dma_wren=> dma_ram_wren,
-			  dma_ready=> dma_ram_ready,
-			  dma_Q=> dma_ram_Q,
-			  -----
-			  mem_addr=> ram_addr,
-			  mem_write_data=> ram_write_data,
-			  mem_rden=> ram_rden,
-			  mem_wren=> ram_wren,
-			  mem_ready=> ram_ready,
-			  mem_Q=> ram_Q
-		 );
+	-- Domain-0 arbiter: local CPU plus the DMA request returned by the 75->4 MHz bridge.
+	arbiter_domain0: arbiter
+		generic map (B => ranges, MULTI_CLK => false, CPU_ADDR_STABLE_CYCLES => 4, LOCAL_DOMAIN => 0)
+		port map (
+			clk => ram_clk,
+			rst => rst,
+			MASTER_CLK_ID => open,
+			CLK_ARR => (others => '0'),
+			cpu_addr => cpu_ram_addr,
+			cpu_write_data => cpu_ram_write_data,
+			cpu_rden => cpu_ram_rden and not cpu_domain1_access,
+			cpu_wren => cpu_ram_wren and not cpu_domain1_access,
+			cpu_ready => cpu_domain0_ready,
+			cpu_Q => cpu_domain0_Q,
+			dma_addr => dma_domain0_addr,
+			dma_write_data => dma_domain0_write_data,
+			dma_rden => dma_domain0_rden,
+			dma_wren => dma_domain0_wren,
+			dma_ready => open,
+			dma_Q => open,
+			mem_addr => domain0_addr,
+			mem_write_data => domain0_write_data,
+			mem_rden => domain0_rden,
+			mem_wren => domain0_wren,
+			mem_ready => domain0_ready,
+			mem_Q => domain0_Q
+		);
+
+	-- Domain-1 arbiter: local DMA memory master plus the CPU request from the 4->75 MHz bridge.
+	arbiter_domain1: arbiter
+		generic map (B => ranges, MULTI_CLK => false, CPU_ADDR_STABLE_CYCLES => 4, LOCAL_DOMAIN => 1)
+		port map (
+			clk => sdram_ctrl_clk,
+			rst => rst,
+			MASTER_CLK_ID => open,
+			CLK_ARR => (others => '0'),
+			cpu_addr => cpu_domain1_addr,
+			cpu_write_data => cpu_domain1_write_data,
+			cpu_rden => cpu_domain1_rden,
+			cpu_wren => cpu_domain1_wren,
+			cpu_ready => open,
+			cpu_Q => open,
+			dma_addr => dma_ram_addr,
+			dma_write_data => dma_ram_write_data,
+			dma_rden => dma_ram_rden and not dma_domain0_access,
+			dma_wren => dma_ram_wren and not dma_domain0_access,
+			dma_ready => dma_domain1_ready,
+			dma_Q => dma_domain1_Q,
+			mem_addr => domain1_addr,
+			mem_write_data => domain1_write_data,
+			mem_rden => domain1_rden,
+			mem_wren => domain1_wren,
+			mem_ready => domain1_ready,
+			mem_Q => domain1_Q
+		);
+
+	-- Return completion/data to the original masters in their own clocks.
+	cpu_ram_ready <= cpu_domain1_ready when cpu_domain1_access = '1' else cpu_domain0_ready;
+	cpu_ram_Q <= cpu_domain1_Q when cpu_domain1_access = '1' else cpu_domain0_Q;
+	dma_ram_ready <= dma_domain0_ready when dma_domain0_access = '1' else dma_domain1_ready;
+	dma_ram_Q <= dma_domain0_Q when dma_domain0_access = '1' else dma_domain1_Q;
 	 
 	--patch replacing deffective sync chain
 	filter_irq_sync <= filter_irq;
