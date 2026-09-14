@@ -6,39 +6,65 @@ use ieee.std_logic_unsigned.all;
 entity dma_controller is
 	 generic (FIFO_LEN: natural := 640);
     port (
-        reset     : in  std_logic;
+		reset     : in  std_logic;
 
-        -- Barramento de CPU para configuração
-        clk       : in  std_logic; -- cpu clock
-        addr      : in  std_logic_vector(1 downto 0);  -- Seleção de registrador (2 bits para 4 registradores)
-        D         : in  std_logic_vector(31 downto 0); -- Dados de entrada (escrita)
-        Q         : out std_logic_vector(31 downto 0); -- Dados de saída (leitura)
-        wr_en     : in  std_logic; -- Sinal de escrita nos registradores
+		-- Barramento de CPU para configuração
+		clk       : in  std_logic; -- cpu clock
+		addr      : in  std_logic_vector(1 downto 0);  -- Seleção de registrador (2 bits para 4 registradores)
+		D         : in  std_logic_vector(31 downto 0); -- Dados de entrada (escrita)
+		Q         : out std_logic_vector(31 downto 0); -- Dados de saída (leitura)
+		wr_en     : in  std_logic; -- Sinal de escrita nos registradores
 
-        -- Interface única de memória
-        mem_clk   : in  std_logic;--memory clock (e.g. SDRAM)
-        mem_addr  : out std_logic_vector(31 downto 0);
-        mem_data_in: in std_logic_vector(31 downto 0);
-        mem_data_out: out std_logic_vector(31 downto 0);
-		  mem_ready : in std_logic;
-        mem_rden  : out std_logic;
-        mem_wren  : out std_logic;
+		-- Interface única de memória
+		mem_clk   : in  std_logic;--memory clock (e.g. SDRAM)
+		mem_addr  : out std_logic_vector(31 downto 0);
+		mem_data_in: in std_logic_vector(31 downto 0);
+		mem_data_out: out std_logic_vector(31 downto 0);
+		-- mem_ready and mem_valid are used to handle memory latency
+		-- they are similar to the ready/valid handshake protocol in ARM's AMBA AXI, but mem_valid is produced by the memory controller and not by the DMA controller
+		-- they are also similar to Altera's Avalon Memory-Mapped interface, but mem_ready is the opposite of Avalon waitrequest (Avalon waitrequest is '1' when the slave is not ready, while mem_ready is '1' when the slave is ready)
+		mem_ready : in std_logic;
+		mem_valid : in std_logic;--indicates mem_data_in is valid in this clock cycle (still valid after CAS latency clocks after mem_ready is deasserted)
+		mem_rden  : out std_logic;
+		mem_wren  : out std_logic;
 
-        -- Sinal de interrupção ao final da transferência
-        irq       : out std_logic;
-        iack      : in std_logic
+		-- Sinal de interrupção ao final da transferência
+		irq       : out std_logic;
+		iack      : in std_logic
     );
 end entity;
 
 architecture behavior of dma_controller is
+	component dc_fifo
+		generic (
+			N: natural;
+			REQUESTED_FIFO_DEPTH: natural;
+			USE_RAM_BLOCKS: boolean := false;
+			LEGACY_READ_POINTER: boolean := true;
+			SAME_CLOCK: boolean := false
+		);
+		port (
+			DATA_IN: in std_logic_vector(N-1 downto 0);
+			WCLK: in std_logic;
+			RCLK: in std_logic;
+			RST: in std_logic;
+			WREN: in std_logic;
+			POP: in std_logic;
+			FULL: buffer std_logic;
+			EMPTY: buffer std_logic;
+			OVF: out std_logic;
+			DATA_OUT: out std_logic_vector(N-1 downto 0)
+		);
+	end component;
+
     -- Registradores internos
     signal src_addr  : std_logic_vector(31 downto 0);
     signal dst_addr  : std_logic_vector(31 downto 0);
     signal num_xfers    : std_logic_vector(31 downto 0);
+	-- count identifica a próxima requisição de leitura a ser emitida.
     signal count     : std_logic_vector(31 downto 0) := (others => '0');
-    signal count_del : std_logic_vector(31 downto 0) := (others => '0');--count delayed according source memory latency, incremented when data is latched
-    type count_sr_type is array (0 to 7) of std_logic_vector(31 downto 0);
-    signal count_sr: count_sr_type := (others => (others => '0'));
+	-- received_count conta respostas válidas, que podem chegar depois de mem_ready.
+	signal received_count: std_logic_vector(31 downto 0) := (others => '0');
     
     -- CR agora tem 32 bits com SINC e DINC
     signal CR        : std_logic_vector(31 downto 0) := (others => '0');
@@ -47,46 +73,80 @@ architecture behavior of dma_controller is
     type fifo_type is array (0 to FIFO_LEN-1) of std_logic_vector(31 downto 0);
     signal fifo      : fifo_type := (others => (others => '0'));
     signal fifo_head : integer range 0 to FIFO_LEN-1 := 0;
-    signal fifo_head_del: integer range 0 to FIFO_LEN-1 := 0;--fifo_head delayed according source memory latency
-    type head_sr_type is array (0 to 7) of integer range 0 to FIFO_LEN-1;
-    signal fifo_head_sr: head_sr_type := (others => 0);
+	-- Índice associado à resposta mem_valid atualmente apresentada pela memória.
+	signal fifo_head_pending: integer range 0 to FIFO_LEN-1 := 0;
+	-- Cada entrada guarda a contagem e o índice da FIFO de dados da requisição aceita.
+	signal pending_transfers_data: std_logic_vector(47 downto 0);
+	signal pending_transfers_full: std_logic;
+	signal pending_transfers_empty: std_logic;
+	signal pending_transfers_ovf: std_logic;
+	signal pending_transfers_wren: std_logic;
+	signal pending_transfers_pop: std_logic;
+	-- Número de requisições aceitas que ainda não produziram mem_valid.
+	signal pending_count: integer range 0 to FIFO_LEN := 0;
     signal fifo_tail : integer range 0 to FIFO_LEN-1 := 0;
     signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Capacidade da FIFO = FIFO_LEN palavras
     signal fifo_count_reg: integer range 0 to FIFO_LEN := 0;
 
     signal state     : std_logic_vector(1 downto 0) := "00"; -- 00 = Idle, 01 = Reading, 10 = Writing
 	 
---	 signal	prev_mem_ready: std_logic;
-	 type mem_ready_sr_type is array (0 to 7) of std_logic;
-	 signal mem_ready_sr: mem_ready_sr_type := (others => '0');
-	 signal mem_valid : std_logic;--indicates mem_data_in is valid (still valid after CAS latency clocks after mem_ready is deasserted)
+	--  signal mem_valid : std_logic;--indicates mem_data_in is valid (still valid after CAS latency clocks after mem_ready is deasserted)
 	 
 	 attribute preserve : boolean;
 	 attribute preserve of src_addr : signal is true;
 	 attribute preserve of dst_addr : signal is true;
 	 attribute preserve of num_xfers : signal is true;
 	 attribute preserve of count : signal is true;
-	 attribute preserve of count_del : signal is true;
-	 attribute preserve of count_sr : signal is true;
+	 attribute preserve of received_count : signal is true;
 	 attribute preserve of CR : signal is true;
 	 attribute preserve of fifO : signal is true;
 	 attribute preserve of fifo_head : signal is true;
-	 attribute preserve of fifo_head_del : signal is true;
-	 attribute preserve of fifo_head_sr : signal is true;
+	 attribute preserve of fifo_head_pending : signal is true;
 	 attribute preserve of fifo_tail : signal is true;
 	 attribute preserve of fifo_count : signal is true;
 	 attribute preserve of fifo_count_reg : signal is true;
+	attribute preserve of pending_count : signal is true;
 	 attribute preserve of state : signal is true;
-	 attribute preserve of mem_ready_sr : signal is true;
-	 attribute preserve of mem_valid : signal is true;
+	--  attribute preserve of mem_valid : signal is true;
 begin
+
+	-- Só registra uma requisição se houver espaço para sua futura resposta.
+	pending_transfers_wren <= '1' when state = "01" and mem_ready = '1' and fifo_count + pending_count < FIFO_LEN and count < num_xfers and pending_transfers_full = '0' else '0';
+	-- Cada mem_valid consome o endereço correspondente na mesma ordem FIFO.
+	pending_transfers_pop <= '1' when state = "01" and mem_valid = '1' and pending_transfers_empty = '0' else '0';
+	fifo_head_pending <= conv_integer(unsigned(pending_transfers_data(15 downto 0)));
+
+	-- A FIFO de pendências transforma a latência da memória em uma associação explícita
+	-- entre cada resposta e o índice onde o dado deve ser escrito.
+	pending_transfers_fifo: dc_fifo
+		generic map (
+			N => 48,
+			REQUESTED_FIFO_DEPTH => 8,
+			USE_RAM_BLOCKS => false,
+			-- O primeiro item precisa estar disponível antes do primeiro POP.
+			LEGACY_READ_POINTER => false,
+			-- WCLK e RCLK são mem_clk; não há necessidade de sincronizadores CDC.
+			SAME_CLOCK => true
+		)
+		port map (
+			DATA_IN => count & conv_std_logic_vector(fifo_head, 16),
+			WCLK => mem_clk,
+			RCLK => mem_clk,
+			RST => reset,
+			WREN => pending_transfers_wren,
+			POP => pending_transfers_pop,
+			FULL => pending_transfers_full,
+			EMPTY => pending_transfers_empty,
+			OVF => pending_transfers_ovf,
+			DATA_OUT => pending_transfers_data
+		);
 
     -- Lógica de leitura/escrita nos registradores via CPU
 	 -- CR(0): START
 	 -- CR(1): IRQ (finished)
 	 -- CR(2): SINC
 	 -- CR(3): DINC
-	 -- CR(6:4): SRC_LAT (source memory latency in mem_clk cycles)
+	 -- CR(6:4): UNUSED. Previously, was SRC_LAT (source memory latency in mem_clk cycles)
 	 -- CR(7): AUTOSTART (after the manual start, repeats the transfer forever
     process (clk, reset, count, num_xfers, fifo_count, iack, irq)
     begin
@@ -135,43 +195,21 @@ begin
 			 when others => Q <= (others => '0');
 		end case;
 	end process;
-
-    --selects fifo_head value according to source memory latency (only for reading)
-	fifo_head_del <= fifo_head_sr(conv_integer(unsigned(CR(6 downto 4))));
-	fifo_head_sr(0)<=fifo_head;--no latency added
 	
-    --selects count value according to source memory latency (only for reading)
-	count_del <= count_sr(conv_integer(unsigned(CR(6 downto 4))));
-	count_sr(0)<=count;--no latency added
-	
-	 --keeps track of which data is valid when reading
-	 mem_valid  <= mem_ready_sr(conv_integer(unsigned(CR(6 downto 4))));
-	 mem_ready_sr(0) <= mem_ready;--no latency added
     -- Máquina de estados para leitura e escrita usando FIFO
-    process (mem_clk, reset, iack, mem_ready)
+    process (mem_clk, reset, iack, mem_ready, mem_valid)
     begin
         if reset = '1' then
             count     <= (others => '0');
             fifo_head <= 0;
-            fifo_head_sr(1 to 7)	<= (others => 0);
-				count_sr(1 to 7)		<= (others => (others => '0'));
-				mem_ready_sr(1 to 7)	<= (others => '0');
             fifo_tail <= 0;
             fifo_count <= 0;
             fifo_count_reg <= 0;
+			pending_count <= 0;
+			received_count <= (others => '0');
             state     <= "00";-- IDLE
             irq       <= '0';
         elsif rising_edge(mem_clk) then
-			  if mem_rden = '0' then
-					mem_ready_sr(1 to 7)	<= (others => '0');
-				else
-					mem_ready_sr(1 to 7)	<= mem_ready_sr(0 to 6);
-				end if;
-				
-				if mem_valid  = '1' or mem_ready='1' then
-					fifo_head_sr(1 to 7)	<= fifo_head_sr(0 to 6);
-					count_sr(1 to 7)		<= count_sr(0 to 6);
-				end if;
 				
             case state is
                 when "00" =>  -- IDLE
@@ -180,41 +218,30 @@ begin
                     end if;
 
                 when "01" =>  -- READING
-                    if fifo_count < FIFO_LEN and count < num_xfers then
-                        -- Inicia leitura
-								if mem_valid ='1' then
-									-- Armazena na FIFO após leitura
-									fifo(fifo_head_del) <= mem_data_in;--fifo_head delayed according source memory latency
-								end if;                    
+					-- Armazena o dado somente quando a memória confirma que ele é válido;
+					-- o índice vem da FIFO de requisições, não do fifo_head atual.
+					if mem_valid = '1' and pending_transfers_empty = '0' then
+						fifo(fifo_head_pending) <= mem_data_in;
+						received_count <= received_count + 1;
+						fifo_count <= fifo_count + 1;
+						fifo_count_reg <= fifo_count;
+						if num_xfers /= 0 and received_count + 1 = num_xfers then
+							state <= "11";
+						end if;
+					end if;
 
-								if mem_ready='1' then--we need to check if ready is still asserted (ready for receiving new commands)
-									-- Incrementa count (contador de endereços lidos)
-									count <= count + 1;
-									fifo_head <= (fifo_head + 1) mod FIFO_LEN;
-									fifo_count <= fifo_count + 1;
-									fifo_count_reg <= fifo_count;
-								end if;
-
-                        -- -- Se FIFO cheia, troca para escrita
-                        -- if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
-                        --     state <= "11";
-                        -- end if;
-								
-                    elsif count_del = num_xfers then--uses delayed signal to start writing only after last data is latched
-                        -- Se terminou a leitura, começa a escrita
-                        state <= "11";
-						  
-						  elsif fifo_head_del < FIFO_LEN then--this is meant to latch the last words
-								if mem_valid  = '1' then
-									-- Armazena na FIFO após leitura
-									fifo(fifo_head_del) <= mem_data_in;--fifo_head delayed according source memory latency
-								
-									-- Se escreve o ultimo elemento, troca para escrita
-									if fifo_head_del + 1 = FIFO_LEN then--uses delayed signal to start writing only after last data is latched 
-										 state <= "11";
-									end if;
-								end if;
+					if mem_ready = '1' and fifo_count + pending_count < FIFO_LEN and count < num_xfers and pending_transfers_full = '0' then
+						count <= count + 1;
+						fifo_head <= (fifo_head + 1) mod FIFO_LEN;
                     end if;
+
+					-- Mantém separado o número de respostas já armazenadas do número de
+					-- requisições ainda pendentes, inclusive quando ambos os eventos coincidem.
+					if pending_transfers_wren = '1' and mem_valid = '0' then
+						pending_count <= pending_count + 1;
+					elsif pending_transfers_wren = '0' and mem_valid = '1' and pending_transfers_empty = '0' then
+						pending_count <= pending_count - 1;
+					end if;
 					when "11" => -- WAITING (not used in this implementation, but could be used to wait for some condition before writing)
 						--since now we are using synchronous writing, data read from fifo is valid only in the next cycle
 						state <= "10";-- start writing immediately in the next cycle
@@ -245,8 +272,9 @@ begin
 								end if;
 								-- get ready for new transfers
 								count     <= (others => '0');
+								pending_count <= 0;
+								received_count <= (others => '0');
 								fifo_head <= 0;
-								fifo_head_sr(1 to 7)<= (others => 0);
 								fifo_tail <= 0;
 								fifo_count <= 0;
                     end if;
@@ -264,17 +292,14 @@ begin
 	-- devido a leitura assincrona, fifo sera feita com registradores
 	-- mem_data_out <= fifo(fifo_tail);
 
-	-- Escreve na memória de forma síncrona
-	-- data read from fifo is valid only in the next cycle
-	SYNC_READ: process(mem_clk,fifo_tail)
-	begin
-		if rising_edge(mem_clk) then
-			mem_data_out <= fifo(fifo_tail);
-		end if;
-	end process SYNC_READ;
+	-- A FIFO de dados usa registradores; a saída combinacional evita um ciclo
+	-- extra entre fifo_tail e mem_data_out durante a escrita.
+	mem_data_out <= fifo(fifo_tail);
 
 	 
-	 addr_proc: process (state, CR, count, fifo_count_reg, src_addr, dst_addr)
+	 -- A sensibilidade inclui as contagens porque elas determinam quando uma nova
+	 -- requisição pode ser apresentada e qual endereço de escrita está ativo.
+	 addr_proc: process (state, CR, count, fifo_count, pending_count, src_addr, dst_addr, pending_transfers_full)
 	 begin
 		case state is
 			when "01" =>  -- READING
@@ -284,7 +309,11 @@ begin
 				else
 					mem_addr <= src_addr;
 				end if;
-				mem_rden <= '1';
+				if count < num_xfers and fifo_count + pending_count < FIFO_LEN and pending_transfers_full = '0' then
+					mem_rden <= '1';
+				else
+					mem_rden <= '0';
+				end if;
 				mem_wren  <= '0';
 			when "11" => -- preparing to write
 				mem_addr <= dst_addr;
@@ -293,7 +322,7 @@ begin
 			when "10" =>  -- WRITING
 				-- Incrementa `dst_addr` se DINC estiver ativado
 				if CR(3) = '1' then
-					 mem_addr <= dst_addr + count - fifo_count_reg;-- uses fifo_count_reg to get the correct address since fifo is read synchronously
+						 mem_addr <= dst_addr + count - fifo_count;-- count minus remaining words gives the write offset
 				else
 					mem_addr <= dst_addr;
 				end if;
