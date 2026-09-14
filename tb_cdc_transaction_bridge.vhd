@@ -1,5 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use std.env.all; -- para encerrar a simulação com std.env.stop.
 
 entity tb_cdc_transaction_bridge is
 end entity;
@@ -99,6 +100,6 @@ begin
             report "escrita nao foi executada exatamente uma vez" severity failure;
 
         report "tb_cdc_transaction_bridge concluido" severity note;
-        wait;
+        stop;
     end process;
 end architecture;
