@@ -874,10 +874,10 @@ signal program_data_ready: std_logic;
 ---processor sees all memory-mapped I/O as part of RAM-----
 constant N: integer := 9;-- size in bits of data addresses (each address refers to a 32 bit word)
 signal ram_clk: std_logic;--data memory clock signal
-signal ram_addr: std_logic_vector(31 downto 0);
+--signal ram_addr: std_logic_vector(31 downto 0);
 signal ram_rden: std_logic;
 signal ram_wren: std_logic;
-signal ram_write_data: std_logic_vector(31 downto 0);
+--signal ram_write_data: std_logic_vector(31 downto 0);
 signal ram_Q: std_logic_vector(31 downto 0);
 signal ram_ready: std_logic;
 
@@ -1113,6 +1113,7 @@ signal domain0_rden: std_logic;
 signal domain0_wren: std_logic;
 signal domain0_ready: std_logic;
 signal domain0_Q: std_logic_vector(31 downto 0);
+signal domain0_input: std_logic_vector(31 downto 0);
 signal cpu_domain0_ready: std_logic;
 signal cpu_domain0_Q: std_logic_vector(31 downto 0);
 signal domain1_addr: std_logic_vector(31 downto 0);
@@ -1121,6 +1122,7 @@ signal domain1_rden: std_logic;
 signal domain1_wren: std_logic;
 signal domain1_ready: std_logic;
 signal domain1_Q: std_logic_vector(31 downto 0);
+signal domain1_input: std_logic_vector(31 downto 0);
 
 -- CPU request crossing 4 MHz -> 75 MHz.
 signal cpu_domain1_addr: std_logic_vector(31 downto 0);
@@ -1258,14 +1260,14 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with d_cache (starting at 0x400)
 	--to an instruction address (starting at 0)
-	program_data_address <= ram_addr(18 downto 0) - ranges(19)(0);
+	program_data_address <= domain0_addr(18 downto 0) - ranges(19)(0);
 	d_cache: cache
 		generic map (REQUESTED_SIZE => 128, MEM_WIDTH=> 16, MEM_LATENCY=> 1, REGISTER_ADDR=> false)--user requested cache size, in 32 bit words
 		port map (
 				req_ADDR => program_data_address,--address of requested data/instruction
 				req_rden => program_data_rden,
 				req_wren => program_data_wren,
-				req_data_in => ram_write_data,
+				req_data_in => domain0_Q,
 				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
 				mem_I => sram_IO,--data coming from SRAM for write
 				mem_CLK => sram_CLK,--clock for reading embedded RAM
@@ -1281,8 +1283,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	ram_clk <= CLK;
 	mini_ram_cache: mini_ram 	generic map (N => 4)
 							port map(CLK	=> ram_clk,
-										ADDR	=> ram_addr(3 downto 0),
-										write_data => ram_write_data,
+										ADDR	=> domain0_addr(3 downto 0),
+										write_data => domain0_Q,
 										rden	=> cache_rden,
 										wren	=> cache_wren,
 										Q		=> cache_Q);
@@ -1583,8 +1585,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
 	coeffs_mem_parallel_wren <= lvec_dst_mask(0);
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
-									port map(D => ram_write_data,
-												ADDR	=> ram_addr(2 downto 0),
+									port map(D => domain0_Q,
+												ADDR	=> domain0_addr(2 downto 0),
 												RST => rst,
 												RDEN	=> coeffs_mem_rden,
 												WREN	=> coeffs_mem_wren,
@@ -1676,7 +1678,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		filter_out_Q <= filter_output_sync;
 					
 	filter_ctrl_status: d_flip_flop
-	 port map(	D => ram_write_data,--written by software
+	 port map(	D => domain0_Q,--written by software
 					RST=> RST,--resets all previous history of filter output
 					ENA=> filter_ctrl_status_wren,
 					CLK=>ram_clk,--must be the same as filter_CLK
@@ -1716,10 +1718,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	-- 0..P: índices dos x
 	-- P+1..P+Q: índices dos y
 	generic map (N => 3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
-	port map (	D => ram_write_data,-- not used (peripheral supports only read)
+	port map (	D => domain0_Q,-- not used (peripheral supports only read)
 			DX => filter_input,--current filter input
 			DY => filter_output,--current filter output
-			ADDR => ram_addr(2 downto 0),-- input
+			ADDR => domain0_addr(2 downto 0),-- input
 			CLK_x => filter_CLK,
 --			CLK_y => filter_xN_CLK,-- must be the same frequency as filter clock, but can't be the same polarity
 			CLK_y => filter_CLK,--IF using registered filter_output
@@ -1739,8 +1741,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	inner_product_parallel_wren_B <= lvec_dst_mask(4);
 	inner_product: inner_product_calculation_unit
 	generic map (N => 5)
-	port map(D => ram_write_data,--supposed to be normalized
-				ADDR => ram_addr(4 downto 0),
+	port map(D => domain0_Q,--supposed to be normalized
+				ADDR => domain0_addr(4 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => inner_product_wren,
@@ -1765,8 +1767,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	vmac_parallel_wren_B <= lvec_dst_mask(6);
 	vmac: vectorial_multiply_accumulator_unit
 	generic map (N => 5)
-	port map(D => ram_write_data,
-				ADDR => ram_addr(4 downto 0),
+	port map(D => domain0_Q,
+				ADDR => domain0_addr(4 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => vmac_wren,
@@ -1789,9 +1791,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	tmp_vector: parallel_load_cache
 	generic map (N => 3)
 	port map(CLK => ram_clk,
-				ADDR=> ram_addr(2 downto 0),
+				ADDR=> domain0_addr(2 downto 0),
 				RST => rst,
-				write_data => ram_write_data,
+				write_data => domain0_Q,
 				parallel_write_data => vector_bus,
 				parallel_wren => tmp_vector_parallel_wren,
 				rden => tmp_vector_rden,
@@ -1801,12 +1803,12 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				Q => tmp_vector_Q
 		);
 		
-	process(rst,ram_clk,gp_fp32_to_int32_wren,ram_addr)
+	process(rst,ram_clk,gp_fp32_to_int32_wren,domain0_addr)
 	begin
 		if(rst='1')then
 			fp_from_proc <= (others=>'0');
-		elsif(rising_edge(ram_clk) and gp_fp32_to_int32_wren='1' and ram_addr(0)='0')then
-			fp_from_proc <= ram_write_data;
+		elsif(rising_edge(ram_clk) and gp_fp32_to_int32_wren='1' and domain0_addr(0)='0')then
+			fp_from_proc <= domain0_Q;
 		end if;
 	end process;
 		
@@ -1824,7 +1826,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			fp32_to_int32_Q <= fp32_to_int32;
 		end if;
 	end process;
-	gp_fp32_to_int32_Q <= fp_from_proc when ram_addr(0)='0' else fp32_to_int32_Q;
+	gp_fp32_to_int32_Q <= fp_from_proc when domain0_addr(0)='0' else fp32_to_int32_Q;
 	
 	--fp32 to int dedicated to audio (converts filter output to I2S format)
 	fp32_to_audio_int: fp32_to_audio
@@ -1882,8 +1884,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);
 
 	i2c: i2c_master
-	port map(D => ram_write_data,
-				ADDR => ram_addr(2 downto 0),
+	port map(D => domain0_Q,
+				ADDR => domain0_addr(2 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => i2c_wren,
@@ -1902,8 +1904,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	AUD_DACLRCK <= i2s_WS;
 	i2s: i2s_master_transmitter
 	port map (
-				D => ram_write_data,
-				ADDR => ram_addr(2 downto 0),
+				D => domain0_Q,
+				ADDR => domain0_addr(2 downto 0),
 				CLK => ram_clk,
 				RST => rst,
 				WREN => i2s_wren,
@@ -1957,7 +1959,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			dest_rden => cpu_domain1_rden,
 			dest_wren => cpu_domain1_wren,
 			dest_ready => domain1_ready,
-			dest_Q => domain1_Q
+			dest_Q => domain1_input
 		);
 
 	-- DMA memory master (domain 1) to domain-0 arbiter: 75 MHz -> 4 MHz.
@@ -1978,7 +1980,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			dest_rden => dma_domain0_rden,
 			dest_wren => dma_domain0_wren,
 			dest_ready => domain0_ready,
-			dest_Q => domain0_Q
+			dest_Q => domain0_input
 		);
 	
 	all_periphs_ready		<= (20=> sdram_ctrl_ready, 19=> program_data_ready, 17=> irq_ctrl_ready, 16=> vga_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
@@ -2050,6 +2052,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			MASTER_CLK_ID => (others => '0'), -- CDC is handled before this local decoder
 			data_out => domain1_Q-- combinatorial decoder output
 	);
+--domain1_Q <= (others=>'0');
+--domain1_ready <= '1';
 
 	-- Decode the request after it has crossed into ram_clk. This endpoint
 	-- provides the peripheral-side ready/data response for the bridge.
@@ -2133,7 +2137,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		lvec_dst_mask => lvec_dst_mask
 	);
 
-	dma_addr <= ram_addr - ranges(15)(0);
+	dma_addr <= domain0_addr - ranges(15)(0);
     dma: dma_controller
 	 generic map (FIFO_LEN => 640)
     port map (
@@ -2141,7 +2145,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
         clk       => ram_clk,
         reset     => rst,
         addr      => dma_addr(1 downto 0),--analyze risk of dma writing to this
-        D         => ram_write_data,--analyze risk of dma writing to this
+        D         => domain0_Q,--analyze risk of dma writing to this
         Q         => dma_Q,
         wr_en     => dma_wren,
 		  --ports for memory transfers
@@ -2175,7 +2179,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			dma_rden => dma_domain0_rden,
 			dma_wren => dma_domain0_wren,
 			dma_ready => open,
-			dma_Q => open,
+			dma_Q => domain0_input,
 			mem_addr => domain0_addr,
 			mem_write_data => domain0_write_data,
 			mem_rden => domain0_rden,
@@ -2197,7 +2201,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			cpu_rden => cpu_domain1_rden,
 			cpu_wren => cpu_domain1_wren,
 			cpu_ready => open,
-			cpu_Q => open,
+			cpu_Q => domain1_input,
 			dma_addr => dma_ram_addr,
 			dma_write_data => dma_ram_write_data,
 			dma_rden => dma_ram_rden and not dma_domain0_access,
@@ -2245,8 +2249,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_iack	<= all_iack(3) & all_iack(0);
 	irq_ctrl: interrupt_controller_vectorized
 	generic map (L => 6)--L: number of IRQ lines
-	port map (	D => ram_write_data,-- input: data to register write
-			ADDR => ram_addr(6 downto 0),
+	port map (	D => domain0_Q,-- input: data to register write
+			ADDR => domain0_addr(6 downto 0),
 			CLK => ram_clk,-- input
 			RST => RST,-- input
 			WREN => irq_ctrl_wren,-- input
@@ -2261,7 +2265,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			output => irq_ctrl_Q -- output of register reading
 	);
 	
-	disp_7seg_DR_in <= ram_write_data;
+	disp_7seg_DR_in <= domain0_Q;
 	disp_7seg_DR: d_flip_flop port map(
 		D => disp_7seg_DR_in,
 		CLK => ram_clk,
@@ -2279,7 +2283,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
 	--to an word address (starting at 0)
-	sdram_addr <= ram_addr - ranges(20)(0);
+	sdram_addr <= domain1_addr - ranges(20)(0);
 	
 	sdram_ctrl: sdram_controller
 	generic map (CAS_LATENCY => 2 )
@@ -2289,7 +2293,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		sdram_clk_in => sdram_CLK_in,--75MHz, phase shifted from clk (3ns ahead)
 		rst	=> rst,
 		addr	=> sdram_addr,--32M words
-		D		=> ram_write_data,
+		D		=> domain1_Q,
 		Q		=> sdram_ctrl_Q,
 		wren	=> sdram_ctrl_wren,
 		rden	=> sdram_ctrl_rden,
@@ -2338,7 +2342,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	 
 	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
 	--to an word address (starting at 0)
-	vga_addr <= ram_addr - ranges(16)(0);
+	vga_addr <= domain1_addr - ranges(16)(0);
 	vga: vga_controller
 			  port map (
 					----CPU/DMA itfc-----
@@ -2346,7 +2350,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 					rst	  => rst,
 					PCLK    => vga_pclk,
 					addr    => vga_addr(5 downto 0),
-					data_in => ram_write_data,
+					data_in => domain1_Q,
 					wren    => vga_wren,
 					ready   => vga_ready,
 					rden	  => vga_rden,
@@ -2390,7 +2394,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		clk		=> ram_clk,
 			
 		-- interface with CPU
-		D		=> ram_write_data,
+		D		=> domain0_Q,
 		wren	=> lcd_wren,
 		Q		=> lcd_Q,
 		ready	=> lcd_ready,
@@ -2436,34 +2440,34 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	end process;
 	proc_dbg_clk <= CLK and proc_dbg_clk_en;
 	
-	uart_data_in <= ram_write_data;
-	uart_phy_clk <= clk_uart_8x2400;
-	uart_dbg: uart_debugger
-	port map (
-		rst => rst,
-		------CPU ITFC---------
-		clk => proc_dbg_clk,--must run while processor is halted, but need to be extended by processor during memory reading/writing
-		dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes to memory or register
-		dbg_data_1 => proc_dbg_data_1,-- address for memory access, register for reg_file access
-		dbg_data_2 => proc_dbg_data_2,-- value for reading of register or memory
-		--command ports bellow must be asserted only for 1 clk cycle, together with dbg_irq
-		dbg_sr => proc_dbg_sr,-- set register enable
-		dbg_gr => proc_dbg_gr,-- get register enable
-		dbg_sm => proc_dbg_sm,-- set memory enable
-		dbg_gm => proc_dbg_gm,-- get memory enable
-		dbg_brk=> proc_dbg_brk,--instruction break
-		dbg_inj=> proc_dbg_inj,--inject instruction
-		dbg_nxt=> proc_dbg_nxt,--next instruction		
-		dbg_cont=> proc_dbg_cont,--continue instruction
-		dbg_irq => proc_dbg_irq,-- debug irq, must be asserted for 1 clk cycle (which can be extended)
-		
-		IACK => proc_dbg_iack,--interrupt acknowledgement
-		next_pc => proc_next_pc,-- monitor PC (pc_in) for breakpoints, byte address
-		------UART PHY---------
-		uart_phy_clk=> uart_phy_clk,
-		tx => uart_tx,
-		rx => uart_rx
-	);
+--	uart_data_in <= ram_write_data;
+--	uart_phy_clk <= clk_uart_8x2400;
+--	uart_dbg: uart_debugger
+--	port map (
+--		rst => rst,
+--		------CPU ITFC---------
+--		clk => proc_dbg_clk,--must run while processor is halted, but need to be extended by processor during memory reading/writing
+--		dbg_data_0 => proc_dbg_data_0,-- instructions, value for writes to memory or register
+--		dbg_data_1 => proc_dbg_data_1,-- address for memory access, register for reg_file access
+--		dbg_data_2 => proc_dbg_data_2,-- value for reading of register or memory
+--		--command ports bellow must be asserted only for 1 clk cycle, together with dbg_irq
+--		dbg_sr => proc_dbg_sr,-- set register enable
+--		dbg_gr => proc_dbg_gr,-- get register enable
+--		dbg_sm => proc_dbg_sm,-- set memory enable
+--		dbg_gm => proc_dbg_gm,-- get memory enable
+--		dbg_brk=> proc_dbg_brk,--instruction break
+--		dbg_inj=> proc_dbg_inj,--inject instruction
+--		dbg_nxt=> proc_dbg_nxt,--next instruction		
+--		dbg_cont=> proc_dbg_cont,--continue instruction
+--		dbg_irq => proc_dbg_irq,-- debug irq, must be asserted for 1 clk cycle (which can be extended)
+--		
+--		IACK => proc_dbg_iack,--interrupt acknowledgement
+--		next_pc => proc_next_pc,-- monitor PC (pc_in) for breakpoints, byte address
+--		------UART PHY---------
+--		uart_phy_clk=> uart_phy_clk,
+--		tx => uart_tx,
+--		rx => uart_rx
+--	);
 		
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
