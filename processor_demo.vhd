@@ -1079,14 +1079,14 @@ constant ranges: boundaries := 	(--notation: base#value#
 											(16#2000000#,16#3FFFFFF#) --20: SDRAM
 											);
 
-signal all_periphs_output: array32 (ranges'length-1 downto 0);
-signal all_periphs_rden: std_logic_vector(ranges'length-1 downto 0);
-signal all_periphs_wren: std_logic_vector(ranges'length-1 downto 0);
-signal all_periphs_ready: std_logic_vector(ranges'length-1 downto 0);
-signal all_periphs_rden_comb: std_logic_vector(ranges'length-1 downto 0);
-signal all_periphs_wren_comb: std_logic_vector(ranges'length-1 downto 0);
-signal all_periphs_rden_ram: std_logic_vector(ranges'length-1 downto 0);
-signal all_periphs_wren_ram: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs0_output: array32 (ranges'length-1 downto 0);--domain 0 peripherals output for memory-mapped interfaces (Q)
+signal all_periphs1_output: array32 (ranges'length-1 downto 0);--domain 0 peripherals output for memory-mapped interfaces (Q)
+signal all_periphs_ready0: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_ready1: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_rden0: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_wren0: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_rden1: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_wren1: std_logic_vector(ranges'length-1 downto 0);
 signal ram_domain0_access: std_logic;
 signal ram_domain0_addr: std_logic_vector(31 downto 0);
 signal ram_domain0_write_data: std_logic_vector(31 downto 0);
@@ -1983,58 +1983,60 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			dest_Q => domain0_input
 		);
 	
-	all_periphs_ready		<= (20=> sdram_ctrl_ready, 19=> program_data_ready, 17=> irq_ctrl_ready, 16=> vga_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');
-	all_periphs_output	<= (20=> sdram_ctrl_Q, 19=> program_data_Q, 18=> tmp_vector_Q, 17 => irq_ctrl_Q, 16=> vga_Q, 15 => dma_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
+	all_periphs_ready0		<= (19=> program_data_ready, 17=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');--domain0: ram_CLK
+	all_periphs_ready1		<= (20=> sdram_ctrl_ready, 16=> vga_ready, others=>'1');--domain1: sdram_ctrl_clk
+	all_periphs0_output	<= (20=> (others=>'0'), 19=> program_data_Q, 18=> tmp_vector_Q, 17 => irq_ctrl_Q, 16=> (others=>'0'), 15 => dma_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
+	all_periphs1_output	<= (20=> sdram_ctrl_Q, 16=> vga_Q, others=>(others=>'0'));
 	--for some reason, the following code does not work: compiles but connections are not generated
 --	all_periphs_rden		<= (3 => inner_product_rden,	2 => cache_rden,	1 => filter_xN_rden,	0 => coeffs_mem_rden);
 --	all_periphs_wren		<= (3 => inner_product_wren,	2 => cache_wren,	1 => filter_xN_wren,	0 => coeffs_mem_wren);
 
-	sdram_ctrl_rden			<= all_periphs_rden(20);
-	program_data_rden			<= all_periphs_rden_ram(19);-- not used, just to keep form
-	tmp_vector_rden			<= all_periphs_rden_ram(18);-- not used, just to keep form
-	irq_ctrl_rden				<= all_periphs_rden_ram(17);-- not used, just to keep form
-	vga_rden						<= all_periphs_rden(16);
-	dma_rden						<= all_periphs_rden(15);-- not used, just to keep form
-	uart_rden					<= all_periphs_rden_ram(14);
-	gp_fp32_to_int32_rden	<= all_periphs_rden_ram(13);-- not used, just to keep form
-	lcd_rden						<= all_periphs_rden_ram(12);-- not used, just to keep form
-	disp_7seg_DR_rden			<= all_periphs_rden_ram(11);-- not used, just to keep form
-	converted_out_rden		<= all_periphs_rden_ram(10);-- not used, just to keep form
-	filter_ctrl_status_rden	<= all_periphs_rden_ram(9);-- not used, just to keep form
-	d_ff_desired_rden			<= all_periphs_rden_ram(8);-- not used, just to keep form
-	filter_out_rden				<= all_periphs_rden_ram(7);-- not used, just to keep form
-	i2s_rden						<= all_periphs_rden_ram(6);
-	i2c_rden						<= all_periphs_rden_ram(5);
-	vmac_rden						<=	all_periphs_rden_ram(4);
-	inner_product_rden		<= all_periphs_rden_ram(3);
-	cache_rden					<= all_periphs_rden_ram(2);
-	filter_xN_rden				<= all_periphs_rden_ram(1);
-	coeffs_mem_rden			<= all_periphs_rden_ram(0);
+	sdram_ctrl_rden			<= all_periphs_rden1(20);
+	program_data_rden			<= all_periphs_rden0(19);-- not used, just to keep form
+	tmp_vector_rden			<= all_periphs_rden0(18);-- not used, just to keep form
+	irq_ctrl_rden				<= all_periphs_rden0(17);-- not used, just to keep form
+	vga_rden						<= all_periphs_rden1(16);
+	dma_rden						<= all_periphs_rden0(15);-- not used, just to keep form
+	uart_rden					<= all_periphs_rden0(14);
+	gp_fp32_to_int32_rden	<= all_periphs_rden0(13);-- not used, just to keep form
+	lcd_rden						<= all_periphs_rden0(12);-- not used, just to keep form
+	disp_7seg_DR_rden			<= all_periphs_rden0(11);-- not used, just to keep form
+	converted_out_rden		<= all_periphs_rden0(10);-- not used, just to keep form
+	filter_ctrl_status_rden	<= all_periphs_rden0(9);-- not used, just to keep form
+	d_ff_desired_rden			<= all_periphs_rden0(8);-- not used, just to keep form
+	filter_out_rden			<= all_periphs_rden0(7);-- not used, just to keep form
+	i2s_rden						<= all_periphs_rden0(6);
+	i2c_rden						<= all_periphs_rden0(5);
+	vmac_rden					<=	all_periphs_rden0(4);
+	inner_product_rden		<= all_periphs_rden0(3);
+	cache_rden					<= all_periphs_rden0(2);
+	filter_xN_rden				<= all_periphs_rden0(1);
+	coeffs_mem_rden			<= all_periphs_rden0(0);
 
-	sdram_ctrl_wren			<= all_periphs_wren(20);
-	program_data_wren			<= all_periphs_wren_ram(19);
-	tmp_vector_wren			<= all_periphs_wren_ram(18);
-	irq_ctrl_wren				<= all_periphs_wren_ram(17);
-	vga_wren						<= all_periphs_wren(16);
-	dma_wren						<= all_periphs_wren(15);
-	uart_wren					<= all_periphs_wren_ram(14);
-	gp_fp32_to_int32_wren	<= all_periphs_wren_ram(13);
-	lcd_wren						<= all_periphs_wren_ram(12);
-	disp_7seg_DR_wren				<= all_periphs_wren_ram(11);
-	converted_out_wren		<= all_periphs_wren_ram(10);-- not used, just to keep form
-	filter_ctrl_status_wren	<= all_periphs_wren_ram(9);
-	d_ff_desired_wren			<= all_periphs_wren_ram(8);-- not used, just to keep form
-	filter_out_wren			<= all_periphs_wren_ram(7);-- not used, just to keep form
-	i2s_wren						<= all_periphs_wren_ram(6);
-	i2c_wren						<= all_periphs_wren_ram(5);
-	vmac_wren						<= all_periphs_wren_ram(4);
-	inner_product_wren		<= all_periphs_wren_ram(3);
-	cache_wren					<= all_periphs_wren_ram(2);
-	filter_xN_wren			<= all_periphs_wren_ram(1);
-	coeffs_mem_wren			<= all_periphs_wren_ram(0);
+	sdram_ctrl_wren			<= all_periphs_wren1(20);
+	program_data_wren			<= all_periphs_wren0(19);
+	tmp_vector_wren			<= all_periphs_wren0(18);
+	irq_ctrl_wren				<= all_periphs_wren0(17);
+	vga_wren						<= all_periphs_wren1(16);
+	dma_wren						<= all_periphs_wren0(15);
+	uart_wren					<= all_periphs_wren0(14);
+	gp_fp32_to_int32_wren	<= all_periphs_wren0(13);
+	lcd_wren						<= all_periphs_wren0(12);
+	disp_7seg_DR_wren			<= all_periphs_wren0(11);
+	converted_out_wren		<= all_periphs_wren0(10);-- not used, just to keep form
+	filter_ctrl_status_wren	<= all_periphs_wren0(9);
+	d_ff_desired_wren			<= all_periphs_wren0(8);-- not used, just to keep form
+	filter_out_wren			<= all_periphs_wren0(7);-- not used, just to keep form
+	i2s_wren						<= all_periphs_wren0(6);
+	i2c_wren						<= all_periphs_wren0(5);
+	vmac_wren					<= all_periphs_wren0(4);
+	inner_product_wren		<= all_periphs_wren0(3);
+	cache_wren					<= all_periphs_wren0(2);
+	filter_xN_wren				<= all_periphs_wren0(1);
+	coeffs_mem_wren			<= all_periphs_wren0(0);
 
-	memory_map: address_decoder_memory_map
+	memory_map1: address_decoder_memory_map
 	--N: word address width in bits
 	--B boundaries: list of values of the form (starting address,final address) of all peripherals, written as integers,
 	--list MUST BE "SORTED" (start address(i) < final address(i) < start address (i+1)),
@@ -2044,10 +2046,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RDEN => domain1_rden,-- input
 			WREN => domain1_wren,-- input
 			-- CLK => (0=> ram_clk, 1=> sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
-			data_in => all_periphs_output,-- input: outputs of all peripheral
-			ready_in => all_periphs_ready,
-			RDEN_OUT => all_periphs_rden_comb,-- combinatorial decoder output
-			WREN_OUT => all_periphs_wren_comb,-- combinatorial decoder output
+			data_in => all_periphs1_output,-- input: outputs of all peripheral
+			ready_in => all_periphs_ready1,
+			RDEN_OUT => all_periphs_rden1,-- combinatorial decoder output
+			WREN_OUT => all_periphs_wren1,-- combinatorial decoder output
 			ready_out => domain1_ready,
 			MASTER_CLK_ID => (others => '0'), -- CDC is handled before this local decoder
 			data_out => domain1_Q-- combinatorial decoder output
@@ -2057,33 +2059,20 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	-- Decode the request after it has crossed into ram_clk. This endpoint
 	-- provides the peripheral-side ready/data response for the bridge.
-	memory_map_ram: address_decoder_memory_map
+	memory_map0: address_decoder_memory_map
 		generic map (N => 26, B => ranges)
 		port map (
 			ADDR => domain0_addr(25 downto 0),
 			RDEN => domain0_rden,
 			WREN => domain0_wren,
-			data_in => all_periphs_output,
-			ready_in => all_periphs_ready,
-			RDEN_OUT => all_periphs_rden_ram,
-			WREN_OUT => all_periphs_wren_ram,
+			data_in => all_periphs0_output,
+			ready_in => all_periphs_ready0,
+			RDEN_OUT => all_periphs_rden0,
+			WREN_OUT => all_periphs_wren0,
 			ready_out => domain0_ready,
 			MASTER_CLK_ID => (others => '0'),
 			data_out => domain0_Q
 		);
-
-	memory_map_output_registers: process(sdram_ctrl_clk, rst)
-	begin
-		if rst = '1' then
-			all_periphs_rden <= (others => '0');
-			all_periphs_wren <= (others => '0');
-			ram_domain1_ready <= '0';
-			ram_domain1_Q <= (others => '0');
-		elsif rising_edge(sdram_ctrl_clk) then
-			all_periphs_rden <= all_periphs_rden_comb;
-			all_periphs_wren <= all_periphs_wren_comb;
-		end if;
-	end process memory_map_output_registers;
 
 	-- The two local decoders are already driven by registered arbiter outputs;
 	-- expose their local completion/data to the corresponding bridge endpoint.
