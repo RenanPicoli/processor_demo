@@ -4,9 +4,10 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
 entity dma_controller is
-	 generic (FIFO_LEN: natural := 640);
+	 generic (FIFO_LEN: natural := 640; USE_RAM_BLOCKS: boolean := true);
     port (
-		reset     : in  std_logic;
+		reset     : in  std_logic;--reset synchronized to ram clk (cpu clock)
+		reset_mem : in  std_logic;--reset synchronized to mem_clk (e.g. SDRAM clock)
 
 		-- Barramento de CPU para configuração
 		clk       : in  std_logic; -- cpu clock
@@ -87,6 +88,10 @@ architecture behavior of dma_controller is
     signal fifo_tail : integer range 0 to FIFO_LEN-1 := 0;
     signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Capacidade da FIFO = FIFO_LEN palavras
     signal fifo_count_reg: integer range 0 to FIFO_LEN := 0;
+	signal mem_addr_comb: std_logic_vector(31 downto 0);--for writes if data fifo is implemented with RAM blocks, mem_addr must be delayed to match the data output from the RAM block
+	signal mem_addr_reg: std_logic_vector(31 downto 0);--for writes if data fifo is implemented with RAM blocks, mem_addr must be delayed to match the data output from the RAM block
+	signal mem_wren_comb: std_logic;--for writes if data fifo is implemented with RAM blocks, mem_wren must be delayed to match the data output from the RAM block
+	signal mem_wren_reg: std_logic;--for writes if data fifo is implemented with RAM blocks, mem_wren must be delayed to match the data output from the RAM block
 
     signal state     : std_logic_vector(1 downto 0) := "00"; -- 00 = Idle, 01 = Reading, 10 = Writing
 	 
@@ -132,7 +137,7 @@ begin
 			DATA_IN => count & conv_std_logic_vector(fifo_head, 16),
 			WCLK => mem_clk,
 			RCLK => mem_clk,
-			RST => reset,
+			RST => reset_mem,
 			WREN => pending_transfers_wren,
 			POP => pending_transfers_pop,
 			FULL => pending_transfers_full,
@@ -197,9 +202,9 @@ begin
 	end process;
 	
     -- Máquina de estados para leitura e escrita usando FIFO
-    process (mem_clk, reset, iack, mem_ready, mem_valid)
+    process (mem_clk, reset_mem, iack, mem_ready, mem_valid)
     begin
-        if reset = '1' then
+        if reset_mem = '1' then
             count     <= (others => '0');
             fifo_head <= 0;
             fifo_tail <= 0;
@@ -288,18 +293,29 @@ begin
         end if;
     end process;
 	 
-	-- Escreve na memória
-	-- devido a leitura assincrona, fifo sera feita com registradores
-	-- mem_data_out <= fifo(fifo_tail);
+	sync_read: if USE_RAM_BLOCKS generate
+		-- A FIFO de dados usa blocos de RAM; a saída registrada gera um ciclo extra
+		-- entre fifo_tail e mem_data_out durante a escrita.
+		process (mem_clk, fifo_tail, mem_addr_comb, mem_wren_comb)
+		begin
+			if rising_edge(mem_clk) then
+				mem_data_out <= fifo(fifo_tail);--mem_data_out is 1 clock cycle delayed of fifo_tail
+				mem_addr_reg <= mem_addr_comb;
+				mem_wren_reg <= mem_wren_comb;
+			end if;
+		end process;
+	end generate;
 
-	-- A FIFO de dados usa registradores; a saída combinacional evita um ciclo
-	-- extra entre fifo_tail e mem_data_out durante a escrita.
-	mem_data_out <= fifo(fifo_tail);
+	async_read: if not USE_RAM_BLOCKS generate
+		-- A FIFO de dados usa registradores; a saída combinacional evita um ciclo
+		-- extra entre fifo_tail e mem_data_out durante a escrita.
+		mem_data_out <= fifo(fifo_tail);
+	end generate;
 
 	 
 	 -- A sensibilidade inclui as contagens porque elas determinam quando uma nova
 	 -- requisição pode ser apresentada e qual endereço de escrita está ativo.
-	 addr_proc: process (state, CR, count, fifo_count, pending_count, src_addr, dst_addr, pending_transfers_full)
+	 addr_proc: process (state, CR, count, num_xfers, fifo_count, pending_count, src_addr, dst_addr, pending_transfers_full)
 	 begin
 		case state is
 			when "01" =>  -- READING
@@ -321,12 +337,21 @@ begin
 				mem_wren  <= '0';
 			when "10" =>  -- WRITING
 				-- Incrementa `dst_addr` se DINC estiver ativado
-				if CR(3) = '1' then
+				if CR(3) = '1' and USE_RAM_BLOCKS then
+						 mem_addr_comb <= dst_addr + count - fifo_count;-- count minus remaining words gives the write offset
+						mem_addr <= mem_addr_reg;
+				elsif CR(3) = '1' and not USE_RAM_BLOCKS then
 						 mem_addr <= dst_addr + count - fifo_count;-- count minus remaining words gives the write offset
 				else
 					mem_addr <= dst_addr;
 				end if;
-				mem_wren <= '1';
+
+				if USE_RAM_BLOCKS then
+					mem_wren_comb <= '1';
+				mem_wren <= mem_wren_reg;
+				else
+					mem_wren <= '1';
+				end if;
 				mem_rden <= '0';
 			when others =>
 				mem_addr <= (others=>'0');
