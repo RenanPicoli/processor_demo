@@ -739,7 +739,8 @@ end component;
 component dma_controller
 	 generic (FIFO_LEN: natural := 256);
     port (
-        reset     : in  std_logic;
+		reset     : in  std_logic;--reset synchronized to ram clk (cpu clock)
+		reset_mem : in  std_logic;--reset synchronized to mem_clk (e.g. SDRAM clock)
 
         -- Barramento de CPU para configuração
         clk       : in  std_logic; -- cpu clock
@@ -754,6 +755,7 @@ component dma_controller
         mem_data_in: in std_logic_vector(31 downto 0);
         mem_data_out: out std_logic_vector(31 downto 0);
 		  mem_ready : in std_logic;
+		  mem_valid : in std_logic;--indicates mem_data_in is valid in this clock cycle (still valid after CAS latency clocks after mem_ready is deasserted)
         mem_rden  : out std_logic;
         mem_wren  : out std_logic;
 
@@ -788,7 +790,9 @@ component vga_controller
     );
 end component;
 
-signal rst: std_logic;--active high
+signal rst: std_logic;--active high, reset synchronized to ram clock (cpu domain)
+signal rst_sdram: std_logic;--active high, reset synchronized to SDRAM clock (DMA domain)
+signal rst_n_sycn_sdram: std_logic;--rst_n, reset sync'd to risign_edge of SDRAM_ctrl_clk (DMA domain)
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
 signal rst_n_sync_uproc: std_logic;--rst_n sync'd to rising_edge of uproc_CLK
@@ -1245,7 +1249,21 @@ signal vga_pclk: std_logic;--40MHZ for PCLK
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
-	rst <= not rst_n_sync_uproc;
+	rst <= not rst_n_sync_uproc;--reset synchronized to ram clock (cpu domain)
+	rst_sdram <= not rst_n_sycn_sdram;--reset synchronized to sdram clock (DMA domain)
+
+	--synchronized asynchronous reset
+	--asserted asynchronously
+	--deasserted synchronously to the rising_edge of uproc_CLK
+	sync_async_reset_sdram: sync_chain
+	generic map (N => 1,--bus width in bits
+				L => 2)--number of registers in the chain
+	port map (
+			data_in(0) => '1',--data generated at another clock domain
+			CLK => sdram_ctrl_clk,--clock of new clock domain				
+			RST => not rst_n,--asynchronous reset
+			data_out(0) => rst_n_sycn_sdram --data synchronized in CLK domain
+	);
 	
 	--debug outputs
 	LEDR <= (17 downto 5 =>'0') & fp32_ovf & fp32_undf & fp32_div0 & filter_rst & rst;
@@ -1267,7 +1285,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				req_ADDR => program_data_address,--address of requested data/instruction
 				req_rden => program_data_rden,
 				req_wren => program_data_wren,
-				req_data_in => domain0_Q,
+				req_data_in => domain0_write_data,
 				CLK => CLK,--processor clock for reading instructions, must run even if cache is not ready
 				mem_I => sram_IO,--data coming from SRAM for write
 				mem_CLK => sram_CLK,--clock for reading embedded RAM
@@ -1284,7 +1302,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	mini_ram_cache: mini_ram 	generic map (N => 4)
 							port map(CLK	=> ram_clk,
 										ADDR	=> domain0_addr(3 downto 0),
-										write_data => domain0_Q,
+										write_data => domain0_write_data,
 										rden	=> cache_rden,
 										wren	=> cache_wren,
 										Q		=> cache_Q);
@@ -1585,7 +1603,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	coeffs_mem_parallel_rden <= '1' when (lvec='1' and lvec_src="000") else '0';
 	coeffs_mem_parallel_wren <= lvec_dst_mask(0);
 	coeffs_mem: generic_coeffs_mem generic map (N=> 3, P => P,Q => Q)
-									port map(D => domain0_Q,
+									port map(D => domain0_write_data,
 												ADDR	=> domain0_addr(2 downto 0),
 												RST => rst,
 												RDEN	=> coeffs_mem_rden,
@@ -1678,7 +1696,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		filter_out_Q <= filter_output_sync;
 					
 	filter_ctrl_status: d_flip_flop
-	 port map(	D => domain0_Q,--written by software
+	 port map(	D => domain0_write_data,--written by software
 					RST=> RST,--resets all previous history of filter output
 					ENA=> filter_ctrl_status_wren,
 					CLK=>ram_clk,--must be the same as filter_CLK
@@ -1718,7 +1736,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	-- 0..P: índices dos x
 	-- P+1..P+Q: índices dos y
 	generic map (N => 3, P => P, Q => Q)--N: address width in bits (must be >= log2(P+1+Q))
-	port map (	D => domain0_Q,-- not used (peripheral supports only read)
+	port map (	D => domain0_write_data,-- not used (peripheral supports only read)
 			DX => filter_input,--current filter input
 			DY => filter_output,--current filter output
 			ADDR => domain0_addr(2 downto 0),-- input
@@ -1741,7 +1759,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	inner_product_parallel_wren_B <= lvec_dst_mask(4);
 	inner_product: inner_product_calculation_unit
 	generic map (N => 5)
-	port map(D => domain0_Q,--supposed to be normalized
+	port map(D => domain0_write_data,--supposed to be normalized
 				ADDR => domain0_addr(4 downto 0),
 				CLK => ram_clk,
 				RST => rst,
@@ -1767,7 +1785,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	vmac_parallel_wren_B <= lvec_dst_mask(6);
 	vmac: vectorial_multiply_accumulator_unit
 	generic map (N => 5)
-	port map(D => domain0_Q,
+	port map(D => domain0_write_data,
 				ADDR => domain0_addr(4 downto 0),
 				CLK => ram_clk,
 				RST => rst,
@@ -1793,7 +1811,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	port map(CLK => ram_clk,
 				ADDR=> domain0_addr(2 downto 0),
 				RST => rst,
-				write_data => domain0_Q,
+				write_data => domain0_write_data,
 				parallel_write_data => vector_bus,
 				parallel_wren => tmp_vector_parallel_wren,
 				rden => tmp_vector_rden,
@@ -1808,7 +1826,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		if(rst='1')then
 			fp_from_proc <= (others=>'0');
 		elsif(rising_edge(ram_clk) and gp_fp32_to_int32_wren='1' and domain0_addr(0)='0')then
-			fp_from_proc <= domain0_Q;
+			fp_from_proc <= domain0_write_data;
 		end if;
 	end process;
 		
@@ -1884,7 +1902,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	);
 
 	i2c: i2c_master
-	port map(D => domain0_Q,
+	port map(D => domain0_write_data,
 				ADDR => domain0_addr(2 downto 0),
 				CLK => ram_clk,
 				RST => rst,
@@ -1904,7 +1922,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	AUD_DACLRCK <= i2s_WS;
 	i2s: i2s_master_transmitter
 	port map (
-				D => domain0_Q,
+				D => domain0_write_data,
 				ADDR => domain0_addr(2 downto 0),
 				CLK => ram_clk,
 				RST => rst,
@@ -2133,8 +2151,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			--ports for configuration (done by cpu)
         clk       => ram_clk,
         reset     => rst,
+		reset_mem => rst_sdram,
         addr      => dma_addr(1 downto 0),--analyze risk of dma writing to this
-        D         => domain0_Q,--analyze risk of dma writing to this
+        D         => domain0_write_data,--analyze risk of dma writing to this
         Q         => dma_Q,
         wr_en     => dma_wren,
 		  --ports for memory transfers
@@ -2143,6 +2162,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
         mem_data_in  => dma_ram_Q,
         mem_data_out => dma_ram_write_data,
 		  mem_ready	=> dma_ram_ready,
+		  mem_valid => '1',--TODO: generate inside peripherals and connect here
         mem_rden  => dma_ram_rden,
         mem_wren  => dma_ram_wren,
         irq       => dma_irq,
@@ -2238,7 +2258,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	filter_iack	<= all_iack(3) & all_iack(0);
 	irq_ctrl: interrupt_controller_vectorized
 	generic map (L => 6)--L: number of IRQ lines
-	port map (	D => domain0_Q,-- input: data to register write
+	port map (	D => domain0_write_data,-- input: data to register write
 			ADDR => domain0_addr(6 downto 0),
 			CLK => ram_clk,-- input
 			RST => RST,-- input
@@ -2254,7 +2274,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			output => irq_ctrl_Q -- output of register reading
 	);
 	
-	disp_7seg_DR_in <= domain0_Q;
+	disp_7seg_DR_in <= domain0_write_data;
 	disp_7seg_DR: d_flip_flop port map(
 		D => disp_7seg_DR_in,
 		CLK => ram_clk,
@@ -2280,9 +2300,9 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		----CPU/DMA itfc-----
 		clk	=> sdram_ctrl_clk,--75MHz
 		sdram_clk_in => sdram_CLK_in,--75MHz, phase shifted from clk (3ns ahead)
-		rst	=> rst,
+		rst	=> rst_sdram,
 		addr	=> sdram_addr,--32M words
-		D		=> domain1_Q,
+		D		=> domain1_write_data,
 		Q		=> sdram_ctrl_Q,
 		wren	=> sdram_ctrl_wren,
 		rden	=> sdram_ctrl_rden,
@@ -2305,7 +2325,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --	port map (
 --		clk	=> sdram_ctrl_clk,--75MHz
 --		clk_dram => sdram_CLK_in,--75MHz, phase shifted from clk (3ns ahead)
---		rst	=> rst,
+--		rst	=> rst_sdram,
 --		dll_locked => pll_12MHz_locked,--used for sdram_CS_N
 --		------SDRAM itfc-----
 --		dram_addr=> sdram_A,
@@ -2336,10 +2356,10 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			  port map (
 					----CPU/DMA itfc-----
 					clk     => sdram_ctrl_clk,--75MHz
-					rst	  => rst,
+					rst	  	=> rst_sdram,
 					PCLK    => vga_pclk,
 					addr    => vga_addr(5 downto 0),
-					data_in => domain1_Q,
+					data_in => domain1_write_data,
 					wren    => vga_wren,
 					ready   => vga_ready,
 					rden	  => vga_rden,
@@ -2383,7 +2403,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		clk		=> ram_clk,
 			
 		-- interface with CPU
-		D		=> domain0_Q,
+		D		=> domain0_write_data,
 		wren	=> lcd_wren,
 		Q		=> lcd_Q,
 		ready	=> lcd_ready,
@@ -2457,6 +2477,17 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 --		tx => uart_tx,
 --		rx => uart_rx
 --	);
+	proc_dbg_data_0 <= (others=>'0');
+	proc_dbg_data_1 <= (others=>'0');
+	proc_dbg_sr <= '0';
+	proc_dbg_gr <= '0';
+	proc_dbg_sm <= '0';
+	proc_dbg_gm <= '0';
+	proc_dbg_brk <= '0';
+	proc_dbg_inj <= '0';
+	proc_dbg_nxt <= '0';
+	proc_dbg_cont <= '0';
+	proc_dbg_irq <= '0';
 		
 	clk_dbg_uproc:	pll_dbg_uproc
 	port map
