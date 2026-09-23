@@ -73,13 +73,13 @@ architecture behavior of dma_controller is
     -- FIFO para armazenar dados temporariamente
     type fifo_type is array (0 to FIFO_LEN-1) of std_logic_vector(31 downto 0);
     signal fifo      : fifo_type := (others => (others => '0'));
-    signal fifo_head : integer range 0 to FIFO_LEN-1 := 0;
+    signal fifo_head : integer range 0 to FIFO_LEN-1 := 0;-- ! posição na fifo para armazenar o dado sendo pedido
 	-- Índice associado à resposta mem_valid atualmente apresentada pela memória.
-	signal fifo_head_pending: integer range 0 to FIFO_LEN-1 := 0;
+	signal fifo_head_pending: integer range 0 to FIFO_LEN-1 := 0;--posição na fifo para armazenar o dado chegando
 	-- Cada entrada guarda a contagem e o índice da FIFO de dados da requisição aceita.
 	signal pending_transfers_data: std_logic_vector(47 downto 0);
 	signal pending_transfers_full: std_logic;
-	signal pending_transfers_empty: std_logic;
+	signal pending_transfers_empty: std_logic; -- indica que ainda há respostas para chegar
 	signal pending_transfers_ovf: std_logic;
 	signal pending_transfers_wren: std_logic;
 	signal pending_transfers_pop: std_logic;
@@ -88,9 +88,10 @@ architecture behavior of dma_controller is
     signal fifo_tail : integer range 0 to FIFO_LEN-1 := 0;
     signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Capacidade da FIFO = FIFO_LEN palavras
     signal fifo_count_reg: integer range 0 to FIFO_LEN := 0;
-	signal mem_addr_comb: std_logic_vector(31 downto 0);--for writes if data fifo is implemented with RAM blocks, mem_addr must be delayed to match the data output from the RAM block
+	--! for writes if data fifo is implemented with RAM blocks, mem_addr must be delayed to match the data output from the RAM block
+	signal mem_addr_comb: std_logic_vector(31 downto 0);
 	signal mem_addr_reg: std_logic_vector(31 downto 0);--for writes if data fifo is implemented with RAM blocks, mem_addr must be delayed to match the data output from the RAM block
-	signal mem_wren_comb: std_logic;--for writes if data fifo is implemented with RAM blocks, mem_wren must be delayed to match the data output from the RAM block
+	signal mem_wren_comb: std_logic;--! for writes if data fifo is implemented with RAM blocks, mem_wren must be delayed to match the data output from the RAM block
 	signal mem_wren_reg: std_logic;--for writes if data fifo is implemented with RAM blocks, mem_wren must be delayed to match the data output from the RAM block
 
     signal state     : std_logic_vector(1 downto 0) := "00"; -- 00 = Idle, 01 = Reading, 10 = Writing
@@ -223,6 +224,7 @@ begin
                     end if;
 
                 when "01" =>  -- READING
+					-- chega uma resposta (mem_valid='1') que estava sendo aguardada (pending_transfers_empty='0')
 					-- Armazena o dado somente quando a memória confirma que ele é válido;
 					-- o índice vem da FIFO de requisições, não do fifo_head atual.
 					if mem_valid = '1' and pending_transfers_empty = '0' then
@@ -230,15 +232,20 @@ begin
 						received_count <= received_count + 1;
 						fifo_count <= fifo_count + 1;
 						fifo_count_reg <= fifo_count;
-						if num_xfers /= 0 and received_count + 1 = num_xfers then
+						if (num_xfers /= 0 and received_count + 1 = num_xfers) or (fifo_count + 1 = FIFO_LEN) then
 							state <= "11";
 						end if;
 					end if;
 
+					-- envia nova requisição, para isso, atualiza os contadores abaixo, mas somente se:
+					-- o escravo estiver pronto para aceitar nova requisição (mem_ready='1') e
+					-- houver espaço na FIFO de dados (para essa requisição e as pendentes) e
+					-- não tiver finalizado a etapa de leitura e
+					-- houver espaço na FIFO de pendências.
 					if mem_ready = '1' and fifo_count + pending_count < FIFO_LEN and count < num_xfers and pending_transfers_full = '0' then
 						count <= count + 1;
 						fifo_head <= (fifo_head + 1) mod FIFO_LEN;
-                    end if;
+					end if;
 
 					-- Mantém separado o número de respostas já armazenadas do número de
 					-- requisições ainda pendentes, inclusive quando ambos os eventos coincidem.
@@ -247,9 +254,9 @@ begin
 					elsif pending_transfers_wren = '0' and mem_valid = '1' and pending_transfers_empty = '0' then
 						pending_count <= pending_count - 1;
 					end if;
-					when "11" => -- WAITING (not used in this implementation, but could be used to wait for some condition before writing)
-						--since now we are using synchronous writing, data read from fifo is valid only in the next cycle
-						state <= "10";-- start writing immediately in the next cycle
+				when "11" => -- WAITING (not used in this implementation, but could be used to wait for some condition before writing)
+					--since now we are using synchronous writing, data read from fifo is valid only in the next cycle
+					state <= "10";-- start writing immediately in the next cycle
                 when "10" =>  -- WRITING
                     if fifo_count > 0 then
 								
@@ -262,33 +269,33 @@ begin
 								end if;
                     end if;
 
-							-- Se FIFO vazia, volta a ler
-							if fifo_count = 1 and count < num_xfers and mem_ready='1' then--escrita do último item da fifo
-								 state <= "01";
-							end if;
+					-- Se FIFO vazia, volta a ler
+					if fifo_count = 1 and count < num_xfers and mem_ready='1' then--escrita do último item da fifo
+						state <= "01";
+					end if;
 
                     -- Ao transferir o ultimo item, finaliza OU inicia de novo se AUTOSTART estiver ativo
                     if count = num_xfers and fifo_count = 1 and mem_ready='1' then
                         irq   <= '1';
-								if  CR(7)='1' then
-									state <= "01";-- goes back to reading
-								else
-									state <= "00";-- idle
-								end if;
-								-- get ready for new transfers
-								count     <= (others => '0');
-								pending_count <= 0;
-								received_count <= (others => '0');
-								fifo_head <= 0;
-								fifo_tail <= 0;
-								fifo_count <= 0;
+						if  CR(7)='1' then
+							state <= "01";-- goes back to reading
+						else
+							state <= "00";-- idle
+						end if;
+						-- get ready for new transfers
+						count     <= (others => '0');
+						pending_count <= 0;
+						received_count <= (others => '0');
+						fifo_head <= 0;
+						fifo_tail <= 0;
+						fifo_count <= 0;
                     end if;
 
                 when others =>
                     state <= "00";
             end case;
 			if(iack='1')then
-                irq       <= '0';
+				irq <= '0';
             end if;
         end if;
     end process;
