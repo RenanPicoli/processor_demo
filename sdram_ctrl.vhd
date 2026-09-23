@@ -16,8 +16,10 @@ entity sdram_controller is
         Q         : out std_logic_vector(31 downto 0); -- output data (read)
         wren		: in  std_logic; --write request to memory
         rden		: in  std_logic; --reading request to memory
-        -- signal to indicate to CPU/DMA the data on Q is invalid
-        ready		: out std_logic;
+        -- signal to indicate to CPU/DMA the data on Q is valid
+		valid	: out std_logic;
+        -- signal to indicate to CPU/DMA the peripheral is ready to receive new commands
+		ready	: out std_logic;
 
         -- Interface com a SDRAM
         A  : out std_logic_vector(12 downto 0);
@@ -415,11 +417,11 @@ begin
 		CKE	<= '1';--activate clk
 	end process;
 	
-	-----------------ready driving--------------------
+	-----------------ready/valid driving--------------------
 	process(op_state,RDEN,ADDR_VALID,any_active_row,nxt_op_state)
 	begin
 		case op_state is
-			when START_READ =>--this is for use with DMA, when it supports SDRAM latency, somethong must be adapted when CPU is reading
+			when START_READ =>--this is for use with DMA, when it supports SDRAM latency, something must be adapted when CPU is reading
 				if(RDEN='0' or ADDR_VALID='0') then
 					ready <= '0';
 				else
