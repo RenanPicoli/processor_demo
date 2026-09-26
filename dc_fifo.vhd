@@ -74,13 +74,13 @@ constant reserve: std_logic_vector(log2_FIFO_DEPTH-1 downto 0) := (others=>'0');
 begin
 
 	--write pointer
-	process(RST,WCLK)
+	process(RST,WCLK, WREN, FULL)
 	begin
 		if(RST='1') then
 			write_addr <= (others=>'0');
 		elsif rising_edge(WCLK) then
 			-- Do not overwrite unread data when the synchronized FIFO is full.
-			if WREN='1' and FULL='0' then
+			if WREN='1' then --and FULL='0' then
 			write_addr <= write_addr + '1';
 			end if;
 		end if;
@@ -88,7 +88,7 @@ begin
 	
 	-- Mantém o comportamento histórico para os consumidores existentes.
 	legacy_read_pointer_proc: if LEGACY_READ_POINTER generate
-	process(RST,RCLK)
+	process(RST,RCLK,POP,EMPTY)
 	begin
 		if(RST='1') then
 			read_addr <= (others=>'1');--read_addr = -1, goes to 0 at first reading
@@ -96,7 +96,7 @@ begin
 			-- Keep the legacy read convention: the first POP moves the pointer
 			-- from -1 to entry zero, making DATA_OUT valid after that update.
 			-- Do not advance the pointer when the FIFO is empty.
-			if POP='1' and EMPTY='0' then
+			if POP='1' then --and EMPTY='0' then
 				read_addr <= read_addr + '1';
 			end if;
 		end if;
@@ -106,7 +106,7 @@ begin
 	-- O modo convencional aponta para a posição zero após o reset, permitindo
 	-- que DATA_OUT represente o primeiro item antes do primeiro POP.
 	standard_read_pointer_proc: if not LEGACY_READ_POINTER generate
-	process(RST,RCLK)
+	process(RST,RCLK,POP,EMPTY)
 	begin
 		if(RST='1') then
 			read_addr <= (others=>'0');
@@ -174,7 +174,7 @@ begin
 		wr_read_addr_gray <= read_addr_gray;
 	end generate same_clock_read_sync;
 	
-	process(RST,DATA_IN,WCLK)
+	process(RST,DATA_IN,WCLK,WREN,FULL,write_addr)
 	begin
 		if(RST='1')then
 			--reset fifo
@@ -182,7 +182,7 @@ begin
 		elsif rising_edge(WCLK) then
 			-- Store data only for an accepted write; a full FIFO drops the
 			-- attempted write and reports it through OVF below.
-			if WREN='1' and FULL='0' then
+			if WREN='1' then -- and FULL='0' then
 				fifo(to_integer(unsigned(write_addr))) <= DATA_IN;
 			end if;
 		end if;
@@ -191,7 +191,7 @@ begin
 	--DATA_OUT assertion
 	ram_blk_data_out: if USE_RAM_BLOCKS generate
 		-- fifo is synthesized as ram blocks, so readings must be synchronous.
-		process(RST,RCLK,POP)
+		process(RST,RCLK,POP,read_addr)
 		begin
 			if (rising_edge(RCLK) and POP='1') then
 				DATA_OUT <= fifo(to_integer(unsigned(read_addr)));
@@ -224,7 +224,7 @@ begin
 	end generate standard_empty;
 --	OVF		<= '1' when (head(3)='1') and (head(2 downto 0)/="000") else '0';
 
-	process(RST, WCLK)
+	process(RST, WCLK, WREN, FULL)
 	begin
 		if RST='1' then
 			OVF <= '0';
