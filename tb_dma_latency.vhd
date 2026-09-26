@@ -2,15 +2,20 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+-- VHDL-2008: use the standard ieee.numeric_std_unsigned package to convert a std_logic_vector to a unsigned representation,
+-- which allows use of numeric operations like minus.
+use ieee.numeric_std_unsigned.all; 
+
 entity tb_dma_latency is
 end entity;
 
 architecture test of tb_dma_latency is
-    constant MEM_DEPTH : natural := 256;
+    constant MEM_DEPTH : natural := 655360;
     constant LATENCY : natural := 3;
-    constant TRANSFER_COUNT : natural := 12;
-    constant SOURCE_BASE : natural := 8;
-    constant DEST_BASE : natural := 100;
+    constant TRANSFER_COUNT : natural := 1000; -- 307200;
+    constant SOURCE_BASE : natural := 16#0200_0000#;
+    constant DEST_BASE : natural := 16#0204_B000#;
+    constant SDRAM_BASE : natural := 16#0200_0000#;
 
     signal clk : std_logic := '0';
     signal mem_clk : std_logic := '0';
@@ -20,6 +25,7 @@ architecture test of tb_dma_latency is
     signal q : std_logic_vector(31 downto 0);
     signal wr_en : std_logic := '0';
     signal mem_addr : std_logic_vector(31 downto 0);
+    signal addr_sdram : std_logic_vector(31 downto 0);-- 0 based address inside SDRAM
     signal mem_data_in : std_logic_vector(31 downto 0) := (others => '0');
     signal mem_data_out : std_logic_vector(31 downto 0);
     signal mem_ready : std_logic := '1';
@@ -45,7 +51,8 @@ architecture test of tb_dma_latency is
 begin
     uut: entity work.dma_controller
         port map (
-            reset => reset,
+            reset => reset, --synchronized to clk
+            reset_mem => reset,--not simulating the reset sinchronized to mem_clk, so just use the same reset for both
             clk => clk,
             addr => addr,
             D => d,
@@ -63,18 +70,19 @@ begin
             iack => iack
         );
 
-    clk <= not clk after 125 ns;
-    mem_clk <= not mem_clk after 5 ns;
+    clk <= not clk after 125 ns;--4MHz
+    mem_clk <= not mem_clk after 7 ns;--71.4MHz
+    addr_sdram <= mem_addr - STD_LOGIC_VECTOR(to_unsigned(SDRAM_BASE,32));
 
     -- Modelo de memória com resposta atrasada: cada mem_rden aceito é colocado
     -- em um pipeline e reaparece como mem_valid após LATENCY ciclos.
-    memory_model: process(mem_clk)
+    memory_model: process(mem_clk,addr_sdram)
         variable request_address : integer;
     begin
         if rising_edge(mem_clk) then
             if mem_wren = '1' then
-                report "WRITE addr=" & integer'image(to_integer(unsigned(mem_addr))) & " data=" & to_hstring(mem_data_out) severity note;
-                memory(to_integer(unsigned(mem_addr))) <= mem_data_out;
+                report "WRITE addr=" & integer'image(to_integer(unsigned(addr_sdram))) & " data=" & to_hstring(mem_data_out) severity note;
+                memory(to_integer(unsigned(addr_sdram))) <= mem_data_out;
             end if;
 
             for index in 1 to LATENCY loop
@@ -89,7 +97,7 @@ begin
                 assert request_address >= SOURCE_BASE and request_address < SOURCE_BASE + TRANSFER_COUNT
                     report "DMA emitiu endereco de leitura inesperado"
                     severity error;
-                address_pipeline(0) <= request_address;
+                address_pipeline(0) <= TO_INTEGER(addr_sdram);
                 valid_pipeline(0) <= '1';
             end if;
         end if;
@@ -97,6 +105,9 @@ begin
 
     mem_valid <= valid_pipeline(LATENCY);
     mem_data_in <= memory(address_pipeline(LATENCY)) when mem_valid = '1' else (others => '0');
+
+    -- mem_ready <= '1', '0' after 19104 ns; -- always ready to accept requests
+    mem_ready <= '1';
 
     stimulus: process
     begin
@@ -115,13 +126,13 @@ begin
         wr_en <= '0';
 
         -- Verifica que a associação requisição/resposta preserva todos os dados.
-        wait until irq = '1' for 20 us;
+        wait until irq = '1' for 9 ms;
         assert irq = '1' report "DMA nao sinalizou irq" severity failure;
         wait for 1 ns;
 
         for index in 0 to TRANSFER_COUNT - 1 loop
-            report "indice=" & integer'image(index) & " origem=" & to_hstring(memory(SOURCE_BASE + index)) & " destino=" & to_hstring(memory(DEST_BASE + index)) severity note;
-            assert memory(DEST_BASE + index) = memory(SOURCE_BASE + index)
+            report "indice=" & integer'image(index) & " origem=" & to_hstring(memory(SOURCE_BASE + index - SDRAM_BASE)) & " destino=" & to_hstring(memory(DEST_BASE + index - SDRAM_BASE)) severity note;
+            assert memory(DEST_BASE + index - SDRAM_BASE) = memory(SOURCE_BASE + index - SDRAM_BASE)
                 report "Dados incorretos no destino, indice " & integer'image(index)
                 severity failure;
         end loop;
