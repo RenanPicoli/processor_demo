@@ -86,7 +86,7 @@ architecture behavior of dma_controller is
 	-- Número de requisições aceitas que ainda não produziram mem_valid.
 	signal pending_count: integer range 0 to FIFO_LEN := 0;
     signal fifo_tail : integer range 0 to FIFO_LEN-1 := 0;
-    signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Capacidade da FIFO = FIFO_LEN palavras
+    signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Quantos dados há na fila. Capacidade da FIFO = FIFO_LEN palavras
     signal fifo_count_reg: integer range 0 to FIFO_LEN := 0;
 	--! for writes if data fifo is implemented with RAM blocks, mem_addr must be delayed to match the data output from the RAM block
 	signal mem_addr_comb: std_logic_vector(31 downto 0);
@@ -203,7 +203,7 @@ begin
 	end process;
 	
     -- Máquina de estados para leitura e escrita usando FIFO
-    process (mem_clk, reset_mem, iack, mem_ready, mem_valid)
+    process (mem_clk, reset_mem, iack, mem_ready, mem_valid, received_count, mem_wren_reg)
     begin
         if reset_mem = '1' then
             count     <= (others => '0');
@@ -249,9 +249,9 @@ begin
 
 					-- Mantém separado o número de respostas já armazenadas do número de
 					-- requisições ainda pendentes, inclusive quando ambos os eventos coincidem.
-					if pending_transfers_wren = '1' and mem_valid = '0' then
+					if pending_transfers_wren = '1' and pending_transfers_pop = '0' then
 						pending_count <= pending_count + 1;
-					elsif pending_transfers_wren = '0' and mem_valid = '1' and pending_transfers_empty = '0' then
+					elsif pending_transfers_wren = '0' and pending_transfers_pop = '1' then
 						pending_count <= pending_count - 1;
 					end if;
 				when "11" => -- WAITING (not used in this implementation, but could be used to wait for some condition before writing)
@@ -260,8 +260,10 @@ begin
                 when "10" =>  -- WRITING
                     if fifo_count > 0 then
 								
-								--update pointers/counters
-								if(mem_ready = '1')then
+								-- update pointers/counters
+								-- necessary to check if mem_wren is asserted because with USE_RAM_BLOCKS mem_wren is not asserted during first cycle of state=WRITING,
+								-- so fifo_tail/fifo_count should not be updated
+								if(mem_ready = '1' and mem_wren_reg = '1')then
                         -- Atualiza FIFO
 									fifo_tail <= (fifo_tail + 1) mod FIFO_LEN;
 									fifo_count <= fifo_count - 1;
@@ -303,9 +305,13 @@ begin
 	sync_read: if USE_RAM_BLOCKS generate
 		-- A FIFO de dados usa blocos de RAM; a saída registrada gera um ciclo extra
 		-- entre fifo_tail e mem_data_out durante a escrita.
-		process (mem_clk, fifo_tail, mem_addr_comb, mem_wren_comb)
+		process (mem_clk, reset_mem, fifo_tail, mem_addr_comb, mem_wren_comb)
 		begin
-			if rising_edge(mem_clk) then
+			if reset_mem = '1' then
+				-- mem_data_out <= (others => '0'); mem_data_out is RAM output
+				mem_addr_reg <= (others => '0');
+				mem_wren_reg <= '0';
+			elsif rising_edge(mem_clk) then
 				mem_data_out <= fifo(fifo_tail);--mem_data_out is 1 clock cycle delayed of fifo_tail
 				mem_addr_reg <= mem_addr_comb;
 				mem_wren_reg <= mem_wren_comb;
@@ -338,10 +344,14 @@ begin
 					mem_rden <= '0';
 				end if;
 				mem_wren  <= '0';
+				mem_wren_comb <= '0';
+				mem_addr_comb <= (others=>'0');
 			when "11" => -- preparing to write
 				mem_addr <= dst_addr;
 				mem_rden <= '0';
 				mem_wren  <= '0';
+				mem_wren_comb <= '0';
+				mem_addr_comb <= (others=>'0');
 			when "10" =>  -- WRITING
 				-- Incrementa `dst_addr` se DINC estiver ativado
 				if CR(3) = '1' and USE_RAM_BLOCKS then
