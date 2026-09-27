@@ -80,7 +80,7 @@ begin
 			write_addr <= (others=>'0');
 		elsif rising_edge(WCLK) then
 			-- Do not overwrite unread data when the synchronized FIFO is full.
-			if WREN='1' then --and FULL='0' then
+			if WREN='1' and FULL='0' then
 			write_addr <= write_addr + '1';
 			end if;
 		end if;
@@ -96,7 +96,7 @@ begin
 			-- Keep the legacy read convention: the first POP moves the pointer
 			-- from -1 to entry zero, making DATA_OUT valid after that update.
 			-- Do not advance the pointer when the FIFO is empty.
-			if POP='1' then --and EMPTY='0' then
+			if POP='1' and EMPTY='0' then
 				read_addr <= read_addr + '1';
 			end if;
 		end if;
