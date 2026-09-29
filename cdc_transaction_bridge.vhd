@@ -85,9 +85,9 @@ begin
     -- Accept one request at a time from the master. master_request_held
     -- prevents re-enqueueing while the master keeps its enable asserted.
     request_fifo_data_in <= master_rden & master_addr & master_write_data;
-    request_fifo_wren <= '1' when master_transaction_busy = '0' and
+    request_fifo_wren <= '1' when ((master_transaction_busy = '0' and
                                   master_request_held = '0' and
-                                  (master_rden = '1' or master_wren = '1') and
+                                  master_rden = '1' and master_ready='0') or (master_wren = '1' and master_ready = '0')) and
                                   request_fifo_full = '0' else '0';
 
     -- This bridge selects the standard FIFO convention: DATA_OUT is already
@@ -164,18 +164,20 @@ begin
 
             -- A pending read keeps the master blocked until its response is
             -- removed from the response FIFO.
-            if master_rden = '0' and master_wren = '0' then
+            if (master_rden = '0' or (master_rden='1' and master_ready='1')) and master_wren = '0' then
                 master_request_held <= '0';
                 if master_waiting_read = '0' then
                     master_transaction_busy <= '0';
                 end if;
-            elsif master_request_held = '0' and request_fifo_wren = '1' then
+            elsif request_fifo_wren = '1' and master_ready = '0' then -- master_request_held = '0' and request_fifo_wren = '1' then
                 master_request_held <= '1';
                 master_transaction_busy <= '1';
-                master_waiting_read <= master_rden;
+                master_waiting_read <= master_rden and not master_ready;
                 if master_wren = '1' then
                     master_ready <= '1';
                 end if;
+            -- elsif request_fifo_wren = '0' then
+            --     master_ready <= '0';
             end if;
 
             if response_fifo_pop = '1' then
@@ -187,6 +189,17 @@ begin
             end if;
         end if;
     end process;
+
+    -- master_ready_proc: process(request_fifo_wren, rst)
+    -- begin
+    --     if rst ='1' then
+    --         master_ready <='0';
+    --     elsif request_fifo_wren='1' then
+    --         master_ready <='1';
+    --     else
+    --         master_ready <='0';
+    --     end if;
+    -- end process;
 
     -- Destination-side state machine:
     -- it pops requests from the request FIFO, captures the associated fields,
