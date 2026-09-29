@@ -28,9 +28,11 @@ entity address_decoder_memory_map is
 		-- CLK: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals
 		data_in: in array32;-- input: outputs of all peripheral
 		ready_in: in std_logic_vector(B'length-1 downto 0);-- input: ready signals of all peripheral
+		valid_in: in std_logic_vector(B'length-1 downto 0);-- input: valid signals of all peripheral
 		RDEN_OUT: out std_logic_vector;-- output
 		WREN_OUT: out std_logic_vector;-- output
 		ready_out: out std_logic;-- output
+		valid_out: out std_logic;-- output
 		MASTER_CLK_ID: in std_logic_vector(1 downto 0);-- identifies the one clock controlling the bus
 		-- next_ADDR: in std_logic_vector(N-1 downto 0);-- next address to be sent by arbiter, the decoder will be able to detect when a new write starts (for multi-clock support)
 		data_out: out std_logic_vector(31 downto 0)-- data read
@@ -118,6 +120,7 @@ begin
 	end process;
 	
 	ready_out <= ready_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
+	valid_out <= valid_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
 	
 	data_out <= output;
 end behv;

@@ -316,9 +316,11 @@ component address_decoder_memory_map
 		-- CLK: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals
 		data_in: in array32;-- input: outputs of all peripheral
 		ready_in: in std_logic_vector(B'length-1 downto 0);-- input: ready signals of all peripheral
+		valid_in: in std_logic_vector(B'length-1 downto 0);-- input: valid signals of all peripheral
 		RDEN_OUT: out std_logic_vector;-- output
 		WREN_OUT: out std_logic_vector;-- output
 		ready_out: out std_logic;-- output
+		valid_out: out std_logic;-- output
 		MASTER_CLK_ID: in std_logic_vector(1 downto 0);-- identifies the one clock controlling the bus
 		-- next_ADDR: in std_logic_vector(N-1 downto 0);-- next address to be sent by arbiter, the decoder will be able to detect when a new write starts (for multi-clock support)
 		data_out: out std_logic_vector(31 downto 0)-- data read
@@ -652,8 +654,10 @@ component sdram_controller
         Q         : out std_logic_vector(31 downto 0); -- output data (read)
         wren		: in  std_logic; --write request to memory
         rden		: in  std_logic; --reading request to memory
-        -- signal to indicate to CPU/DMA the data on Q is invalid
-        ready		: out std_logic;
+        -- signal to indicate to CPU/DMA the data on Q is valid
+		valid	: out std_logic;
+        -- signal to indicate to CPU/DMA the peripheral is ready to receive new commands
+		ready	: out std_logic;
 
         -- Interface com a SDRAM
         A  : out std_logic_vector(12 downto 0);
@@ -667,33 +671,6 @@ component sdram_controller
         RAS_N  : out std_logic;
         CS_N  : out std_logic
     );
-end component;
-
-component sdram_controller_by_luccas641
-  port ( 
-	clk 			: in std_logic;
-	clk_dram 	: in std_logic;
-	rst 			: in std_logic;
-	dll_locked 	: in std_logic;
-	-- DRAM signals
-	dram_addr 	: out std_logic_vector(12 downto 0);
-	dram_bank 	: out std_logic_vector(1 downto 0);
-	dram_cas_n 	: out std_logic;
-	dram_ras_n 	: out std_logic;
-	dram_cke 	: out std_logic;
-	dram_clk 	: out std_logic;
-	dram_cs_n 	: out std_logic;
-	dram_dq 		: inout std_logic_vector(31 downto 0);
-	dram_dqm 	: out std_logic_vector(3 downto 0);
-	dram_we_n 	: out std_logic;
-	--wishbone
-	addr_i 		: in std_logic_vector(22 downto 0);
-	dat_i 		: in std_logic_vector(31 downto 0);
-   dat_o 		: out std_logic_vector(31 downto 0);
-	we_i 			: in std_logic;
-	ack_o 		: out std_logic;
-	stb_i			: in std_logic;
-	cyc_i			: in std_logic);
 end component;
 
 -------cpu/dma arbiter------------------
@@ -1087,6 +1064,8 @@ signal all_periphs0_output: array32 (ranges'length-1 downto 0);--domain 0 periph
 signal all_periphs1_output: array32 (ranges'length-1 downto 0);--domain 0 peripherals output for memory-mapped interfaces (Q)
 signal all_periphs_ready0: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_ready1: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_valid0: std_logic_vector(ranges'length-1 downto 0);
+signal all_periphs_valid1: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_rden0: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_wren0: std_logic_vector(ranges'length-1 downto 0);
 signal all_periphs_rden1: std_logic_vector(ranges'length-1 downto 0);
@@ -1225,6 +1204,7 @@ signal proc_next_pc: std_logic_vector(31 downto 0);-- monitor PC (pc_in) for bre
 signal sdram_ctrl_Q: std_logic_vector(31 downto 0);
 signal sdram_ctrl_wren: std_logic;
 signal sdram_ctrl_rden: std_logic;
+signal sdram_ctrl_valid: std_logic;
 signal sdram_ctrl_ready: std_logic;
 signal sdram_ctrl_clk: std_logic;--75MHz for SDRAM control
 signal sdram_clK_in: std_logic;--75MHz 3ns ahead of sdram_ctrl_clk
@@ -2003,6 +1983,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	
 	all_periphs_ready0		<= (19=> program_data_ready, 17=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');--domain0: ram_CLK
 	all_periphs_ready1		<= (20=> sdram_ctrl_ready, 16=> vga_ready, others=>'1');--domain1: sdram_ctrl_clk
+	all_periphs_valid0		<= (others=>'1');--domain1: sdram_ctrl_clk
+	all_periphs_valid1		<= (20=> sdram_ctrl_valid, others=>'1');--domain1: sdram_ctrl_clk
 	all_periphs0_output	<= (20=> (others=>'0'), 19=> program_data_Q, 18=> tmp_vector_Q, 17 => irq_ctrl_Q, 16=> (others=>'0'), 15 => dma_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
 	all_periphs1_output	<= (20=> sdram_ctrl_Q, 16=> vga_Q, others=>(others=>'0'));
@@ -2066,9 +2048,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			-- CLK => (0=> ram_clk, 1=> sdram_ctrl_clk),-- array of clocks for peripherals with different clock domains. If MULTI_CLK is false, all values can be set to '0'
 			data_in => all_periphs1_output,-- input: outputs of all peripheral
 			ready_in => all_periphs_ready1,
+			valid_in => all_periphs_valid1,
 			RDEN_OUT => all_periphs_rden1,-- combinatorial decoder output
 			WREN_OUT => all_periphs_wren1,-- combinatorial decoder output
 			ready_out => domain1_ready,
+			valid_out => open,
 			MASTER_CLK_ID => (others => '0'), -- CDC is handled before this local decoder
 			data_out => domain1_Q-- combinatorial decoder output
 	);
@@ -2085,9 +2069,11 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			WREN => domain0_wren,
 			data_in => all_periphs0_output,
 			ready_in => all_periphs_ready0,
+			valid_in => all_periphs_valid0,
 			RDEN_OUT => all_periphs_rden0,
 			WREN_OUT => all_periphs_wren0,
 			ready_out => domain0_ready,
+			valid_out => open,
 			MASTER_CLK_ID => (others => '0'),
 			data_out => domain0_Q
 		);
@@ -2306,6 +2292,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		Q		=> sdram_ctrl_Q,
 		wren	=> sdram_ctrl_wren,
 		rden	=> sdram_ctrl_rden,
+		valid	=> sdram_ctrl_valid,
 		ready	=> sdram_ctrl_ready,
 		------SDRAM itfc-----
 		A		=> sdram_A,
@@ -2320,35 +2307,6 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		CS_N	=> sdram_CS_N
     );
 
---	sdram_ctrl_strobe <= sdram_ctrl_rden or sdram_ctrl_wren;
---	sdram_ctrl: sdram_controller_by_luccas641
---	port map (
---		clk	=> sdram_ctrl_clk,--75MHz
---		clk_dram => sdram_CLK_in,--75MHz, phase shifted from clk (3ns ahead)
---		rst	=> rst_sdram,
---		dll_locked => pll_12MHz_locked,--used for sdram_CS_N
---		------SDRAM itfc-----
---		dram_addr=> sdram_A,
---		dram_bank=> sdram_BA,
---		dram_dqm	=> sdram_DQM,
---		dram_dq	=> sdram_DQ,
---		dram_cke => sdram_CKE,
---		dram_clk	=> sdram_CLK_OUT,
---		dram_we_n=> sdram_WE_N,
---		dram_cas_n=> sdram_CAS_N,
---		dram_ras_n=> sdram_RAS_N,
---		dram_cs_n=> sdram_CS_N,
---		----CPU/DMA itfc-------
---		----wishbone protocol--
---		addr_i=> sdram_addr(22 downto 0),--32M words
---		dat_i	=> ram_write_data,
---		dat_o	=> sdram_ctrl_Q,
---		we_i	=> sdram_ctrl_wren,
---		ack_o => sdram_ctrl_ready,
---		stb_i	=> sdram_ctrl_strobe,
---		cyc_i => '1'
---    );
-	 
 	--it is necessary to translate the ram address associated with SDRAM (starting at 0x0800_0000)
 	--to an word address (starting at 0)
 	vga_addr <= domain1_addr - ranges(16)(0);
