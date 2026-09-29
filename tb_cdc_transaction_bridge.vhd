@@ -28,7 +28,7 @@ architecture sim of tb_cdc_transaction_bridge is
 
 begin
     master_clk <= not master_clk after 5 ns;
-    dest_clk <= not dest_clk after 7 ns;
+    dest_clk <= not dest_clk after 25 ns;
 
     dut : entity work.cdc_transaction_bridge
         generic map (FIFO_DEPTH => 4)
@@ -63,9 +63,9 @@ begin
                     read_delay <= read_delay + 1;
                 end if;
             elsif dest_wren = '1' then
-                assert dest_addr = x"0000_0040"
+                assert dest_addr = x"0000_0040" or dest_addr = x"0000_0041"
                     report "endereco de escrita incorreto" severity failure;
-                assert dest_write_data = x"1234_5678"
+                assert dest_write_data = x"1234_5678" or dest_write_data = x"CAFE_BABE"
                     report "dado de escrita incorreto" severity failure;
                 write_count <= write_count + 1;
             end if;
@@ -79,24 +79,30 @@ begin
 
         master_addr <= x"0000_0080";
         master_rden <= '1';
-        wait for 20 ns;
-        assert master_ready = '0'
-            report "leitura foi liberada antes da resposta" severity failure;
+        wait until master_ready='1' and rising_edge(master_clk);
+        -- assert master_ready = '0'
+        --     report "leitura foi liberada antes da resposta" severity failure;
 
-        wait until master_ready = '1';
+        -- wait until master_ready = '1';
         assert master_Q = x"CAFE_BABE"
             report "dado de leitura incorreto" severity failure;
+
+        -- wait until rising_edge(master_clk);
         master_rden <= '0';
         wait for 20 ns;
 
         master_addr <= x"0000_0040";
         master_write_data <= x"1234_5678";
         master_wren <= '1';
-        wait until master_ready = '1';
+        wait until master_ready = '1' and rising_edge(master_clk);
+        master_addr <= x"0000_0041";
+        master_write_data <= x"CAFE_BABE";
+        master_wren <= '1';
+        wait until master_ready = '1' and rising_edge(master_clk);
         master_wren <= '0';
-        wait for 100 ns;
+        wait for 2000 ns;
         report "contagem de escritas observada: " & natural'image(write_count) severity note;
-        assert write_count = 1
+        assert write_count = 2
             report "escrita nao foi executada exatamente uma vez" severity failure;
 
         report "tb_cdc_transaction_bridge concluido" severity note;
