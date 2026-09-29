@@ -422,33 +422,42 @@ begin
 	begin
 		case op_state is
 			when START_READ =>--this is for use with DMA, when it supports SDRAM latency, something must be adapted when CPU is reading
+				-- the SDRAM is ready to receive new commands but the output data will not be valid until CAS latency elllapses
 				if(RDEN='0' or ADDR_VALID='0') then
-					ready <= '0';
+					valid <= '0';--if a miss occurs output data will be invalid
 				else
-					ready <= '1';
+					valid <= '1';
 				end if;
+				ready <= '1';
 			when READING | WRITING =>
 				ready <= '1';
+				valid <= '1';
 			when BURST_STOP =>
 				ready <= '0';
+				valid <= '1';
 			when PRECHARGE | PALL => --during these states, SDRAM is ready for reading BUT NOT for writes
 				ready <= '0';
+				valid <= '0';
 			when ACTIVATE =>----during these states, SDRAM is not ready for reading or writes
 				if nxt_op_state = WRITING or nxt_op_state = START_READ then
 					ready <= '1';
 				else
 					ready <= '0';
 				end if;
+				valid <= '0'; -- output data will not be valid until activation of new row finishes
 			when AR =>----during these states, SDRAM is not ready for reading or writes
 				ready <= '0';
+				valid <= '0';
 			when IDLE =>
 				if nxt_op_state = WRITING or nxt_op_state = START_READ then
 					ready <= '1';
 				else
 					ready <= '0';
 				end if;
-			when others =>--what about when IDLE????
+				valid <= '0';
+			when others =>
 				ready <= '0';
+				valid <= '0';
 		end case;
 	end process;
 	
