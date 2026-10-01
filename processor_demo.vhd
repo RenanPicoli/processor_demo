@@ -1941,7 +1941,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	-- CPU (domain 0) to domain-1 arbiter: 4 MHz -> 75 MHz.
 	cpu_domain1_bridge: cdc_transaction_bridge
-		generic map (FIFO_DEPTH => 4)
+		generic map (FIFO_DEPTH => 64)
 		port map (
 			master_clk => ram_clk,
 			dest_clk => sdram_ctrl_clk,
@@ -1962,7 +1962,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	-- DMA memory master (domain 1) to domain-0 arbiter: 75 MHz -> 4 MHz.
 	dma_domain0_bridge: cdc_transaction_bridge
-		generic map (FIFO_DEPTH => 4)
+		generic map (FIFO_DEPTH => 64)
 		port map (
 			master_clk => sdram_ctrl_clk,
 			dest_clk => ram_clk,
