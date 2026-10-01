@@ -17,7 +17,7 @@ use work.my_types.all;--array32, array_of_std_logic_vector
 use ieee.math_real.all;--ceil and log2
 
 entity dc_fifo is
-	generic (N: natural; REQUESTED_FIFO_DEPTH: natural; USE_RAM_BLOCKS: boolean := false; LEGACY_READ_POINTER: boolean := true; SAME_CLOCK: boolean := false);--REQUESTED_FIFO_DEPTH does NOT need to be power of TWO
+	generic (N: natural; REQUESTED_FIFO_DEPTH: natural; USE_RAM_BLOCKS: boolean := false; LEGACY_READ_POINTER: boolean := true; SAME_CLOCK: boolean := false; reserve: natural := 0);--REQUESTED_FIFO_DEPTH does NOT need to be power of TWO
 	port (
 			DATA_IN: in std_logic_vector(N-1 downto 0);--for register write
 			WCLK: in std_logic;--processor clock for writes
@@ -69,7 +69,7 @@ signal wr_read_addr_gray: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);-- read a
 signal temp_adder_out: std_logic_vector(log2_FIFO_DEPTH-1 downto 0);--used to determine if fifo is full
 signal async_full: std_logic;
 
-constant reserve: std_logic_vector(log2_FIFO_DEPTH-1 downto 0) := (others=>'0');
+--constant reserve: std_logic_vector(log2_FIFO_DEPTH-1 downto 0) := (others=>'0');
 
 begin
 
@@ -209,7 +209,7 @@ begin
 	
 	-- FULL uses the synchronized read pointer. EMPTY intentionally retains
 	-- the legacy read_addr + 1 convention used by existing consumers.
-   temp_adder_out <= rd_write_addr - read_addr + reserve;
+   temp_adder_out <= rd_write_addr - read_addr + std_logic_vector(TO_UNSIGNED(reserve, log2_FIFO_DEPTH));
    async_full <= temp_adder_out(log2_FIFO_DEPTH-1);
 	FULL <= async_full;
 	
