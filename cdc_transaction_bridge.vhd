@@ -3,7 +3,7 @@ use ieee.std_logic_1164.all;
 
 entity cdc_transaction_bridge is
     generic (
-        FIFO_DEPTH : natural := 4
+        FIFO_DEPTH : natural := 64
     );
     port (
         master_clk : in std_logic;
@@ -33,7 +33,8 @@ architecture rtl of cdc_transaction_bridge is
             REQUESTED_FIFO_DEPTH : natural;
             USE_RAM_BLOCKS : boolean := false;
             LEGACY_READ_POINTER : boolean := true;
-            SAME_CLOCK : boolean := false
+            SAME_CLOCK : boolean := false;
+				reserve: natural := 0
         );
         port (
             DATA_IN : in std_logic_vector(N-1 downto 0);
@@ -112,7 +113,8 @@ begin
         generic map (
             N => REQUEST_WIDTH,
             REQUESTED_FIFO_DEPTH => FIFO_DEPTH,
-            LEGACY_READ_POINTER => false
+            LEGACY_READ_POINTER => false,
+				reserve => 19
         )
         port map (
             DATA_IN => request_fifo_data_in,
@@ -132,7 +134,8 @@ begin
         generic map (
             N => 32,
             REQUESTED_FIFO_DEPTH => FIFO_DEPTH,
-            LEGACY_READ_POINTER => false
+            LEGACY_READ_POINTER => false,
+				reserve => 19
         )
         port map (
             DATA_IN => dest_Q,
