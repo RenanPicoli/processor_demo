@@ -220,8 +220,9 @@ begin
 			std_logic_vector(to_unsigned(f_count,32)) when rden='1' and addr="000010" else
 			(others => '0');
 
-    -- ready information to DMA
-    ready <= '0' when fifo_full='1' else '1';        
+    -- ready information to DMA/CPU
+    --VGA may block a write to DR if fifo_full='1', so ready is '0' in this case. Otherwise, ready is '1' to indicate that a write/read can be performed.
+    ready <= '0' when fifo_full='1' and addr="000000" else '1';        
 
     -- Geracao de contadores de linha e coluna
 	 -- por conveniencia, comeca a contar h_count=0, v_count=0 quando começa a porcao visivel
