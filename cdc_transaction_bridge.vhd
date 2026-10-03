@@ -15,6 +15,7 @@ entity cdc_transaction_bridge is
         master_rden : in std_logic;
         master_wren : in std_logic;
         master_ready : out std_logic;
+        master_valid : out std_logic;
         master_Q : out std_logic_vector(31 downto 0);
 
         dest_addr : out std_logic_vector(31 downto 0);
@@ -22,6 +23,7 @@ entity cdc_transaction_bridge is
         dest_rden : out std_logic;
         dest_wren : out std_logic;
         dest_ready : in std_logic;
+        dest_valid : in std_logic;
         dest_Q : in std_logic_vector(31 downto 0)
     );
 end entity;
@@ -68,11 +70,11 @@ architecture rtl of cdc_transaction_bridge is
     signal response_fifo_empty : std_logic;
     signal response_fifo_ovf : std_logic;
 
-    signal master_transaction_busy : std_logic;
+    signal master_transaction_busy : std_logic;--doing acess this clock cycle
     signal master_request_held : std_logic;
-    signal master_waiting_read : std_logic;
+    -- signal master_waiting_read : std_logic;
 
-    signal dest_transaction_busy : std_logic;
+    signal dest_transaction_busy : std_logic;--doing acess this clock cycle
     signal dest_request_is_read : std_logic;
     signal dest_request_addr : std_logic_vector(31 downto 0);
     signal dest_request_data : std_logic_vector(31 downto 0);
@@ -100,12 +102,14 @@ begin
     -- data. Writes complete when their request is accepted by the FIFO.
     response_fifo_wren <= '1' when dest_transaction_busy = '1' and
                                    dest_request_is_read = '1' and
-                                   dest_ready = '1' and
+                                   dest_valid = '1' and
                                    response_fifo_full = '0' else '0';
 
     -- The response data is captured on the same master-clock edge that pops
     -- the standard FIFO entry.
-    response_fifo_pop <= '1' when master_waiting_read = '1' and
+    -- the master is always ready to read
+    -- if it cant issue new commands until response arrives, it can check for ready='1' and valid='1' before issuing a new command
+    response_fifo_pop <= '1' when -- master_waiting_read = '1' and
                                   response_fifo_empty = '0' else '0';
 
     -- Request path: master clock to destination clock.
@@ -159,36 +163,41 @@ begin
         if rst = '1' then
             master_transaction_busy <= '0';
             master_request_held <= '0';
-            master_waiting_read <= '0';
+            -- master_waiting_read <= '0';
             master_ready <= '0';
+            master_valid <= '0';
             master_Q <= (others => '0');
         elsif rising_edge(master_clk) then
             master_ready <= '0';
+            master_valid <= '0';
 
             -- A pending read keeps the master blocked until its response is
             -- removed from the response FIFO.
             if (master_rden = '0' or (master_rden='1' and master_ready='1')) and master_wren = '0' then
                 master_request_held <= '0';
-                if master_waiting_read = '0' then
-                    master_transaction_busy <= '0';
-                end if;
+                -- if master_waiting_read = '0' then
+                --     master_transaction_busy <= '0';
+                -- end if;
             elsif request_fifo_wren = '1' and master_ready = '0' then -- master_request_held = '0' and request_fifo_wren = '1' then
                 master_request_held <= '1';
                 master_transaction_busy <= '1';
-                master_waiting_read <= master_rden and not master_ready;
-                if master_wren = '1' then
-                    master_ready <= '1';
-                end if;
+                -- master_waiting_read <= master_rden and not master_valid;
+                master_ready <= '1';
+                -- if master_wren = '1' then
+                --     master_ready <= '1';
+                -- end if;
             -- elsif request_fifo_wren = '0' then
             --     master_ready <= '0';
             end if;
 
             if response_fifo_pop = '1' then
-                -- For reads, ready means that the returned data is valid.
+                -- the returned data is valid.
                 master_Q <= response_fifo_data_out;
-                master_ready <= '1';
-                master_waiting_read <= '0';
+                master_valid <= '1';
+                -- master_waiting_read <= '0';
                 master_transaction_busy <= '0';
+            else
+                master_valid <= '0';
             end if;
         end if;
     end process;
@@ -228,7 +237,7 @@ begin
                 if dest_request_is_read = '0' then
                     dest_transaction_busy <= '0';
                 elsif dest_ready = '1' and response_fifo_full = '0' then
-                    dest_transaction_busy <= '0';
+                    dest_transaction_busy <= '0';--deasserts dest_rden/dest_wren, and the next request can be popped from the FIFO
                 end if;
             end if;
         end if;
