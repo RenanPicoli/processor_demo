@@ -333,18 +333,22 @@ component cdc_transaction_bridge
 		master_clk: in std_logic;
 		dest_clk: in std_logic;
 		rst: in std_logic;
-		master_addr: in std_logic_vector(31 downto 0);
-		master_write_data: in std_logic_vector(31 downto 0);
-		master_rden: in std_logic;
-		master_wren: in std_logic;
-		master_ready: out std_logic;
-		master_Q: out std_logic_vector(31 downto 0);
-		dest_addr: out std_logic_vector(31 downto 0);
-		dest_write_data: out std_logic_vector(31 downto 0);
-		dest_rden: out std_logic;
-		dest_wren: out std_logic;
-		dest_ready: in std_logic;
-		dest_Q: in std_logic_vector(31 downto 0)
+
+        master_addr : in std_logic_vector(31 downto 0);
+        master_write_data : in std_logic_vector(31 downto 0);
+        master_rden : in std_logic;
+        master_wren : in std_logic;
+        master_ready : out std_logic;
+        master_valid : out std_logic;
+        master_Q : out std_logic_vector(31 downto 0);
+
+        dest_addr : out std_logic_vector(31 downto 0);
+        dest_write_data : out std_logic_vector(31 downto 0);
+        dest_rden : out std_logic;
+        dest_wren : out std_logic;
+        dest_ready : in std_logic;
+        dest_valid : in std_logic;
+        dest_Q : in std_logic_vector(31 downto 0)
 	);
 end component;
 
@@ -675,24 +679,20 @@ end component;
 
 -------cpu/dma arbiter------------------
 component arbiter
-    --MULTI_CLK: when true, support multiple peripheral clock domains, otherwise all peripherals are assumed to be in the same clock domain and CLK can be ignored (set to others=>'0')
-    --DOMAINS: per-peripheral clock domain identifiers, same size as B (array(natural range <>) of tuple(0 to 1))
     generic (
-            B: boundaries; MULTI_CLK: boolean := false;
-		    CPU_ADDR_STABLE_CYCLES: natural := 2;
-		    LOCAL_DOMAIN: natural := 0
+            LOCAL_DOMAIN: natural := 0
     );
     port (
-        clk : in std_logic;--memory clock (e.g. SDRAM)
+        clk : in std_logic;--FASTEST memory clock (e.g. SDRAM)
         rst : in std_logic;
 		MASTER_CLK_ID: out std_logic_vector(1 downto 0);--identifies the clock controlling the bus (for synchronization purposes)
-        CLK_ARR: in array_of_std_logic(0 to 1) := (others => '0');-- input clocks for peripherals, same size as ranges
         -----
         cpu_addr: in std_logic_vector(31 downto 0);
         cpu_write_data: in std_logic_vector(31 downto 0);
         cpu_rden: in std_logic;
         cpu_wren: in std_logic;
         cpu_ready: out std_logic;
+        cpu_valid: out std_logic;
         cpu_Q: out std_logic_vector(31 downto 0);
         -----
         dma_addr: in std_logic_vector(31 downto 0);
@@ -700,6 +700,7 @@ component arbiter
         dma_rden: in std_logic;
         dma_wren: in std_logic;
         dma_ready: out std_logic;
+        dma_valid: out std_logic;
         dma_Q: out std_logic_vector(31 downto 0);
         -----
         mem_addr: out std_logic_vector(31 downto 0);
@@ -708,6 +709,7 @@ component arbiter
         mem_rden: out std_logic;
         mem_wren: out std_logic;
         mem_ready: in std_logic;
+        mem_valid: in std_logic;
         mem_Q: in std_logic_vector(31 downto 0)
     );
 end component;
@@ -864,7 +866,7 @@ signal ram_ready: std_logic;
 
 signal arbiter_clk_id: std_logic_vector(1 downto 0);-- clock domain identifier for the master that initiates the transaction
 
------signals between cpu and arbiter--------
+-----signals between cpu and arbiter/cdc bridge--------
 signal    cpu_ram_addr: std_logic_vector(31 downto 0);
 signal    cpu_ram_write_data: std_logic_vector(31 downto 0);
 signal    cpu_ram_rden: std_logic;
@@ -878,7 +880,10 @@ signal    dma_ram_write_data: std_logic_vector(31 downto 0);
 signal    dma_ram_rden: std_logic;
 signal    dma_ram_wren: std_logic;
 signal    dma_ram_ready: std_logic;
+signal    dma_ram_valid: std_logic;
 signal    dma_ram_Q: std_logic_vector(31 downto 0);
+signal    dma_ram_domain0_ready: std_logic;
+signal    dma_ram_domain0_valid: std_logic;
 --signals for dma peripheral control
 signal    dma_Q: std_logic_vector(31 downto 0);
 signal    dma_addr: std_logic_vector(31 downto 0);
@@ -1095,17 +1100,21 @@ signal domain0_write_data: std_logic_vector(31 downto 0);
 signal domain0_rden: std_logic;
 signal domain0_wren: std_logic;
 signal domain0_ready: std_logic;
+signal domain0_valid: std_logic;
 signal domain0_Q: std_logic_vector(31 downto 0);
-signal domain0_input: std_logic_vector(31 downto 0);
 signal cpu_domain0_ready: std_logic;
+signal cpu_domain0_valid: std_logic;
 signal cpu_domain0_Q: std_logic_vector(31 downto 0);
+signal dma_domain0_ready: std_logic;
+signal dma_domain0_valid: std_logic;
+signal dma_domain0_dest_Q: std_logic_vector(31 downto 0);
 signal domain1_addr: std_logic_vector(31 downto 0);
 signal domain1_write_data: std_logic_vector(31 downto 0);
 signal domain1_rden: std_logic;
 signal domain1_wren: std_logic;
 signal domain1_ready: std_logic;
+signal domain1_valid: std_logic;
 signal domain1_Q: std_logic_vector(31 downto 0);
-signal domain1_input: std_logic_vector(31 downto 0);
 
 -- CPU request crossing 4 MHz -> 75 MHz.
 signal cpu_domain1_addr: std_logic_vector(31 downto 0);
@@ -1113,7 +1122,11 @@ signal cpu_domain1_write_data: std_logic_vector(31 downto 0);
 signal cpu_domain1_rden: std_logic;
 signal cpu_domain1_wren: std_logic;
 signal cpu_domain1_ready: std_logic;
+signal cpu_domain1_valid: std_logic;
 signal cpu_domain1_Q: std_logic_vector(31 downto 0);
+signal cpu_ram_domain1_ready: std_logic;
+signal cpu_ram_domain1_valid: std_logic;
+signal cpu_ram_domain1_Q: std_logic_vector(31 downto 0);
 signal cpu_domain1_access: std_logic;
 
 -- DMA memory-master request crossing 75 MHz -> 4 MHz.
@@ -1121,10 +1134,10 @@ signal dma_domain0_addr: std_logic_vector(31 downto 0);
 signal dma_domain0_write_data: std_logic_vector(31 downto 0);
 signal dma_domain0_rden: std_logic;
 signal dma_domain0_wren: std_logic;
-signal dma_domain0_ready: std_logic;
 signal dma_domain0_Q: std_logic_vector(31 downto 0);
 signal dma_domain0_access: std_logic;
 signal dma_domain1_ready: std_logic;
+signal dma_domain1_valid: std_logic;
 signal dma_domain1_Q: std_logic_vector(31 downto 0);
 
 signal filter_CLK: std_logic;
@@ -1950,14 +1963,16 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			master_write_data => cpu_ram_write_data,
 			master_rden => cpu_ram_rden and cpu_domain1_access,
 			master_wren => cpu_ram_wren and cpu_domain1_access,
-			master_ready => cpu_domain1_ready,
-			master_Q => cpu_domain1_Q,
+			master_ready => cpu_ram_domain1_ready,
+			master_valid => cpu_ram_domain1_valid,
+			master_Q => cpu_ram_domain1_Q,
 			dest_addr => cpu_domain1_addr,
 			dest_write_data => cpu_domain1_write_data,
 			dest_rden => cpu_domain1_rden,
 			dest_wren => cpu_domain1_wren,
-			dest_ready => domain1_ready,
-			dest_Q => domain1_input
+			dest_ready => cpu_domain1_ready,
+			dest_valid => cpu_domain1_valid,
+			dest_Q => cpu_domain1_Q
 		);
 
 	-- DMA memory master (domain 1) to domain-0 arbiter: 75 MHz -> 4 MHz.
@@ -1971,19 +1986,21 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			master_write_data => dma_ram_write_data,
 			master_rden => dma_ram_rden and dma_domain0_access,
 			master_wren => dma_ram_wren and dma_domain0_access,
-			master_ready => dma_domain0_ready,
+			master_ready => dma_ram_domain0_ready,
+			master_valid => dma_ram_domain0_valid,
 			master_Q => dma_domain0_Q,
 			dest_addr => dma_domain0_addr,
 			dest_write_data => dma_domain0_write_data,
 			dest_rden => dma_domain0_rden,
 			dest_wren => dma_domain0_wren,
-			dest_ready => domain0_ready,
-			dest_Q => domain0_input
+			dest_ready => dma_domain0_ready,
+			dest_valid => dma_domain0_valid,
+			dest_Q => dma_domain0_dest_Q
 		);
 	
 	all_periphs_ready0		<= (19=> program_data_ready, 17=> irq_ctrl_ready, 12=> lcd_ready, 3=> inner_product_ready, others=>'1');--domain0: ram_CLK
 	all_periphs_ready1		<= (20=> sdram_ctrl_ready, 16=> vga_ready, others=>'1');--domain1: sdram_ctrl_clk
-	all_periphs_valid0		<= (others=>'1');--domain1: sdram_ctrl_clk
+	all_periphs_valid0		<= (others=>'1');--domain0: ram_clk
 	all_periphs_valid1		<= (20=> sdram_ctrl_valid, others=>'1');--domain1: sdram_ctrl_clk
 	all_periphs0_output	<= (20=> (others=>'0'), 19=> program_data_Q, 18=> tmp_vector_Q, 17 => irq_ctrl_Q, 16=> (others=>'0'), 15 => dma_Q, 14=> uart_Q, 13=> gp_fp32_to_int32_Q, 12=> lcd_Q, 11 => disp_7seg_DR_out, 10 => converted_out_Q, 9 => filter_ctrl_status_Q, 8 => desired_sync, 7 => filter_out_Q, 6 => i2s_Q,
 									 5 => i2c_Q, 4 => vmac_Q, 3 => inner_product_result,	2 => cache_Q,	1 => filter_xN_Q,	0 => coeffs_mem_Q);
@@ -2052,7 +2069,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RDEN_OUT => all_periphs_rden1,-- combinatorial decoder output
 			WREN_OUT => all_periphs_wren1,-- combinatorial decoder output
 			ready_out => domain1_ready,
-			valid_out => open,
+			valid_out => domain1_valid,
 			MASTER_CLK_ID => (others => '0'), -- CDC is handled before this local decoder
 			data_out => domain1_Q-- combinatorial decoder output
 	);
@@ -2073,7 +2090,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 			RDEN_OUT => all_periphs_rden0,
 			WREN_OUT => all_periphs_wren0,
 			ready_out => domain0_ready,
-			valid_out => open,
+			valid_out => domain0_valid,
 			MASTER_CLK_ID => (others => '0'),
 			data_out => domain0_Q
 		);
@@ -2134,87 +2151,95 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
     dma: dma_controller
 	 generic map (FIFO_LEN => 640)
     port map (
-			--ports for configuration (done by cpu)
-        clk       => ram_clk,
-        reset     => rst,
-		reset_mem => rst_sdram,
-        addr      => dma_addr(1 downto 0),--analyze risk of dma writing to this
-        D         => domain0_write_data,--analyze risk of dma writing to this
-        Q         => dma_Q,
-        wr_en     => dma_wren,
-		  --ports for memory transfers
-        mem_clk   => sdram_ctrl_clk,
-        mem_addr  => dma_ram_addr,
-        mem_data_in  => dma_ram_Q,
-        mem_data_out => dma_ram_write_data,
-		  mem_ready	=> dma_ram_ready,
-		  mem_valid => '1',--TODO: generate inside peripherals and connect here
-        mem_rden  => dma_ram_rden,
-        mem_wren  => dma_ram_wren,
-        irq       => dma_irq,
+		--ports for configuration (done by cpu)
+		clk			=> ram_clk,
+		reset		=> rst,
+		reset_mem	=> rst_sdram,
+		addr		=> dma_addr(1 downto 0),--analyze risk of dma writing to this
+		D			=> domain0_write_data,--analyze risk of dma writing to this
+		Q			=> dma_Q,
+		wr_en		=> dma_wren,
+		--ports for memory transfers
+		mem_clk		=> sdram_ctrl_clk,
+		mem_addr	=> dma_ram_addr,
+		mem_data_in	=> dma_ram_Q,
+		mem_data_out=> dma_ram_write_data,
+		mem_ready	=> dma_ram_ready,
+		mem_valid	=> dma_ram_valid,
+		mem_rden	=> dma_ram_rden,
+		mem_wren	=> dma_ram_wren,
+		irq			=> dma_irq,
 		iack		=> dma_iack
     );
 	 
 	-- Domain-0 arbiter: local CPU plus the DMA request returned by the 75->4 MHz bridge.
 	arbiter_domain0: arbiter
-		generic map (B => ranges, MULTI_CLK => false, CPU_ADDR_STABLE_CYCLES => 4, LOCAL_DOMAIN => 0)
+		generic map (LOCAL_DOMAIN => 0)
 		port map (
 			clk => ram_clk,
 			rst => rst,
 			MASTER_CLK_ID => open,
-			CLK_ARR => (others => '0'),
 			cpu_addr => cpu_ram_addr,
 			cpu_write_data => cpu_ram_write_data,
 			cpu_rden => cpu_ram_rden and not cpu_domain1_access,
 			cpu_wren => cpu_ram_wren and not cpu_domain1_access,
 			cpu_ready => cpu_domain0_ready,
+			cpu_valid => cpu_domain0_valid,
 			cpu_Q => cpu_domain0_Q,
 			dma_addr => dma_domain0_addr,
 			dma_write_data => dma_domain0_write_data,
 			dma_rden => dma_domain0_rden,
 			dma_wren => dma_domain0_wren,
-			dma_ready => open,
-			dma_Q => domain0_input,
+			dma_ready => dma_domain0_ready,
+			dma_valid => dma_domain0_valid,
+			dma_Q => dma_domain0_dest_Q,
 			mem_addr => domain0_addr,
 			mem_write_data => domain0_write_data,
 			mem_rden => domain0_rden,
 			mem_wren => domain0_wren,
 			mem_ready => domain0_ready,
+			mem_valid => domain0_valid,
 			mem_Q => domain0_Q
 		);
 
 	-- Domain-1 arbiter: local DMA memory master plus the CPU request from the 4->75 MHz bridge.
 	arbiter_domain1: arbiter
-		generic map (B => ranges, MULTI_CLK => false, CPU_ADDR_STABLE_CYCLES => 4, LOCAL_DOMAIN => 1)
+		generic map (LOCAL_DOMAIN => 1)
 		port map (
 			clk => sdram_ctrl_clk,
 			rst => rst,
 			MASTER_CLK_ID => open,
-			CLK_ARR => (others => '0'),
 			cpu_addr => cpu_domain1_addr,
 			cpu_write_data => cpu_domain1_write_data,
 			cpu_rden => cpu_domain1_rden,
 			cpu_wren => cpu_domain1_wren,
-			cpu_ready => open,
-			cpu_Q => domain1_input,
+			cpu_ready => cpu_domain1_ready,
+			cpu_valid => cpu_domain1_valid,
+			cpu_Q => cpu_domain1_Q,
 			dma_addr => dma_ram_addr,
 			dma_write_data => dma_ram_write_data,
 			dma_rden => dma_ram_rden and not dma_domain0_access,
 			dma_wren => dma_ram_wren and not dma_domain0_access,
 			dma_ready => dma_domain1_ready,
+			dma_valid => dma_domain1_valid,
 			dma_Q => dma_domain1_Q,
 			mem_addr => domain1_addr,
 			mem_write_data => domain1_write_data,
 			mem_rden => domain1_rden,
 			mem_wren => domain1_wren,
 			mem_ready => domain1_ready,
+			mem_valid => domain1_valid,
 			mem_Q => domain1_Q
 		);
 
 	-- Return completion/data to the original masters in their own clocks.
-	cpu_ram_ready <= cpu_domain1_ready when cpu_domain1_access = '1' else cpu_domain0_ready;
-	cpu_ram_Q <= cpu_domain1_Q when cpu_domain1_access = '1' else cpu_domain0_Q;
-	dma_ram_ready <= dma_domain0_ready when dma_domain0_access = '1' else dma_domain1_ready;
+	-- Reads wait for returned data; bridged writes complete when the bridge accepts the request.
+	cpu_ram_ready <= cpu_ram_domain1_valid when cpu_domain1_access = '1' and cpu_ram_rden = '1' else
+	                 cpu_ram_domain1_ready when cpu_domain1_access = '1' else
+	                 cpu_domain0_ready and cpu_domain0_valid;
+	cpu_ram_Q <= cpu_ram_domain1_Q when cpu_domain1_access = '1' else cpu_domain0_Q;
+	dma_ram_ready <= dma_ram_domain0_ready when dma_domain0_access = '1' else dma_domain1_ready;
+	dma_ram_valid <= dma_ram_domain0_valid when dma_domain0_access = '1' else dma_domain1_valid;
 	dma_ram_Q <= dma_domain0_Q when dma_domain0_access = '1' else dma_domain1_Q;
 	 
 	--patch replacing deffective sync chain
