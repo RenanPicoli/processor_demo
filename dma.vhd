@@ -217,13 +217,13 @@ begin
             irq       <= '0';
         elsif rising_edge(mem_clk) then
 				
-            case state is
-                when "00" =>  -- IDLE
-                    if CR(0) = '1' then
-                        state <= "01"; -- Inicia leitura
-                    end if;
+			case state is
+				when "00" =>  -- IDLE
+					if CR(0) = '1' then
+						state <= "01"; -- Inicia leitura
+					end if;
 
-                when "01" =>  -- READING
+				when "01" =>  -- READING
 					-- chega uma resposta (mem_valid='1') que estava sendo aguardada (pending_transfers_empty='0')
 					-- Armazena o dado somente quando a memória confirma que ele é válido;
 					-- o índice vem da FIFO de requisições, não do fifo_head atual.
