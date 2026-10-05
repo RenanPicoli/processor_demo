@@ -88,13 +88,13 @@ begin
     -- Accept one request at a time from the master. master_request_held
     -- prevents re-enqueueing while the master keeps its enable asserted.
     request_fifo_data_in <= master_rden & master_addr & master_write_data;
-    request_fifo_wren <= '1' when ((master_transaction_busy = '0' and
-                                  master_request_held = '0' and
-                                  master_rden = '1' and master_ready='0') or (master_wren = '1' and master_ready = '0')) and
-                                  request_fifo_full = '0' else '0';
+    request_fifo_wren <= '1' when master_transaction_busy = '0' and
+                                    (master_rden = '1' or master_wren = '1') and
+                                    master_request_held = '0' and
+                                    request_fifo_full = '0' else '0';
 
-    -- This bridge selects the standard FIFO convention: DATA_OUT is already
-    -- valid for the current entry, and POP advances to the next entry.
+    -- This bridge uses a synchronous FIFO: DATA_OUT is valid after POP,
+	 -- and POP advances pointer to current entry.
     request_fifo_pop <= '1' when dest_transaction_busy = '0' and
                                  request_fifo_empty = '0' else '0';
 
@@ -105,8 +105,8 @@ begin
                                    dest_valid = '1' and
                                    response_fifo_full = '0' else '0';
 
-    -- The response data is captured on the same master-clock edge that pops
-    -- the standard FIFO entry.
+    -- response fifo also uses a synchronous FIFO: DATA_OUT is valid after POP,
+	 -- and POP advances pointer to current entry.
     -- the master is always ready to read
     -- if it cant issue new commands until response arrives, it can check for ready='1' and valid='1' before issuing a new command
     response_fifo_pop <= '1' when -- master_waiting_read = '1' and
@@ -116,6 +116,7 @@ begin
     request_fifo : dc_fifo
         generic map (
             N => REQUEST_WIDTH,
+            USE_RAM_BLOCKS => true,
             REQUESTED_FIFO_DEPTH => FIFO_DEPTH,
             LEGACY_READ_POINTER => false,
 				reserve => 19
@@ -137,6 +138,7 @@ begin
     response_fifo : dc_fifo
         generic map (
             N => 32,
+            USE_RAM_BLOCKS => true,
             REQUESTED_FIFO_DEPTH => FIFO_DEPTH,
             LEGACY_READ_POINTER => false,
 				reserve => 19
@@ -166,19 +168,20 @@ begin
             -- master_waiting_read <= '0';
             master_ready <= '0';
             master_valid <= '0';
-            master_Q <= (others => '0');
         elsif rising_edge(master_clk) then
-            master_ready <= '0';
+            -- master_ready <= '0';
             master_valid <= '0';
 
             -- A pending read keeps the master blocked until its response is
             -- removed from the response FIFO.
-            if (master_rden = '0' or (master_rden='1' and master_ready='1')) and master_wren = '0' then
+            if (master_rden='1' and master_valid='1') or (master_wren = '1' and master_ready = '1') then
                 master_request_held <= '0';
                 -- if master_waiting_read = '0' then
                 --     master_transaction_busy <= '0';
                 -- end if;
-            elsif request_fifo_wren = '1' and master_ready = '0' then -- master_request_held = '0' and request_fifo_wren = '1' then
+            end if;
+
+            if request_fifo_wren = '1' and master_ready = '0' then -- master_request_held = '0' and request_fifo_wren = '1' then
                 master_request_held <= '1';
                 master_transaction_busy <= '1';
                 -- master_waiting_read <= master_rden and not master_valid;
@@ -188,11 +191,14 @@ begin
                 -- end if;
             -- elsif request_fifo_wren = '0' then
             --     master_ready <= '0';
+            elsif master_request_held = '1' and master_transaction_busy = '0' then
+                master_ready <= '0';
+            elsif master_wren='1' and master_ready = '1' then
+                master_transaction_busy <= '0';
             end if;
 
             if response_fifo_pop = '1' then
                 -- the returned data is valid.
-                master_Q <= response_fifo_data_out;
                 master_valid <= '1';
                 -- master_waiting_read <= '0';
                 master_transaction_busy <= '0';
@@ -201,17 +207,7 @@ begin
             end if;
         end if;
     end process;
-
-    -- master_ready_proc: process(request_fifo_wren, rst)
-    -- begin
-    --     if rst ='1' then
-    --         master_ready <='0';
-    --     elsif request_fifo_wren='1' then
-    --         master_ready <='1';
-    --     else
-    --         master_ready <='0';
-    --     end if;
-    -- end process;
+    master_Q <= response_fifo_data_out;
 
     -- Destination-side state machine:
     -- it pops requests from the request FIFO, captures the associated fields,
@@ -220,17 +216,9 @@ begin
     begin
         if rst = '1' then
             dest_transaction_busy <= '0';
-            dest_request_is_read <= '0';
-            dest_request_addr <= (others => '0');
-            dest_request_data <= (others => '0');
         elsif rising_edge(dest_clk) then
-            -- With the standard FIFO convention, the current DATA_OUT can be
-            -- captured on the same destination-clock edge as request POP.
             if request_fifo_pop = '1' then
                 dest_transaction_busy <= '1';
-                dest_request_is_read <= request_fifo_data_out(64);
-                dest_request_addr <= request_fifo_data_out(63 downto 32);
-                dest_request_data <= request_fifo_data_out(31 downto 0);
             elsif dest_transaction_busy = '1' then
                 -- Writes finish after presentation to the destination.
                 -- Reads stay active until their response is enqueued.
@@ -243,6 +231,11 @@ begin
         end if;
     end process;
 
+    --since the request fifo is synchronous to the destination clock,
+    --the request fields can be captured directly from its output AFTER request POP.
+    dest_request_is_read <= request_fifo_data_out(64);
+    dest_request_addr <= request_fifo_data_out(63 downto 32);
+    dest_request_data <= request_fifo_data_out(31 downto 0);
     dest_addr <= dest_request_addr;
     dest_write_data <= dest_request_data;
     -- Keep the destination request stable while the peripheral processes it.
