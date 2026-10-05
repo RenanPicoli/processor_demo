@@ -90,13 +90,22 @@ mem_wren <= mem_wren_reg;
 -- o arbiter envia ready='1' para o master que esta requisitando poder executar o próximo acesso
 -- se o periferico nao aceitou o comando nesse ciclo,
 -- o arbiter envia ready='0' para o master que esta requisitando NÃO atualizar o barramento de controle/dados
-dma_Q <= mem_Q when dma_access_granted='1' else (others => '0');
-dma_ready <= mem_ready when dma_access_granted='1' else '0';
-dma_valid <= mem_valid when dma_access_granted='1' else '0';
-
-cpu_ready <= mem_ready when dma_access_granted='0' else '0';
-cpu_valid <= mem_valid when dma_access_granted='0' else '0';
-cpu_Q <= mem_Q when dma_access_granted='0' else (others => '0');
+-- The "ready" signal is only forwarded when there is a registered request for the selected master and that request remains active.
+-- I also aligned the response selection with the registered bus owner.
+-- Thus, the processor waits for the address to be presented before receiving the acknowledge.
+dma_Q <= mem_Q when dma_access_granted_reg='1' else (others => '0');
+dma_ready <= mem_ready when dma_access_granted_reg='1' and
+                           ((mem_rden_reg='1' and dma_rden='1') or
+                            (mem_wren_reg='1' and dma_wren='1')) else '0';
+dma_valid <= mem_valid when dma_access_granted_reg='1' else '0';
+-- The "ready" signal is only forwarded when there is a registered request for the selected master and that request remains active.
+-- I also aligned the response selection with the registered bus owner.
+-- Thus, the processor waits for the address to be presented before receiving the acknowledge.
+cpu_ready <= mem_ready when dma_access_granted_reg='0' and
+                           ((mem_rden_reg='1' and cpu_rden='1') or
+                            (mem_wren_reg='1' and cpu_wren='1')) else '0';
+cpu_valid <= mem_valid when dma_access_granted_reg='0' else '0';
+cpu_Q <= mem_Q when dma_access_granted_reg='0' else (others => '0');
 
 arb_PROC : process(clk, rst)
 begin
