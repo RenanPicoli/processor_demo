@@ -15,6 +15,7 @@ architecture sim of tb_cdc_transaction_bridge is
     signal master_rden : std_logic := '0';
     signal master_wren : std_logic := '0';
     signal master_ready : std_logic;
+    signal master_valid : std_logic;
     signal master_Q : std_logic_vector(31 downto 0);
 
     signal dest_addr : std_logic_vector(31 downto 0);
@@ -22,6 +23,7 @@ architecture sim of tb_cdc_transaction_bridge is
     signal dest_rden : std_logic;
     signal dest_wren : std_logic;
     signal dest_ready : std_logic := '0';
+    signal dest_valid : std_logic;
     signal dest_Q : std_logic_vector(31 downto 0) := (others => '0');
     signal read_delay : natural range 0 to 2 := 0;
     signal write_count : natural := 0;
@@ -31,7 +33,7 @@ begin
     dest_clk <= not dest_clk after 25 ns;
 
     dut : entity work.cdc_transaction_bridge
-        generic map (FIFO_DEPTH => 4)
+        generic map (FIFO_DEPTH => 64)
         port map (
             master_clk => master_clk,
             dest_clk => dest_clk,
@@ -41,28 +43,34 @@ begin
             master_rden => master_rden,
             master_wren => master_wren,
             master_ready => master_ready,
+            master_valid => master_valid,
             master_Q => master_Q,
             dest_addr => dest_addr,
             dest_write_data => dest_write_data,
             dest_rden => dest_rden,
             dest_wren => dest_wren,
             dest_ready => dest_ready,
+            dest_valid => dest_valid,
             dest_Q => dest_Q
         );
 
-    dest_model : process(dest_clk)
+    dest_model : process(dest_wren,dest_ready,dest_clk)
     begin
-        if rising_edge(dest_clk) then
+        if dest_wren = '1' then
+            dest_ready <= '1'; -- ready to accept new commands
+        elsif rising_edge(dest_clk) then
             dest_ready <= '0';
+            dest_valid <= '0';
             if dest_rden = '1' then
                 if read_delay = 2 then
                     dest_Q <= x"CAFE_BABE";
-                    dest_ready <= '1';
+                    dest_valid <= '1';
+                    dest_ready <= '1';--ready to accept new commands
                     read_delay <= 0;
                 else
                     read_delay <= read_delay + 1;
                 end if;
-            elsif dest_wren = '1' then
+            elsif dest_wren = '1' and dest_ready = '1' then
                 assert dest_addr = x"0000_0040" or dest_addr = x"0000_0041"
                     report "endereco de escrita incorreto" severity failure;
                 assert dest_write_data = x"1234_5678" or dest_write_data = x"CAFE_BABE"
@@ -79,7 +87,7 @@ begin
 
         master_addr <= x"0000_0080";
         master_rden <= '1';
-        wait until master_ready='1' and rising_edge(master_clk);
+        wait until master_ready='1' and master_valid='1' and rising_edge(master_clk);
         -- assert master_ready = '0'
         --     report "leitura foi liberada antes da resposta" severity failure;
 
