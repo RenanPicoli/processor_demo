@@ -1,0 +1,32 @@
+{
+  "head": {
+    "text": "Controlador de interrupcoes - atendimento de uma IRQ (L >= 1)"
+  },
+  "signal": [
+    { "name": "CLK", "wave": "01010101010101010101" },
+    { "name": "RST (ativo alto)", "wave": "11000000000000000000" },
+    {},
+    { "name": "IRQ_IN[0]", "wave": "00111111000000000000" },
+    { "name": "IRQ_IN_prev[0]", "wave": "00011111100000000000" },
+    { "name": "IRQ_pend[0]", "wave": "00011111100000000000" },
+    { "name": "IRQ_OUT (OR dos pendentes)", "wave": "00011111100000000000" },
+    {},
+    { "name": "RDEN (leitura do pendente)", "wave": "00000110000000000000" },
+    { "name": "WREN (limpa IRQ_pend[0])", "wave": "00000000100000000000" },
+    { "name": "ADDR", "wave": "xxxxx=xx=xxxxxxxxxxx", "data": ["00: leitura", "00: escrita"] },
+    { "name": "D[0]", "wave": "xxxxxxxx=xxxxxxxxxxx", "data": ["0: limpa"] },
+    { "name": "IRQ_pend_prev[0]", "wave": "00000111110000000000" },
+    {},
+    { "name": "IACK_pend[0]", "wave": "00000000001111000000" },
+    { "name": "IACK_IN (CPU)", "wave": "00000000001111000000" },
+    { "name": "IACK_OUT[0] (periferico)", "wave": "00000000001111000000" },
+    { "name": "IACK_OUT_prev[0]", "wave": "00000000000111100000" },
+    { "name": "IACK_finished[0]", "wave": "00000000000000111111" }
+  ],
+  "foot": {
+    "text": "Captura IRQ_IN na borda de subida de CLK; software le e limpa o pendente (ADDR=00, D[0]=0); a borda de descida seguinte arma IACK_pend. IACK_OUT = IACK_IN AND IACK_pend. A retirada de IACK_OUT e detectada na borda de descida e marca IACK_finished."
+  },
+  "config": {
+    "hscale": 1
+  }
+}
