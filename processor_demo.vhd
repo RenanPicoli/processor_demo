@@ -1814,14 +1814,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 				Q => tmp_vector_Q
 		);
 		
-	process(rst,ram_clk,gp_fp32_to_int32_wren,domain0_addr)
-	begin
-		if(rst='1')then
-			fp_from_proc <= (others=>'0');
-		elsif(rising_edge(ram_clk) and gp_fp32_to_int32_wren='1' and domain0_addr(0)='0')then
-			fp_from_proc <= domain0_write_data;
-		end if;
-	end process;
+	-- process(rst,ram_clk,gp_fp32_to_int32_wren,domain0_addr)
+	-- begin
+	-- 	if(rst='1')then
+	-- 		fp_from_proc <= (others=>'0');
+	-- 	elsif(rising_edge(ram_clk) and gp_fp32_to_int32_wren='1' and domain0_addr(0)='0')then
+	-- 		fp_from_proc <= domain0_write_data;
+	-- 	end if;
+	-- end process;
+	fp_from_proc <= domain0_write_data;
 		
 	--general purpose fp32 to int32
 	gp_fp32_to_int32: fp32_to_integer
@@ -1829,14 +1830,15 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	port map (fp_in => fp_from_proc,
 				 output=> fp32_to_int32);
 		
-	process(rst,ram_clk)
-	begin
-		if(rst='1')then
-			fp32_to_int32_Q <= (others=>'0');
-		elsif(falling_edge(ram_clk))then
-			fp32_to_int32_Q <= fp32_to_int32;
-		end if;
-	end process;
+	-- process(rst,ram_clk)
+	-- begin
+	-- 	if(rst='1')then
+	-- 		fp32_to_int32_Q <= (others=>'0');
+	-- 	elsif(falling_edge(ram_clk))then
+	-- 		fp32_to_int32_Q <= fp32_to_int32;
+	-- 	end if;
+	-- end process;
+	fp32_to_int32_Q <= fp32_to_int32;
 	gp_fp32_to_int32_Q <= fp_from_proc when domain0_addr(0)='0' else fp32_to_int32_Q;
 	
 	--fp32 to int dedicated to audio (converts filter output to I2S format)
