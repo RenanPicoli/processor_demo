@@ -81,7 +81,7 @@ begin
 		elsif rising_edge(WCLK) then
 			-- Do not overwrite unread data when the synchronized FIFO is full.
 			if WREN='1' and FULL='0' then
-			write_addr <= write_addr + '1';
+				write_addr <= write_addr + '1';
 			end if;
 		end if;
 	end process;
@@ -176,13 +176,10 @@ begin
 	
 	process(RST,DATA_IN,WCLK,WREN,FULL,write_addr)
 	begin
-		if(RST='1')then
-			--reset fifo
-			fifo <= (others=>(others=>'0'));
-		elsif rising_edge(WCLK) then
+		if rising_edge(WCLK) then
 			-- Store data only for an accepted write; a full FIFO drops the
 			-- attempted write and reports it through OVF below.
-			if WREN='1' then -- and FULL='0' then
+			if WREN='1' and FULL='0' then
 				fifo(to_integer(unsigned(write_addr))) <= DATA_IN;
 			end if;
 		end if;
