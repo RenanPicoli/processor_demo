@@ -70,7 +70,6 @@ architecture rtl of cdc_transaction_bridge is
     signal response_fifo_empty : std_logic;
     signal response_fifo_ovf : std_logic;
     signal response_fifo_pop_delayed : std_logic;
-    signal master_response_data : std_logic_vector(31 downto 0);
 
     signal master_transaction_busy : std_logic;--doing acess this clock cycle
     signal master_request_held : std_logic;
@@ -107,8 +106,8 @@ begin
                                    dest_valid = '1' and
                                    response_fifo_full = '0' else '0';
 
-    -- The FIFO registers DATA_OUT on POP. Keep POP separate from the
-    -- registered master response so data can be captured before valid is raised.
+    -- DATA_OUT is registered by the FIFO on POP. Delay valid so the FIFO's
+    -- output is stable before the master consumes the response.
     response_fifo_pop <= '1' when response_fifo_empty = '0' else '0';
 
     -- Request path: master clock to destination clock.
@@ -166,16 +165,12 @@ begin
             master_request_held <= '0';
             master_read_held <= '0';
             response_fifo_pop_delayed <= '0';
-            -- master_response_data <= (others => '0');
             master_ready <= '0';
             master_valid <= '0';
         elsif rising_edge(master_clk) then
             -- master_ready <= '0';
             response_fifo_pop_delayed <= response_fifo_pop;
             master_valid <= response_fifo_pop_delayed;
-            -- if response_fifo_pop_delayed = '1' then
-            --     master_response_data <= response_fifo_data_out;
-            -- end if;
 
             if master_rden = '0' then
                 master_read_held <= '0';
@@ -205,7 +200,6 @@ begin
             end if;
         end if;
     end process;
-    -- master_Q <= master_response_data;
     master_Q <= response_fifo_data_out;
 
     -- Destination-side state machine:
