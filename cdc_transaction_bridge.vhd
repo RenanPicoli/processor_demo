@@ -69,10 +69,12 @@ architecture rtl of cdc_transaction_bridge is
     signal response_fifo_full : std_logic;
     signal response_fifo_empty : std_logic;
     signal response_fifo_ovf : std_logic;
+    signal response_fifo_pop_delayed : std_logic;
+    signal master_response_data : std_logic_vector(31 downto 0);
 
     signal master_transaction_busy : std_logic;--doing acess this clock cycle
     signal master_request_held : std_logic;
-    -- signal master_waiting_read : std_logic;
+    signal master_read_held : std_logic;
 
     signal dest_transaction_busy : std_logic;--doing acess this clock cycle
     signal dest_request_is_read : std_logic;
@@ -85,12 +87,12 @@ begin
     -- domain. The request FIFO carries both the address and the read/write flag,
     -- while the response FIFO carries only the returned data word.
 
-    -- Accept one request at a time from the master. master_request_held
-    -- prevents re-enqueueing while the master keeps its enable asserted.
+    -- A read stays held until master_rden is released, even after its response.
     request_fifo_data_in <= master_rden & master_addr & master_write_data;
     request_fifo_wren <= '1' when master_transaction_busy = '0' and
                                     (master_rden = '1' or master_wren = '1') and
                                     master_request_held = '0' and
+                                    (master_rden = '0' or master_read_held = '0') and
                                     request_fifo_full = '0' else '0';
 
     -- This bridge uses a synchronous FIFO: DATA_OUT is valid after POP,
@@ -105,12 +107,9 @@ begin
                                    dest_valid = '1' and
                                    response_fifo_full = '0' else '0';
 
-    -- response fifo also uses a synchronous FIFO: DATA_OUT is valid after POP,
-	 -- and POP advances pointer to current entry.
-    -- the master is always ready to read
-    -- if it cant issue new commands until response arrives, it can check for ready='1' and valid='1' before issuing a new command
-    response_fifo_pop <= '1' when -- master_waiting_read = '1' and
-                                  response_fifo_empty = '0' else '0';
+    -- The FIFO registers DATA_OUT on POP. Keep POP separate from the
+    -- registered master response so data can be captured before valid is raised.
+    response_fifo_pop <= '1' when response_fifo_empty = '0' else '0';
 
     -- Request path: master clock to destination clock.
     request_fifo : dc_fifo
@@ -165,32 +164,36 @@ begin
         if rst = '1' then
             master_transaction_busy <= '0';
             master_request_held <= '0';
-            -- master_waiting_read <= '0';
+            master_read_held <= '0';
+            response_fifo_pop_delayed <= '0';
+            -- master_response_data <= (others => '0');
             master_ready <= '0';
             master_valid <= '0';
         elsif rising_edge(master_clk) then
             -- master_ready <= '0';
-            master_valid <= '0';
+            response_fifo_pop_delayed <= response_fifo_pop;
+            master_valid <= response_fifo_pop_delayed;
+            -- if response_fifo_pop_delayed = '1' then
+            --     master_response_data <= response_fifo_data_out;
+            -- end if;
+
+            if master_rden = '0' then
+                master_read_held <= '0';
+            elsif request_fifo_wren = '1' then
+                master_read_held <= '1';
+            end if;
 
             -- A pending read keeps the master blocked until its response is
             -- removed from the response FIFO.
-            if (master_rden='1' and master_valid='1') or (master_wren = '1' and master_ready = '1') then
+            if (master_rden = '1' and master_valid = '1') or
+               (master_wren = '1' and master_ready = '1') then
                 master_request_held <= '0';
-                -- if master_waiting_read = '0' then
-                --     master_transaction_busy <= '0';
-                -- end if;
             end if;
 
             if request_fifo_wren = '1' and master_ready = '0' then -- master_request_held = '0' and request_fifo_wren = '1' then
                 master_request_held <= '1';
                 master_transaction_busy <= '1';
-                -- master_waiting_read <= master_rden and not master_valid;
                 master_ready <= '1';
-                -- if master_wren = '1' then
-                --     master_ready <= '1';
-                -- end if;
-            -- elsif request_fifo_wren = '0' then
-            --     master_ready <= '0';
             elsif master_request_held = '1' and master_transaction_busy = '0' then
                 master_ready <= '0';
             elsif master_wren='1' and master_ready = '1' then
@@ -198,15 +201,11 @@ begin
             end if;
 
             if response_fifo_pop = '1' then
-                -- the returned data is valid.
-                master_valid <= '1';
-                -- master_waiting_read <= '0';
                 master_transaction_busy <= '0';
-            else
-                master_valid <= '0';
             end if;
         end if;
     end process;
+    -- master_Q <= master_response_data;
     master_Q <= response_fifo_data_out;
 
     -- Destination-side state machine:
