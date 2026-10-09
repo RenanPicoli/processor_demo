@@ -213,11 +213,7 @@ begin
             if request_fifo_pop = '1' then
                 dest_transaction_busy <= '1';
             elsif dest_transaction_busy = '1' then
-                -- Writes finish after presentation to the destination.
-                -- Reads stay active until their response is enqueued.
-                if dest_request_is_read = '0' then
-                    dest_transaction_busy <= '0';
-                elsif dest_ready = '1' and response_fifo_full = '0' then
+                if dest_ready = '1' and not (response_fifo_full = '1' and dest_request_is_read = '1') then
                     dest_transaction_busy <= '0';--deasserts dest_rden/dest_wren, and the next request can be popped from the FIFO
                 end if;
             end if;
