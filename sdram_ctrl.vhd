@@ -44,12 +44,13 @@ architecture behavior of sdram_controller is
 	
 	--operation states
 	type op_state_t is (
-        IDLE, START_READ, READING, WRITING,
+        IDLE, START_READ, READING, READ_DRAIN, WRITING,
         BURST_STOP, PRECHARGE,
         ACTIVATE, PALL, AR
     );
 	signal op_state, nxt_op_state: op_state_t;
 	signal read_count      : integer range 0 to 2 := 0;
+	signal read_drain_count: integer range 0 to CAS_LATENCY := 0;
 	signal precharge_count : integer range 0 to 2 := 0;
 	signal act_count       : integer range 0 to 2 := 0;
 	signal ref_count_op: natural;--conta ciclos em NOP após AUTO REFRESH
@@ -62,7 +63,7 @@ begin
 	DQM <= "0000";--all bytes are enabled
 	sdram_clk_out <= sdram_clk_in;--this clock must lead clk by around 3ns
 	DQ <= D when wren='1' else (others=>'Z');
-	Q <= DQ when rden='1' else (others=>'0');
+	Q <= DQ when rden='1' or op_state=READING or op_state=READ_DRAIN else (others=>'0');
 	
 	----------------intialization FSM--------------------------
 	process(clk, rst, PWRUP_counter, tRP_counter, ref_counter, init_state)
@@ -137,7 +138,7 @@ begin
 	end process;
 	
 	------------operation FSM---------
-	process(rst, clk, op_state, init_state, RDEN, WREN, ADDR_VALID, read_count, precharge_count, act_count, ref_count_op)
+	process(rst, clk, op_state, init_state, RDEN, WREN, ADDR_VALID, read_count, read_drain_count, precharge_count, act_count, ref_count_op)
 		 begin
 			nxt_op_state <= op_state;--default value so we don't get a latch
 			if(rst='1')then
@@ -165,11 +166,16 @@ begin
 
 					when READING =>
 						if RDEN = '0' then--reading finished (cpu/dma already latched the data)
-							nxt_op_state <= IDLE;
+							nxt_op_state <= READ_DRAIN;
 						elsif ADDR_VALID = '0' then--"miss": bank or row changed during burst
 							nxt_op_state <= BURST_STOP;
 						end if;
-						
+
+					when READ_DRAIN =>
+						if read_drain_count + 1 >= CAS_LATENCY then
+							nxt_op_state <= IDLE;
+						end if;
+
 					when WRITING =>
 						if WREN = '0' then--write finished (cpu/dma already latched the data)
 							nxt_op_state <= IDLE;
@@ -211,9 +217,23 @@ begin
 						nxt_op_state <= IDLE;
 
 			end case;
-			--in case of approximating the next auto refresh, overrides the state determined by case statement
-			if(ref_count_op = 770)then --last cycle before end of 64ms/8192
-					nxt_op_state <= PALL;
+			-- Stop issuing reads at the refresh boundary, but let the CAS pipeline
+			-- drain before precharging so every accepted read still gets a response.
+			if ref_count_op >= 770 then
+				case op_state is
+					when START_READ | READING =>
+						nxt_op_state <= READ_DRAIN;
+					when READ_DRAIN =>
+						if read_drain_count + 1 >= CAS_LATENCY then
+							nxt_op_state <= PALL;
+						else
+							nxt_op_state <= READ_DRAIN;
+						end if;
+					when PALL | AR =>
+						null;
+					when others =>
+						nxt_op_state <= PALL;
+				end case;
 			end if;
 		end if;
 	end process;
@@ -222,6 +242,7 @@ begin
 	begin
 		if(rst='1')then
 			 read_count <= 0;
+			 read_drain_count <= 0;
 			 act_count <= 0;
 			 precharge_count <= 0;
 			 ref_count_op <= 0;
@@ -236,6 +257,7 @@ begin
 
 				when IDLE =>
 					 read_count <= 0;
+					 read_drain_count <= 0;
 					 act_count <= 0;
 					 precharge_count <= 0;
 
@@ -248,8 +270,17 @@ begin
 
 				when READING =>
 					read_count <= read_count;
+					read_drain_count <= 0;
 					act_count  <= act_count;
 					precharge_count <= precharge_count;
+
+				when READ_DRAIN =>
+					if read_drain_count < CAS_LATENCY then
+						read_drain_count <= read_drain_count + 1;
+					end if;
+					read_count <= 0;
+					act_count <= 0;
+					precharge_count <= 0;
 					
 				when WRITING =>
 					 read_count <= 0;
@@ -348,14 +379,20 @@ begin
 					WE_N	<= '1';
 				end if;
 			elsif op_state = READING then--continue reading (no precharge)
-					-- READ column without precharge
-					RAS_N	<= '1';
-					CAS_N	<= '0';
-					WE_N	<= '1';
-					A(10) <= '0';
-					--bank and column address
-					BA		<= addr(24 downto 23);
-					A(9 downto 0)<= addr(9 downto 0);
+					if RDEN = '1' then
+						-- READ column without precharge
+						RAS_N	<= '1';
+						CAS_N	<= '0';
+						WE_N	<= '1';
+						A(10) <= '0';
+						--bank and column address
+						BA		<= addr(24 downto 23);
+						A(9 downto 0)<= addr(9 downto 0);
+					else
+						RAS_N	<= '1';
+						CAS_N	<= '1';
+						WE_N	<= '1';
+					end if;
 			elsif op_state = WRITING then--write (no precharge)
 					RAS_N	<= '1';
 					CAS_N	<= '0';
@@ -431,6 +468,9 @@ begin
 				ready <= '1';
 			when READING | WRITING =>
 				ready <= '1';
+				valid <= '1';
+			when READ_DRAIN =>
+				ready <= '0';
 				valid <= '1';
 			when BURST_STOP =>
 				ready <= '0';
