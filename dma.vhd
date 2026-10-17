@@ -70,9 +70,13 @@ architecture behavior of dma_controller is
     -- CR agora tem 32 bits com SINC e DINC
     signal CR        : std_logic_vector(31 downto 0) := (others => '0');
 
-    -- FIFO para armazenar dados temporariamente
+    -- Armazenamentos separados mantêm a leitura síncrona inferível como M9K,
+    -- sem forçar o caminho assíncrono opcional a usar um bloco de RAM.
     type fifo_type is array (0 to FIFO_LEN-1) of std_logic_vector(31 downto 0);
-    signal fifo      : fifo_type := (others => (others => '0'));
+    signal fifo_ram  : fifo_type := (others => (others => '0'));
+    signal fifo_regs : fifo_type := (others => (others => '0'));
+    attribute ramstyle : string;
+    attribute ramstyle of fifo_ram : signal is "M9K";
     signal fifo_head : integer range 0 to FIFO_LEN-1 := 0;-- ! posição na fifo para armazenar o dado sendo pedido
 	-- Índice associado à resposta mem_valid atualmente apresentada pela memória.
 	signal fifo_head_pending: integer range 0 to FIFO_LEN-1 := 0;--posição na fifo para armazenar o dado chegando
@@ -83,7 +87,8 @@ architecture behavior of dma_controller is
 	signal pending_transfers_ovf: std_logic;
 	signal pending_transfers_wren: std_logic;
 	signal pending_transfers_pop: std_logic;
-	-- Número de requisições aceitas que ainda não produziram mem_valid.
+	-- Número de leituras aceitas que ainda aguardam resposta; limita novas
+	-- requisições sem confundir respostas atrasadas com palavras já recebidas.
 	signal pending_count: integer range 0 to FIFO_LEN := 0;
     signal fifo_tail : integer range 0 to FIFO_LEN-1 := 0;
     signal fifo_count: integer range 0 to FIFO_LEN := 0; -- Quantos dados há na fila. Capacidade da FIFO = FIFO_LEN palavras
@@ -93,7 +98,6 @@ architecture behavior of dma_controller is
 	signal mem_addr_reg: std_logic_vector(31 downto 0);--for writes if data fifo is implemented with RAM blocks, mem_addr must be delayed to match the data output from the RAM block
 	signal mem_wren_comb: std_logic;--! for writes if data fifo is implemented with RAM blocks, mem_wren must be delayed to match the data output from the RAM block
 	signal mem_wren_reg: std_logic;--for writes if data fifo is implemented with RAM blocks, mem_wren must be delayed to match the data output from the RAM block
-
     signal state     : std_logic_vector(1 downto 0) := "00"; -- 00 = Idle, 01 = Reading, 10 = Writing
 	 
 	--  signal mem_valid : std_logic;--indicates mem_data_in is valid (still valid after CAS latency clocks after mem_ready is deasserted)
@@ -105,7 +109,6 @@ architecture behavior of dma_controller is
 	 attribute preserve of count : signal is true;
 	 attribute preserve of received_count : signal is true;
 	 attribute preserve of CR : signal is true;
-	 attribute preserve of fifO : signal is true;
 	 attribute preserve of fifo_head : signal is true;
 	 attribute preserve of fifo_head_pending : signal is true;
 	 attribute preserve of fifo_tail : signal is true;
@@ -116,14 +119,41 @@ architecture behavior of dma_controller is
 	--  attribute preserve of mem_valid : signal is true;
 begin
 
+    -- Um único processo de escrita síncrona e um único endereço de leitura
+    -- registrado permitem que Quartus implemente a FIFO em bloco M9K.
+    fifo_ram_write: if USE_RAM_BLOCKS generate
+        process (mem_clk)
+        begin
+            if rising_edge(mem_clk) then
+                if reset_mem = '0' and state = "01" and mem_valid = '1' and
+                   pending_transfers_empty = '0' then
+                    fifo_ram(fifo_head_pending) <= mem_data_in;
+                end if;
+            end if;
+        end process;
+    end generate;
+
+    fifo_register_write: if not USE_RAM_BLOCKS generate
+        process (mem_clk)
+        begin
+            if rising_edge(mem_clk) then
+                if reset_mem = '0' and state = "01" and mem_valid = '1' and
+                   pending_transfers_empty = '0' then
+                    fifo_regs(fifo_head_pending) <= mem_data_in;
+                end if;
+            end if;
+        end process;
+    end generate;
+
 	-- Só registra uma requisição se houver espaço para sua futura resposta.
-	pending_transfers_wren <= '1' when state = "01" and mem_ready = '1' and fifo_count + pending_count < FIFO_LEN and count < num_xfers and pending_transfers_full = '0' else '0';
+	pending_transfers_wren <= '1' when state = "01" and mem_rden = '1' and mem_ready = '1' and fifo_count + pending_count < FIFO_LEN and count < num_xfers and pending_transfers_full = '0' else '0';
 	-- Cada mem_valid consome o endereço correspondente na mesma ordem FIFO.
 	pending_transfers_pop <= '1' when state = "01" and mem_valid = '1' and pending_transfers_empty = '0' else '0';
 	fifo_head_pending <= conv_integer(unsigned(pending_transfers_data(15 downto 0)));
 
-	-- A FIFO de pendências transforma a latência da memória em uma associação explícita
-	-- entre cada resposta e o índice onde o dado deve ser escrito.
+	-- Guarda o índice de destino de cada leitura aceita: mem_ready pode aceitar
+	-- várias leituras antes de mem_valid, portanto o índice atual de fifo_head
+	-- não identifica necessariamente a resposta que está chegando.
 	pending_transfers_fifo: dc_fifo
 		generic map (
 			N => 48,
@@ -213,7 +243,7 @@ begin
             fifo_count_reg <= 0;
 			pending_count <= 0;
 			received_count <= (others => '0');
-            state     <= "00";-- IDLE
+			state     <= "00";-- IDLE
             irq       <= '0';
         elsif rising_edge(mem_clk) then
 				
@@ -228,7 +258,6 @@ begin
 					-- Armazena o dado somente quando a memória confirma que ele é válido;
 					-- o índice vem da FIFO de requisições, não do fifo_head atual.
 					if mem_valid = '1' and pending_transfers_empty = '0' then
-						fifo(fifo_head_pending) <= mem_data_in;
 						received_count <= received_count + 1;
 						fifo_count <= fifo_count + 1;
 						fifo_count_reg <= fifo_count;
@@ -242,7 +271,7 @@ begin
 					-- houver espaço na FIFO de dados (para essa requisição e as pendentes) e
 					-- não tiver finalizado a etapa de leitura e
 					-- houver espaço na FIFO de pendências.
-					if mem_ready = '1' and fifo_count + pending_count < FIFO_LEN and count < num_xfers and pending_transfers_full = '0' then
+					if mem_rden = '1' and mem_ready = '1' and fifo_count + pending_count < FIFO_LEN and count < num_xfers and pending_transfers_full = '0' then
 						count <= count + 1;
 						fifo_head <= (fifo_head + 1) mod FIFO_LEN;
 					end if;
@@ -258,26 +287,24 @@ begin
 					--since now we are using synchronous writing, data read from fifo is valid only in the next cycle
 					state <= "10";-- start writing immediately in the next cycle
                 when "10" =>  -- WRITING
-                    if fifo_count > 0 then
-								
-								-- update pointers/counters
-								-- necessary to check if mem_wren is asserted because with USE_RAM_BLOCKS mem_wren is not asserted during first cycle of state=WRITING,
-								-- so fifo_tail/fifo_count should not be updated
-								if(mem_ready = '1' and mem_wren_reg = '1')then
-                        -- Atualiza FIFO
-									fifo_tail <= (fifo_tail + 1) mod FIFO_LEN;
-									fifo_count <= fifo_count - 1;
-									fifo_count_reg <= fifo_count;
-								end if;
+					if fifo_count > 0 then
+						if mem_ready = '1' and
+						   ((USE_RAM_BLOCKS and mem_wren_reg = '1') or not USE_RAM_BLOCKS) then
+							fifo_tail <= (fifo_tail + 1) mod FIFO_LEN;
+							fifo_count <= fifo_count - 1;
+							fifo_count_reg <= fifo_count;
+						end if;
                     end if;
 
 					-- Se FIFO vazia, volta a ler
-					if fifo_count = 1 and count < num_xfers and mem_ready='1' then--escrita do último item da fifo
+					if fifo_count = 1 and count < num_xfers and mem_ready='1' and
+					   ((not USE_RAM_BLOCKS) or mem_wren_reg='1') then--escrita do último item da fifo
 						state <= "01";
 					end if;
 
                     -- Ao transferir o ultimo item, finaliza OU inicia de novo se AUTOSTART estiver ativo
-                    if count = num_xfers and fifo_count = 1 and mem_ready='1' then
+                    if count = num_xfers and fifo_count = 1 and mem_ready='1' and
+					   ((not USE_RAM_BLOCKS) or mem_wren_reg='1') then
                         irq   <= '1';
 						if  CR(7)='1' then
 							state <= "01";-- goes back to reading
@@ -303,18 +330,41 @@ begin
     end process;
 	 
 	sync_read: if USE_RAM_BLOCKS generate
-		-- A FIFO de dados usa blocos de RAM; a saída registrada gera um ciclo extra
-		-- entre fifo_tail e mem_data_out durante a escrita.
+		-- A leitura usa uma única expressão indexada. O endereço é antecipado
+		-- após aceitar uma escrita, para manter o throughput sem criar uma
+		-- segunda porta de leitura que impeça a inferência de M9K.
+		process (mem_clk)
+			variable fifo_read_index : integer range 0 to FIFO_LEN-1;
+		begin
+			if rising_edge(mem_clk) then
+				fifo_read_index := fifo_tail;
+				if state = "10" and mem_ready = '1' and mem_wren_reg = '1' and
+				   fifo_count > 1 then
+					fifo_read_index := (fifo_tail + 1) mod FIFO_LEN;
+				end if;
+				mem_data_out <= fifo_ram(fifo_read_index);
+			end if;
+		end process;
+
 		process (mem_clk, reset_mem, fifo_tail, mem_addr_comb, mem_wren_comb)
 		begin
 			if reset_mem = '1' then
-				-- mem_data_out <= (others => '0'); mem_data_out is RAM output
 				mem_addr_reg <= (others => '0');
 				mem_wren_reg <= '0';
 			elsif rising_edge(mem_clk) then
-				mem_data_out <= fifo(fifo_tail);--mem_data_out is 1 clock cycle delayed of fifo_tail
-				mem_addr_reg <= mem_addr_comb;
-				mem_wren_reg <= mem_wren_comb;
+				if state = "10" and mem_ready = '1' and mem_wren_reg = '1' and fifo_count > 0 then
+					if fifo_count > 1 then
+						if CR(3) = '1' then
+							mem_addr_reg <= mem_addr_reg + 1;
+						end if;
+						mem_wren_reg <= '1';
+					else
+						mem_wren_reg <= '0';
+					end if;
+				else
+					mem_addr_reg <= mem_addr_comb;
+					mem_wren_reg <= mem_wren_comb;
+				end if;
 			end if;
 		end process;
 	end generate;
@@ -322,13 +372,14 @@ begin
 	async_read: if not USE_RAM_BLOCKS generate
 		-- A FIFO de dados usa registradores; a saída combinacional evita um ciclo
 		-- extra entre fifo_tail e mem_data_out durante a escrita.
-		mem_data_out <= fifo(fifo_tail);
+		mem_data_out <= fifo_regs(fifo_tail);
 	end generate;
 
 	 
-	 -- A sensibilidade inclui as contagens porque elas determinam quando uma nova
-	 -- requisição pode ser apresentada e qual endereço de escrita está ativo.
-	 addr_proc: process (state, CR, count, num_xfers, fifo_count, pending_count, src_addr, dst_addr, pending_transfers_full)
+	 -- A sensibilidade inclui estado e contagens para atualizar os pedidos e
+	 -- endereços combinacionais. Os sinais registrados acompanham a latência da
+	 -- FIFO síncrona e mantêm dado e endereço alinhados durante o pipeline.
+	 addr_proc: process (state, CR, count, num_xfers, fifo_count, pending_count, src_addr, dst_addr, pending_transfers_full, mem_addr_reg, mem_wren_reg)
 	 begin
 		case state is
 			when "01" =>  -- READING
@@ -338,7 +389,10 @@ begin
 				else
 					mem_addr <= src_addr;
 				end if;
-				if count < num_xfers and fifo_count + pending_count < FIFO_LEN and pending_transfers_full = '0' then
+				-- Stop issuing requests at the transfer limit and preserve FIFO capacity
+				-- for both buffered data and responses that are still in flight.
+				if count < num_xfers and fifo_count + pending_count < FIFO_LEN and
+				   pending_transfers_full = '0' then
 					mem_rden <= '1';
 				else
 					mem_rden <= '0';
@@ -365,7 +419,7 @@ begin
 
 				if USE_RAM_BLOCKS then
 					mem_wren_comb <= '1';
-				mem_wren <= mem_wren_reg;
+					mem_wren <= mem_wren_reg;
 				else
 					mem_wren <= '1';
 				end if;
