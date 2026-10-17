@@ -328,7 +328,9 @@ component address_decoder_memory_map
 end component;
 
 component cdc_transaction_bridge
-	generic (FIFO_DEPTH: natural := 4);
+	-- Habilitado só para a DMA, cujo enable pode permanecer alto entre palavras;
+	-- os demais usos mantêm o protocolo padrão por causa do valor false.
+	generic (FIFO_DEPTH: natural := 4; DMA_STREAM_MODE: boolean := false);
 	port (
 		master_clk: in std_logic;
 		dest_clk: in std_logic;
@@ -680,7 +682,8 @@ end component;
 -------cpu/dma arbiter------------------
 component arbiter
     generic (
-            LOCAL_DOMAIN: natural := 0
+            LOCAL_DOMAIN: natural := 0;
+            DMA_STREAM_MODE: boolean := false
     );
     port (
         clk : in std_logic;--FASTEST memory clock (e.g. SDRAM)
@@ -775,6 +778,7 @@ signal rst_n_sycn_sdram: std_logic;--rst_n, reset sync'd to risign_edge of SDRAM
 signal rst_n_sync_CLK_IN: std_logic;--rst_n sync'd to rising_edge of CLK_IN
 signal rst_n_sync_sram_CLK: std_logic;--rst_n sync'd to rising_edge of sram_CLK
 signal rst_n_sync_uproc: std_logic;--rst_n sync'd to rising_edge of uproc_CLK
+signal cpu_reset_pulse: std_logic;
 
 --0Y1: will read* byte Y (counting from 0 - LSB) of input vectors
 --0Y0: will read* byte Y (counting from 0 - LSB) of desired vectors
@@ -1242,8 +1246,21 @@ signal vga_pclk: std_logic;--40MHZ for PCLK
 signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	begin
 
-	rst <= not rst_n_sync_uproc;--reset synchronized to ram clock (cpu domain)
+	rst <= (not rst_n_sync_uproc) or cpu_reset_pulse;--reset synchronized to ram clock (cpu domain)
 	rst_sdram <= not rst_n_sycn_sdram;--reset synchronized to sdram clock (DMA domain)
+
+	-- The external reset clears the pulse so the software reset can self-release.
+	process(ram_clk, rst_n_sync_uproc)
+	begin
+		if(rst_n_sync_uproc='0')then
+			cpu_reset_pulse <= '0';
+		elsif(rising_edge(ram_clk))then
+			cpu_reset_pulse <= '0';
+			if(filter_ctrl_status_wren='1' and domain0_write_data(1)='1')then
+				cpu_reset_pulse <= '1';
+			end if;
+		end if;
+	end process;
 
 	--synchronized asynchronous reset
 	--asserted asynchronously
@@ -1979,7 +1996,8 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	-- DMA memory master (domain 1) to domain-0 arbiter: 75 MHz -> 4 MHz.
 	dma_domain0_bridge: cdc_transaction_bridge
-		generic map (FIFO_DEPTH => 64)
+		-- A DMA emite uma sequência de requisições sem pulso baixo entre elas.
+		generic map (FIFO_DEPTH => 64, DMA_STREAM_MODE => true)
 		port map (
 			master_clk => sdram_ctrl_clk,
 			dest_clk => ram_clk,
@@ -2206,7 +2224,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 
 	-- Domain-1 arbiter: local DMA memory master plus the CPU request from the 4->75 MHz bridge.
 	arbiter_domain1: arbiter
-		generic map (LOCAL_DOMAIN => 1)
+		generic map (LOCAL_DOMAIN => 1, DMA_STREAM_MODE => true)
 		port map (
 			clk => sdram_ctrl_clk,
 			rst => rst,
