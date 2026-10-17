@@ -120,7 +120,9 @@ begin
 	end process;
 	
 	ready_out <= ready_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
-	valid_out <= valid_in(sel_periph_index) when (RDEN='1' or WREN='1') else '1';
+	-- valid indica uma resposta real do periférico selecionado; ao contrário de
+	-- ready, não deve ser forçado a 1 quando o barramento está ocioso.
+	valid_out <= valid_in(sel_periph_index);
 	
 	data_out <= output;
 end behv;
