@@ -6,7 +6,8 @@ use work.my_types.all;--boundaries, tuple
 
 entity arbiter is
     generic (
-                LOCAL_DOMAIN: natural := 0 -- clock domain owned by this arbiter; CDC is handled outside the arbiter
+                LOCAL_DOMAIN: natural := 0; -- clock domain owned by this arbiter; CDC is handled outside the arbiter
+                DMA_STREAM_MODE: boolean := false
     );
     port (
         clk : in std_logic;--FASTEST memory clock (e.g. SDRAM)
@@ -78,10 +79,13 @@ signal ready: std_logic;
 
 begin
 
-mem_addr <= mem_addr_reg;
-mem_write_data <= mem_write_data_reg;
-mem_rden <= mem_rden_reg;
-mem_wren <= mem_wren_reg;
+-- No caminho DMA em streaming, o mestre já registra e alinha cada beat; o
+-- bypass evita registrar novamente o barramento e permite trocar endereço/dado
+-- logo após cada aceitação. O caminho CPU e o modo padrão continuam registrados.
+mem_addr <= dma_addr when DMA_STREAM_MODE and dma_access_granted = '1' else mem_addr_reg;
+mem_write_data <= dma_write_data when DMA_STREAM_MODE and dma_access_granted = '1' else mem_write_data_reg;
+mem_rden <= dma_rden when DMA_STREAM_MODE and dma_access_granted = '1' else mem_rden_reg;
+mem_wren <= dma_wren when DMA_STREAM_MODE and dma_access_granted = '1' else mem_wren_reg;
 
 -- slave outputs are forwarded to corresponding masters based on dma_access_granted,
 -- so that the master that is not currently accessing the bus does not see the slave outputs
@@ -93,19 +97,21 @@ mem_wren <= mem_wren_reg;
 -- The "ready" signal is only forwarded when there is a registered request for the selected master and that request remains active.
 -- I also aligned the response selection with the registered bus owner.
 -- Thus, the processor waits for the address to be presented before receiving the acknowledge.
-dma_Q <= mem_Q when dma_access_granted_reg='1' else (others => '0');
-dma_ready <= mem_ready when dma_access_granted_reg='1' and
-                           ((mem_rden_reg='1' and dma_rden='1') or
-                            (mem_wren_reg='1' and dma_wren='1')) else '0';
-dma_valid <= mem_valid when dma_access_granted_reg='1' else '0';
+dma_Q <= mem_Q when dma_access_granted='1' else (others => '0');
+dma_ready <= mem_ready when dma_access_granted='1' and
+                           ((DMA_STREAM_MODE and (dma_rden='1' or dma_wren='1')) or
+                            (not DMA_STREAM_MODE and
+                             ((mem_rden_reg='1' and dma_rden='1') or
+                              (mem_wren_reg='1' and dma_wren='1')))) else '0';
+dma_valid <= mem_valid when dma_access_granted='1' else '0';
 -- The "ready" signal is only forwarded when there is a registered request for the selected master and that request remains active.
 -- I also aligned the response selection with the registered bus owner.
 -- Thus, the processor waits for the address to be presented before receiving the acknowledge.
-cpu_ready <= mem_ready when dma_access_granted_reg='0' and
+cpu_ready <= mem_ready when dma_access_granted='0' and
                            ((mem_rden_reg='1' and cpu_rden='1') or
                             (mem_wren_reg='1' and cpu_wren='1')) else '0';
-cpu_valid <= mem_valid when dma_access_granted_reg='0' else '0';
-cpu_Q <= mem_Q when dma_access_granted_reg='0' else (others => '0');
+cpu_valid <= mem_valid when dma_access_granted='0' else '0';
+cpu_Q <= mem_Q when dma_access_granted='0' else (others => '0');
 
 arb_PROC : process(clk, rst)
 begin
@@ -126,15 +132,34 @@ begin
             when '1' =>
                 mem_addr_reg <= dma_addr;
                 mem_write_data_reg <= dma_write_data;
-                mem_wren_reg <= dma_wren;
-                mem_rden_reg <= dma_rden;
+                -- ready confirma a requisição já registrada. Baixa seus enables
+                -- por um ciclo antes de armar o próximo pedido DMA, evitando que
+                -- um enable mantido alto repita a mesma escrita/leitura.
+                if mem_ready = '1' and
+                   ((mem_rden_reg = '1' and dma_rden = '1') or
+                    (mem_wren_reg = '1' and dma_wren = '1')) then
+                    mem_wren_reg <= '0';
+                    mem_rden_reg <= '0';
+                else
+                    mem_wren_reg <= dma_wren;
+                    mem_rden_reg <= dma_rden;
+                end if;
 --                dma_Q_reg <= mem_Q;
 --                cpu_Q_reg <= (others => '0');
             when others =>
 					  mem_addr_reg <= cpu_addr;
 					  mem_write_data_reg <= cpu_write_data;
-					  mem_wren_reg <= cpu_wren;
-					  mem_rden_reg <= cpu_rden;
+					  -- Aplica o mesmo reconhecimento de uma única transação ao
+					  -- mestre CPU, independentemente de quanto tempo mantém o enable.
+					  if mem_ready = '1' and
+					     ((mem_rden_reg = '1' and cpu_rden = '1') or
+					      (mem_wren_reg = '1' and cpu_wren = '1')) then
+						  mem_wren_reg <= '0';
+						  mem_rden_reg <= '0';
+					  else
+						  mem_wren_reg <= cpu_wren;
+						  mem_rden_reg <= cpu_rden;
+					  end if;
 --                dma_Q_reg <= (others => '0');
 --                cpu_Q_reg <= mem_Q;
         

@@ -3,7 +3,10 @@ use ieee.std_logic_1164.all;
 
 entity cdc_transaction_bridge is
     generic (
-        FIFO_DEPTH : natural := 64
+        FIFO_DEPTH : natural := 64;
+        -- DMA mantém pedidos consecutivos ativos; este modo rearma o canal
+        -- por transação, sem exigir que o mestre baixe o enable entre palavras.
+        DMA_STREAM_MODE : boolean := false
     );
     port (
         master_clk : in std_logic;
@@ -69,16 +72,19 @@ architecture rtl of cdc_transaction_bridge is
     signal response_fifo_full : std_logic;
     signal response_fifo_empty : std_logic;
     signal response_fifo_ovf : std_logic;
-    signal response_fifo_pop_delayed : std_logic;
 
     signal master_transaction_busy : std_logic;--doing acess this clock cycle
     signal master_request_held : std_logic;
     signal master_read_held : std_logic;
+    signal master_ready_reg : std_logic;
 
     signal dest_transaction_busy : std_logic;--doing acess this clock cycle
     signal dest_request_is_read : std_logic;
     signal dest_request_addr : std_logic_vector(31 downto 0);
     signal dest_request_data : std_logic_vector(31 downto 0);
+    -- Evita reapresentar dest_rden enquanto aguarda mem_valid após o ready
+    -- inicial do periférico; a transação só termina ao enfileirar sua resposta.
+    signal dest_read_accepted : std_logic;
 
 begin
     -- This bridge converts a synchronous master request into a destination-side
@@ -88,11 +94,17 @@ begin
 
     -- A read stays held until master_rden is released, even after its response.
     request_fifo_data_in <= master_rden & master_addr & master_write_data;
-    request_fifo_wren <= '1' when master_transaction_busy = '0' and
-                                    (master_rden = '1' or master_wren = '1') and
-                                    master_request_held = '0' and
-                                    (master_rden = '0' or master_read_held = '0') and
-                                    request_fifo_full = '0' else '0';
+    -- In stream mode, each accepted DMA write is a FIFO beat, independent of
+    -- the transaction-level busy flag used by the ordinary master handshake.
+    request_fifo_wren <= '1' when request_fifo_full = '0' and
+                                    ((DMA_STREAM_MODE and master_wren = '1' and master_rden = '0') or
+                                     (master_transaction_busy = '0' and
+                                      (master_rden = '1' or master_wren = '1') and
+                                      master_request_held = '0' and
+                                      (master_rden = '0' or master_read_held = '0'))) else '0';
+    master_ready <= request_fifo_wren when DMA_STREAM_MODE and
+                                           master_wren = '1' and master_rden = '0'
+                    else master_ready_reg;
 
     -- This bridge uses a synchronous FIFO: DATA_OUT is valid after POP,
 	 -- and POP advances pointer to current entry.
@@ -100,14 +112,16 @@ begin
                                  request_fifo_empty = '0' else '0';
 
     -- A read response is written only after the destination reports valid
-    -- data. Writes complete when their request is accepted by the FIFO.
+    -- data and the request was accepted (or accepted with that response).
+    -- This prevents a stale valid level from completing an unaccepted read.
     response_fifo_wren <= '1' when dest_transaction_busy = '1' and
                                    dest_request_is_read = '1' and
                                    dest_valid = '1' and
+                                   (dest_read_accepted = '1' or dest_ready = '1') and
                                    response_fifo_full = '0' else '0';
 
-    -- DATA_OUT is registered by the FIFO on POP. Delay valid so the FIFO's
-    -- output is stable before the master consumes the response.
+    -- DATA_OUT is registered by the FIFO on POP, so the master samples it
+    -- during the following clock cycle.
     response_fifo_pop <= '1' when response_fifo_empty = '0' else '0';
 
     -- Request path: master clock to destination clock.
@@ -164,15 +178,19 @@ begin
             master_transaction_busy <= '0';
             master_request_held <= '0';
             master_read_held <= '0';
-            response_fifo_pop_delayed <= '0';
-            master_ready <= '0';
+            master_ready_reg <= '0';
             master_valid <= '0';
         elsif rising_edge(master_clk) then
-            -- master_ready <= '0';
-            response_fifo_pop_delayed <= response_fifo_pop;
-            master_valid <= response_fifo_pop_delayed;
+            -- In streaming mode, ready is a per-request pulse so consecutive
+            -- requests held by the DMA can each be accepted independently.
+            if DMA_STREAM_MODE then
+                master_ready_reg <= '0';
+            end if;
+            master_valid <= response_fifo_pop;
 
             if master_rden = '0' then
+                master_read_held <= '0';
+            elsif DMA_STREAM_MODE and master_valid = '1' then
                 master_read_held <= '0';
             elsif request_fifo_wren = '1' then
                 master_read_held <= '1';
@@ -181,17 +199,19 @@ begin
             -- A pending read keeps the master blocked until its response is
             -- removed from the response FIFO.
             if (master_rden = '1' and master_valid = '1') or
-               (master_wren = '1' and master_ready = '1') then
+               (master_wren = '1' and master_ready = '1' and not DMA_STREAM_MODE) or
+               (DMA_STREAM_MODE and master_wren = '0') then
                 master_request_held <= '0';
             end if;
 
-            if request_fifo_wren = '1' and master_ready = '0' then -- master_request_held = '0' and request_fifo_wren = '1' then
+            if request_fifo_wren = '1' and master_ready_reg = '0' and
+               not (DMA_STREAM_MODE and master_wren = '1' and master_rden = '0') then
                 master_request_held <= '1';
                 master_transaction_busy <= '1';
-                master_ready <= '1';
+                master_ready_reg <= '1';
             elsif master_request_held = '1' and master_transaction_busy = '0' then
-                master_ready <= '0';
-            elsif master_wren='1' and master_ready = '1' then
+                master_ready_reg <= '0';
+            elsif master_wren = '1' and master_ready = '1' then
                 master_transaction_busy <= '0';
             end if;
 
@@ -209,12 +229,21 @@ begin
     begin
         if rst = '1' then
             dest_transaction_busy <= '0';
+            dest_read_accepted <= '0';
         elsif rising_edge(dest_clk) then
             if request_fifo_pop = '1' then
                 dest_transaction_busy <= '1';
+                dest_read_accepted <= '0';
             elsif dest_transaction_busy = '1' then
-                if dest_ready = '1' and not (response_fifo_full = '1' and dest_request_is_read = '1') then
-                    dest_transaction_busy <= '0';--deasserts dest_rden/dest_wren, and the next request can be popped from the FIFO
+                if dest_request_is_read = '1' then
+                    if response_fifo_wren = '1' then
+                        dest_transaction_busy <= '0';
+                        dest_read_accepted <= '0';
+                    elsif dest_ready = '1' then
+                        dest_read_accepted <= '1';
+                    end if;
+                elsif dest_ready = '1' then
+                    dest_transaction_busy <= '0';
                 end if;
             end if;
         end if;
@@ -228,6 +257,6 @@ begin
     dest_addr <= dest_request_addr;
     dest_write_data <= dest_request_data;
     -- Keep the destination request stable while the peripheral processes it.
-    dest_rden <= dest_transaction_busy and dest_request_is_read;
+    dest_rden <= dest_transaction_busy and dest_request_is_read and not dest_read_accepted;
     dest_wren <= dest_transaction_busy and not dest_request_is_read;
 end architecture;
