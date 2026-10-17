@@ -1,6 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use std.env.all;
 
 -- VHDL-2008: use the standard ieee.numeric_std_unsigned package to convert a std_logic_vector to a unsigned representation,
 -- which allows use of numeric operations like minus.
@@ -11,7 +12,7 @@ end entity;
 
 architecture test of tb_dma_latency is
     constant MEM_DEPTH : natural := 655360;
-    constant LATENCY : natural := 3;
+    constant LATENCY : natural := 3;--2 ciclos da memoria + 1 ciclo da saída do árbitro
     constant TRANSFER_COUNT : natural := 1000; -- 307200;
     constant SOURCE_BASE : natural := 16#0200_0000#;
     constant DEST_BASE : natural := 16#0204_B000#;
@@ -79,6 +80,17 @@ begin
     memory_model: process(mem_clk,addr_sdram)
         variable request_address : integer;
     begin
+        valid_pipeline(0) <= '0';
+        if mem_rden = '1' then
+            request_address := to_integer(unsigned(mem_addr));
+            report "READ addr=" & integer'image(request_address) severity note;
+            assert request_address >= SOURCE_BASE and request_address < SOURCE_BASE + TRANSFER_COUNT
+                report "DMA emitiu endereco de leitura inesperado"
+                severity error;
+            address_pipeline(0) <= TO_INTEGER(addr_sdram);
+            valid_pipeline(0) <= '1';
+        end if;
+
         if rising_edge(mem_clk) then
             if mem_wren = '1' then
                 report "WRITE addr=" & integer'image(to_integer(unsigned(addr_sdram))) & " data=" & to_hstring(mem_data_out) severity note;
@@ -89,17 +101,6 @@ begin
                 address_pipeline(index) <= address_pipeline(index - 1);
                 valid_pipeline(index) <= valid_pipeline(index - 1);
             end loop;
-
-            valid_pipeline(0) <= '0';
-            if mem_rden = '1' then
-                request_address := to_integer(unsigned(mem_addr));
-                report "READ addr=" & integer'image(request_address) severity note;
-                assert request_address >= SOURCE_BASE and request_address < SOURCE_BASE + TRANSFER_COUNT
-                    report "DMA emitiu endereco de leitura inesperado"
-                    severity error;
-                address_pipeline(0) <= TO_INTEGER(addr_sdram);
-                valid_pipeline(0) <= '1';
-            end if;
         end if;
     end process;
 
@@ -107,7 +108,7 @@ begin
     mem_data_in <= memory(address_pipeline(LATENCY)) when mem_valid = '1' else (others => '0');
 
     -- mem_ready <= '1', '0' after 19104 ns; -- always ready to accept requests
-    mem_ready <= '1';
+    mem_ready <= '1' when mem_rden = '1' or mem_wren = '1' else '0'; -- ready to accept requests only when mem_rden is asserted
 
     stimulus: process
     begin
@@ -138,6 +139,6 @@ begin
         end loop;
 
         report "tb_dma_latency: PASS" severity note;
-        wait;
+        stop;
     end process;
 end architecture;

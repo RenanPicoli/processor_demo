@@ -27,7 +27,13 @@ architecture sim of tb_cdc_transaction_bridge is
     signal dest_Q : std_logic_vector(31 downto 0) := (others => '0');
     signal read_delay : natural range 0 to 2 := 0;
     signal read_count : natural := 0;
-    signal read_counted : std_logic := '0';
+    -- O modelo conta o pedido uma vez enquanto rden fica ativo e responde
+    -- depois da latência, refletindo o handshake do periférico real.
+    signal read_pending : std_logic := '0';
+    signal read_request_held : std_logic := '0';
+    -- Escrita permanece ativa até o bridge retirar o pedido; não deve ser
+    -- contada novamente a cada ciclo de backpressure.
+    signal write_counted : std_logic := '0';
     signal write_count : natural := 0;
 
 begin
@@ -56,26 +62,33 @@ begin
             dest_Q => dest_Q
         );
 
+    -- Modelo com ready/valid atrasados para verificar pedidos mantidos sem
+    -- contabilizar cada ciclo ativo como uma nova transação.
     dest_model : process(dest_clk)
     begin
         if rising_edge(dest_clk) then
             dest_valid <= '0';
             if dest_rden = '0' then
-                read_counted <= '0';
-            elsif read_counted = '0' then
+                read_request_held <= '0';
+            elsif read_request_held = '0' then
+                read_request_held <= '1';
                 read_count <= read_count + 1;
-                read_counted <= '1';
+                read_pending <= '1';
+                read_delay <= 0;
             end if;
             if dest_wren = '1' then
                 dest_ready <= '1';
-                assert dest_addr = x"0000_0040" or dest_addr = x"0000_0041"
-                    report "endereco de escrita incorreto" severity failure;
-                assert dest_write_data = x"1234_5678" or dest_write_data = x"CAFE_BABE"
-                    report "dado de escrita incorreto" severity failure;
-                write_count <= write_count + 1;
+                if write_counted = '0' then
+                    assert dest_addr = x"0000_0040" or dest_addr = x"0000_0041"
+                        report "endereco de escrita incorreto" severity failure;
+                    assert dest_write_data = x"1234_5678" or dest_write_data = x"CAFE_BABE"
+                        report "dado de escrita incorreto" severity failure;
+                    write_count <= write_count + 1;
+                    write_counted <= '1';
+                end if;
             elsif dest_rden = '1' then
-                dest_ready <= '0';
-                if read_delay = 2 then
+                write_counted <= '0';
+                if read_pending = '1' and read_delay = 2 then
                     if dest_addr = x"0000_0081" then
                         dest_Q <= x"DEAD_BEEF";
                     else
@@ -84,11 +97,16 @@ begin
                     dest_valid <= '1';
                     dest_ready <= '1';--ready to accept new commands
                     read_delay <= 0;
+                    read_pending <= '0';
                 else
+                    dest_ready <= '0';
                     read_delay <= read_delay + 1;
                 end if;
             else
                 dest_ready <= '0';
+                read_pending <= '0';
+                read_delay <= 0;
+                write_counted <= '0';
             end if;
         end if;
     end process;
@@ -182,6 +200,7 @@ begin
 
         master_addr <= x"0000_0041";
         master_write_data <= x"CAFE_BABE";
+        master_wren <= '1';
         response_seen := false;
         for i in 0 to 100 loop
             wait until rising_edge(master_clk);
