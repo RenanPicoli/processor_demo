@@ -67,7 +67,17 @@ architecture test of tb_dma_minicache_roundtrip is
     signal dma_mem_rden : std_logic;
     signal dma_mem_wren : std_logic;
     signal dma_irq : std_logic;
-    signal dma_iack : std_logic := '0';
+    signal dma_irq_cpu : std_logic_vector(0 downto 0);
+    signal dma_iack_sdram : std_logic_vector(0 downto 0);
+    signal cpu_iack : std_logic := '0';
+    signal cpu_ready_for_irq : std_logic := '0';
+    signal cpu_irq : std_logic;
+    signal irq_ack_out : std_logic_vector(5 downto 0);
+    signal irq_config_addr : std_logic_vector(6 downto 0) := (others => '0');
+    signal irq_config_data : std_logic_vector(31 downto 0) := (others => '0');
+    signal irq_config_wren : std_logic := '0';
+    signal irq_controller_ready : std_logic;
+    signal irq_controller_output : std_logic_vector(31 downto 0);
 
     signal bridge_master_ready : std_logic;
     signal bridge_master_valid : std_logic;
@@ -145,6 +155,43 @@ begin
     periph1_data <= (2 => sdram_Q, others => (others => '0'));
     periph1_valid(2) <= sdram_valid;
 
+    dma_irq_sync : entity work.sync_chain
+        generic map (N => 1, L => 2)
+        port map (
+            data_in => (0 => dma_irq),
+            CLK => cpu_clk,
+            RST => rst,
+            data_out => dma_irq_cpu
+        );
+
+    dma_iack_sync : entity work.sync_chain
+        generic map (N => 1, L => 2)
+        port map (
+            data_in => (0 => irq_ack_out(5)),
+            CLK => sdram_clk,
+            RST => rst,
+            data_out => dma_iack_sdram
+        );
+
+    irq_controller : entity work.interrupt_controller_vectorized
+        generic map (L => 6)
+        port map (
+            D => irq_config_data,
+            ADDR => irq_config_addr,
+            CLK => cpu_clk,
+            RST => rst,
+            WREN => irq_config_wren,
+            RDEN => '0',
+            PROC_READY => cpu_ready_for_irq,
+            IRQ_IN => (5 => dma_irq_cpu(0), others => '0'),
+            IRQ_OUT => cpu_irq,
+            IACK_IN => cpu_iack,
+            IACK_OUT => irq_ack_out,
+            ISR_ADDR => open,
+            ready => irq_controller_ready,
+            output => irq_controller_output
+        );
+
     -- Usa a mini_ram da integração do processador, para testar a mesma memória
     -- simples usada pela CPU no caminho DMA/mini-cache.
     mini_cache : entity work.mini_ram
@@ -177,7 +224,7 @@ begin
             mem_rden => dma_mem_rden,
             mem_wren => dma_mem_wren,
             irq => dma_irq,
-            iack => dma_iack
+            iack => dma_iack_sdram(0)
         );
 
     dma_cache_bridge : entity work.cdc_transaction_bridge
@@ -410,11 +457,49 @@ begin
                 severity failure;
         end procedure;
 
+        procedure acknowledge_dma_irq is
+        begin
+            if cpu_irq /= '1' then
+                wait until cpu_irq = '1' for 1 ms;
+            end if;
+            assert cpu_irq = '1'
+                report "DMA completion was not delivered to the CPU interrupt input"
+                severity failure;
+
+            wait until falling_edge(cpu_clk);
+            cpu_ready_for_irq <= '1';
+            wait until rising_edge(cpu_clk);
+            wait until rising_edge(cpu_clk);
+            wait until falling_edge(cpu_clk);
+            cpu_iack <= '1';
+            wait until falling_edge(cpu_clk);
+            cpu_iack <= '0';
+            cpu_ready_for_irq <= '0';
+
+            if dma_irq /= '0' then
+                wait until dma_irq = '0' for 100 us;
+            end if;
+            assert dma_irq = '0'
+                report "Synchronized CPU IACK did not clear the DMA interrupt"
+                severity failure;
+        end procedure;
+
         variable read_value : std_logic_vector(31 downto 0);
+        variable cache_reads_before : natural;
+        variable sdram_writes_before : natural;
     begin
         wait for 5 * CPU_CLK_PERIOD;
         rst <= '0';
         wait for 2 * CPU_CLK_PERIOD;
+
+        wait until falling_edge(cpu_clk);
+        irq_config_wren <= '1';
+        irq_config_addr <= std_logic_vector(to_unsigned(64, irq_config_addr'length));
+        irq_config_data <= std_logic_vector(to_unsigned(5, irq_config_data'length));
+        wait until falling_edge(cpu_clk);
+        irq_config_wren <= '0';
+        irq_config_addr <= (others => '0');
+        irq_config_data <= (others => '0');
 
         configure_dma(SDRAM_BASE, CACHE_BASE);
         if dma_irq /= '1' then
@@ -422,6 +507,14 @@ begin
         end if;
         assert dma_irq = '1'
             report "DMA timed out while copying SDRAM into mini_cache"
+            severity failure;
+        if cpu_irq /= '1' then
+            wait until cpu_irq = '1' for 1 ms;
+        end if;
+        assert cpu_irq = '1'
+            report "Synchronized DMA IRQ did not reach the interrupt controller; synchronized IRQ=" &
+                   std_logic'image(dma_irq_cpu(0)) & ", pending register=" &
+                   to_hstring(irq_controller_output)
             severity failure;
         assert sdram_read_count = TRANSFER_WORDS
             report "DMA did not issue exactly eight SDRAM reads"
@@ -454,15 +547,7 @@ begin
                 severity failure;
         end loop;
 
-        dma_iack <= '1';
-        wait for 2 * CPU_CLK_PERIOD;
-        dma_iack <= '0';
-        if dma_irq /= '0' then
-            wait until dma_irq = '0' for 100 us;
-        end if;
-        assert dma_irq = '0'
-            report "DMA interrupt did not clear before the return transfer"
-            severity failure;
+        acknowledge_dma_irq;
 
         configure_dma(CACHE_BASE, SDRAM_BASE + SDRAM_DEST_OFFSET);
         if dma_irq /= '1' then
@@ -470,6 +555,12 @@ begin
         end if;
         assert dma_irq = '1'
             report "DMA timed out while copying transformed cache data to SDRAM"
+            severity failure;
+        if cpu_irq /= '1' then
+            wait until cpu_irq = '1' for 1 ms;
+        end if;
+        assert cpu_irq = '1'
+            report "Mini-RAM-to-SDRAM completion IRQ did not reach the CPU"
             severity failure;
         if cache_read_count /= TRANSFER_WORDS then
             wait until cache_read_count = TRANSFER_WORDS for 100 us;
@@ -499,7 +590,46 @@ begin
                 severity failure;
         end loop;
 
-        report "tb_dma_minicache_roundtrip: PASS (8 SDRAM -> mini_cache -> SDRAM words)"
+        acknowledge_dma_irq;
+
+        for transfer in 1 to 12 loop
+            cache_reads_before := cache_read_count;
+            sdram_writes_before := sdram_write_count;
+            configure_dma(CACHE_BASE, SDRAM_BASE + SDRAM_DEST_OFFSET);
+
+            if dma_irq /= '1' then
+                wait until dma_irq = '1' for 1 ms;
+            end if;
+            assert dma_irq = '1'
+                report "DMA completion IRQ timed out on mini-RAM-to-SDRAM repetition " &
+                       natural'image(transfer)
+                severity failure;
+            if cpu_irq /= '1' then
+                wait until cpu_irq = '1' for 1 ms;
+            end if;
+            assert cpu_irq = '1'
+                report "CPU did not receive mini-RAM-to-SDRAM IRQ repetition " &
+                       natural'image(transfer)
+                severity failure;
+
+            if cache_read_count /= cache_reads_before + TRANSFER_WORDS then
+                wait until cache_read_count = cache_reads_before + TRANSFER_WORDS for 100 us;
+            end if;
+            if sdram_write_count /= sdram_writes_before + TRANSFER_WORDS then
+                wait until sdram_write_count = sdram_writes_before + TRANSFER_WORDS for 100 us;
+            end if;
+            assert cache_read_count = cache_reads_before + TRANSFER_WORDS
+                report "DMA did not read all mini-RAM words on repetition " &
+                       natural'image(transfer)
+                severity failure;
+            assert sdram_write_count = sdram_writes_before + TRANSFER_WORDS
+                report "DMA did not write all SDRAM words on repetition " &
+                       natural'image(transfer)
+                severity failure;
+            acknowledge_dma_irq;
+        end loop;
+
+        report "tb_dma_minicache_roundtrip: PASS (SDRAM -> mini_cache, then 12 mini_cache -> SDRAM IRQs)"
             severity note;
         stop;
     end process;
