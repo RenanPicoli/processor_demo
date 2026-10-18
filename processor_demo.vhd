@@ -894,7 +894,9 @@ signal    dma_addr: std_logic_vector(31 downto 0);
 signal    dma_rden: std_logic;
 signal    dma_wren: std_logic;
 signal    dma_irq: std_logic;
+signal    dma_irq_sync: std_logic_vector(0 downto 0);
 signal    dma_iack: std_logic;
+signal    dma_iack_sync: std_logic_vector(0 downto 0);
 
 -----------signals for (parallel) cache interfacing--------
 signal cache_Q: std_logic_vector(31 downto 0);
@@ -2189,8 +2191,29 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 		mem_rden	=> dma_ram_rden,
 		mem_wren	=> dma_ram_wren,
 		irq			=> dma_irq,
-		iack		=> dma_iack
+		iack		=> dma_iack_sync(0)
     );
+
+	-- DMA completion is generated in the SDRAM clock domain and consumed by
+	-- the interrupt controller in the processor clock domain.
+	sync_dma_irq: sync_chain
+		generic map (N => 1, L => 2)
+		port map (
+			data_in => (0 => dma_irq),
+			CLK => ram_clk,
+			RST => RST,
+			data_out => dma_irq_sync
+		);
+
+	-- The interrupt acknowledge crosses back into the SDRAM clock domain.
+	sync_dma_iack: sync_chain
+		generic map (N => 1, L => 2)
+		port map (
+			data_in => (0 => dma_iack),
+			CLK => sdram_ctrl_clk,
+			RST => rst_sdram,
+			data_out => dma_iack_sync
+		);
 	 
 	-- Domain-0 arbiter: local CPU plus the DMA request returned by the 75->4 MHz bridge.
 	arbiter_domain0: arbiter
@@ -2280,7 +2303,7 @@ signal sda_dbg_s: natural;--for debug, which statement is driving SDA
 	--i2s_irq is synchronized to ram_clk rising_edge inside I2S peripheral
 	--aparently, i2c_irq is synchronized to ram_clk rising_edge because I2C clocks are created dividing ram_clk
 --	all_irq	<= (3 => filter_irq_sync(1), 2 => i2s_irq, 1 => i2c_irq, 0 => filter_irq_sync(0));
-	all_irq	<= (5=> dma_irq, 4=> uart_irq, 3 => filter_irq_sync(1), 2 => '0', 1 => i2c_irq, 0 => filter_irq_sync(0));
+	all_irq	<= (5=> dma_irq_sync(0), 4=> uart_irq, 3 => filter_irq_sync(1), 2 => '0', 1 => i2c_irq, 0 => filter_irq_sync(0));
 	
 	dma_iack	<= all_iack(5);	
 	uart_iack	<= all_iack(4);				
