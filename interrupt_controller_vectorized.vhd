@@ -70,9 +70,12 @@ architecture behv of interrupt_controller_vectorized is
 			WREN: in std_logic;-- input
 			data_in: in array32;-- input: outputs of all peripheral/registers
 			ready_in: in std_logic_vector;-- input: ready signals of all peripheral
+			valid_in: in std_logic_vector;-- input: valid signals of all peripheral
 			RDEN_OUT: out std_logic_vector;-- output
 			WREN_OUT: out std_logic_vector;-- output
 			ready_out: out std_logic;-- output
+			valid_out: out std_logic;-- output
+			MASTER_CLK_ID: in std_logic_vector(1 downto 0);
 			data_out: out std_logic_vector(31 downto 0)-- data read
 	);
 	end component;
@@ -149,9 +152,8 @@ signal all_periphs_ready: std_logic_vector(ranges'length-1 downto 0);
 	signal vector_ready: std_logic;
 	signal vector_Q: std_logic_vector(31 downto 0);
 	
-  -- priority of each interrupt, in case more than one IRQ is asserted in a single cycle
-  -- each array entry is a unsigned integer, the lower the integer, the higher the priority (0 is the highest priority)
-  -- it is allowed to have IRQ's with the same priority, the first IRQ will be serviced
+  -- priorities(i) selects the IRQ source at arbitration rank i; rank 0 is highest.
+  -- Invalid or unknown source indices are ignored by the arbiter.
 	signal priorities:array32 (7 downto 0);
 	signal priorities_ready: std_logic;
 	signal priorities_Q: std_logic_vector(31 downto 0);
@@ -168,7 +170,18 @@ signal all_periphs_ready: std_logic_vector(ranges'length-1 downto 0);
 	signal tmp_IRQ_active:	array8(8 downto 0);-- one-hot of the ISR being executed NOW
 	
 	constant STACK_LEVELS_LOG2: natural := 4;--up to 16 nested interrupts
-	
+
+	function priority_request(priority_value: std_logic_vector(31 downto 0);
+							  requests: array8) return std_logic_vector is
+	begin
+		for request_index in requests'range loop
+			if priority_value = std_logic_vector(to_unsigned(request_index, priority_value'length)) then
+				return requests(request_index);
+			end if;
+		end loop;
+		return (7 downto 0 => '0');
+	end function;
+
 begin
 	--L must be limited to 32 
 	assertion: assert (L <= 8) report "parameter L must be <= 8" severity Error;
@@ -231,8 +244,10 @@ begin
 		
 		arbiter: for i in 0 to 7 generate
 			--if two IRQ's of equal priority arrive in the along the same clock cycle, the IRQ of highest index takes precedence
-			req(i) <= (i=> (IRQ_pend(i) or IRQ_started(i)), others=>'0');
-			tmp_preferred(i) <= req(to_integer(unsigned(priorities(i))));
+			req_bits: for j in 0 to 7 generate
+				req(i)(j) <= (IRQ_pend(i) or IRQ_started(i)) when i=j else '0';
+			end generate req_bits;
+			tmp_preferred(i) <= priority_request(priorities(i), req);
 			tmp_IRQ_active(i) <= tmp_preferred(i) when (tmp_preferred(i) /= x"0000_0000") else tmp_IRQ_active(i+1);
 		end generate arbiter;
 		tmp_IRQ_active(8) <= x"00";
@@ -295,12 +310,20 @@ begin
 	begin
 		if(rising_edge(CLK))then
 			if(all_periphs_wren(7)='1')then
-				vector(to_integer(unsigned(ADDR))-32) <= D;
-				-- Read-during-write on the same port returns NEW data
-				vector_Q <= D;
-			else
-				-- Read-during-write on the mixed port returns OLD data
-				vector_Q <= vector(to_integer(unsigned(ADDR))-32);
+				if(unsigned(ADDR) < to_unsigned(40, ADDR'length))then
+					vector(to_integer(unsigned(ADDR))-32) <= D;
+					-- Read-during-write on the same port returns NEW data
+					vector_Q <= D;
+				else
+					vector_Q <= (others=>'0');
+				end if;
+			elsif(all_periphs_rden(7)='1')then
+				if(unsigned(ADDR) < to_unsigned(40, ADDR'length))then
+					-- Read-during-write on the mixed port returns OLD data
+					vector_Q <= vector(to_integer(unsigned(ADDR))-32);
+				else
+					vector_Q <= (others=>'0');
+				end if;
 			end if;
 		end if;
 	end process;
@@ -325,12 +348,20 @@ begin
 	begin
 		if(rising_edge(CLK))then
 			if(all_periphs_wren(8)='1')then
-				priorities(to_integer(unsigned(ADDR))-64) <= D;
-				-- Read-during-write on the same port returns NEW data
-				priorities_Q <= D;
-			else
-				-- Read-during-write on the mixed port returns OLD data
-				priorities_Q <= priorities(to_integer(unsigned(ADDR))-64);
+				if(unsigned(ADDR) < to_unsigned(72, ADDR'length))then
+					priorities(to_integer(unsigned(ADDR))-64) <= D;
+					-- Read-during-write on the same port returns NEW data
+					priorities_Q <= D;
+				else
+					priorities_Q <= (others=>'0');
+				end if;
+			elsif(all_periphs_rden(8)='1')then
+				if(unsigned(ADDR) < to_unsigned(72, ADDR'length))then
+					-- Read-during-write on the mixed port returns OLD data
+					priorities_Q <= priorities(to_integer(unsigned(ADDR))-64);
+				else
+					priorities_Q <= (others=>'0');
+				end if;
 			end if;
 		end if;
 	end process;
@@ -432,9 +463,12 @@ begin
 			WREN => WREN,-- input
 			data_in => all_periphs_output,-- input: outputs of all peripheral
 			ready_in => all_periphs_ready,
+			valid_in => (8 downto 0 => '1'),
 			RDEN_OUT => all_periphs_rden,-- output
 			WREN_OUT => all_periphs_wren,-- output
 			ready_out => ready,
+			valid_out => open,
+			MASTER_CLK_ID => (others => '0'),
 			data_out => output-- data read
 	);
 end behv;
