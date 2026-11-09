@@ -1,6 +1,6 @@
 # processor_demo
 
-Single chip computer based on my own RISC microprocessor (https://github.com/RenanPicoli/microprocessor). Built and tested on Altera DE2-115 board.
+Single chip computer based on my own RISC microprocessor (https://github.com/RenanPicoli/microprocessor). Written in VHDL, built and tested on Altera DE2-115 board.
 
 <img width="1800" height="1320" alt="processor_demo_blocks_en" src="https://github.com/user-attachments/assets/d6aa52ad-33a7-4597-baf8-b71c8f500250" />
 
